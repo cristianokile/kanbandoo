@@ -1,0 +1,20 @@
+# KanbanDoo - Reescrita de URLs (Apache)
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Prefixo automático quando o app está numa subpasta
+    RewriteBase /
+
+    # Arquivos e pastas que existem são servidos direto (assets, instalador)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Todo o resto vai para o ponto de entrada
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+<IfModule mod_negotiation.c>
+    Options -MultiViews
+</IfModule>

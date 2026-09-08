@@ -1,0 +1,1311 @@
+/* ==========================================================================
+   KanbanDoo - Design System
+   Tema definido por tokens: o modo claro troca as variáveis, não cada classe.
+   ========================================================================== */
+
+:root {
+    --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+    /* Superfícies */
+    --bg: #020617;
+    --surface-1: #0f172a;
+    --surface-2: #111c33;
+    --surface-3: #1e293b;
+    --surface-sunken: #020617;
+
+    /* Traços */
+    --border: #1e293b;
+    --border-strong: #334155;
+
+    /* Texto (contraste verificado sobre --surface-1) */
+    --text-strong: #f8fafc;
+    --text: #e2e8f0;
+    --text-muted: #a3b1c6;
+    --text-faint: #8496ae;
+
+    /* Marca e estados */
+    --brand: #6366f1;
+    --brand-strong: #818cf8;
+    --brand-soft: rgba(99, 102, 241, 0.16);
+    --success: #34d399;
+    --success-soft: rgba(16, 185, 129, 0.16);
+    --warning: #fbbf24;
+    --warning-soft: rgba(245, 158, 11, 0.16);
+    --danger: #fb7185;
+    --danger-soft: rgba(244, 63, 94, 0.16);
+
+    /* Prioridades */
+    --prio-urgent: #f43f5e;
+    --prio-high: #fb923c;
+    --prio-medium: #f59e0b;
+    --prio-low: #64748b;
+
+    /* Fundo do chip de prioridade: tom mais escuro da mesma família, porque
+       texto branco sobre as cores acima fica entre 2,1 e 3,7:1 (reprova em AA) */
+    --prio-chip-urgent: #e11d48;
+    --prio-chip-high: #c2410c;
+    --prio-chip-medium: #b45309;
+    --prio-chip-low: #475569;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 10px 20px -10px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 24px 45px -20px rgba(0, 0, 0, 0.75);
+
+    --scrim: rgba(2, 6, 23, 0.72);
+
+    /* Liquid glass — valores da receita do David UI (bg-white/2.5, border-white/50,
+       backdrop-blur, realce especular no topo). Ajuste --glass-blur e --glass-tint
+       para deixar o efeito mais forte ou mais discreto em todo o sistema. */
+    --glass-tint: rgba(255, 255, 255, 0.025);
+    --glass-tint-raised: rgba(255, 255, 255, 0.055);
+    /* Card: azul-noite #182543 */
+    --glass-tint-card: rgba(30, 47, 86, 0.72);
+    /* Mesma cor já achatada, usada quando o vidro está desligado */
+    --card-solid: #182543;
+    --glass-border: rgba(255, 255, 255, 0.14);
+    --glass-border-bright: rgba(255, 255, 255, 0.24);
+    --glass-blur: 14px;
+    --glass-blur-soft: 8px;
+    --glass-specular: rgba(255, 255, 255, 0.28);
+    --glass-sheen-1: rgba(255, 255, 255, 0.10);
+    --glass-sheen-2: rgba(255, 255, 255, 0.05);
+    --glass-shadow: 0 0 9px rgba(0, 0, 0, 0.2), 0 3px 12px rgba(0, 0, 0, 0.28);
+
+    --radius-sm: 0.5rem;
+    --radius: 0.875rem;
+    --radius-lg: 1.25rem;
+}
+
+html.light {
+    --bg: #f1f5f9;
+    --surface-1: #ffffff;
+    --surface-2: #f8fafc;
+    --surface-3: #eef2f7;
+    --surface-sunken: #f8fafc;
+
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+
+    --text-strong: #0f172a;
+    --text: #1e293b;
+    --text-muted: #52627a;
+    --text-faint: #64748b;
+
+    --brand: #4f46e5;
+    --brand-strong: #4338ca;
+    --brand-soft: rgba(79, 70, 229, 0.1);
+    --success: #059669;
+    --success-soft: rgba(5, 150, 105, 0.12);
+    --warning: #b45309;
+    --warning-soft: rgba(180, 83, 9, 0.12);
+    --danger: #e11d48;
+    --danger-soft: rgba(225, 29, 72, 0.1);
+
+    --prio-urgent: #e11d48;
+    --prio-high: #ea580c;
+    --prio-medium: #d97706;
+    --prio-low: #94a3b8;
+
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 8px 20px -12px rgba(15, 23, 42, 0.25);
+    --shadow-lg: 0 24px 45px -22px rgba(15, 23, 42, 0.3);
+    --scrim: rgba(15, 23, 42, 0.45);
+
+    --glass-tint: rgba(255, 255, 255, 0.58);
+    --glass-tint-raised: rgba(255, 255, 255, 0.78);
+    --glass-tint-card: rgba(79, 70, 229, 0.10);
+    --card-solid: #ededfc;
+    --glass-border: rgba(15, 23, 42, 0.08);
+    --glass-border-bright: rgba(15, 23, 42, 0.16);
+    --glass-blur: 16px;
+    --glass-blur-soft: 10px;
+    --glass-specular: rgba(255, 255, 255, 0.9);
+    --glass-sheen-1: rgba(255, 255, 255, 0.55);
+    --glass-sheen-2: rgba(255, 255, 255, 0.3);
+    --glass-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px -12px rgba(15, 23, 42, 0.18);
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+body {
+    font-family: var(--font-main);
+    letter-spacing: -0.01em;
+    background-color: var(--bg);
+    color: var(--text);
+}
+
+/* O vidro precisa de algo atrás para refratar: um fundo ambiente fixo,
+   sem custo de repintura durante a rolagem. */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        radial-gradient(60rem 40rem at 12% -10%, rgba(99, 102, 241, 0.28), transparent 60%),
+        radial-gradient(50rem 34rem at 88% 6%, rgba(56, 189, 248, 0.20), transparent 62%),
+        radial-gradient(46rem 32rem at 70% 96%, rgba(217, 70, 239, 0.16), transparent 60%),
+        radial-gradient(40rem 30rem at 20% 88%, rgba(16, 185, 129, 0.12), transparent 60%);
+}
+
+html.light body::before {
+    background:
+        radial-gradient(60rem 40rem at 12% -10%, rgba(99, 102, 241, 0.20), transparent 60%),
+        radial-gradient(50rem 34rem at 88% 6%, rgba(56, 189, 248, 0.18), transparent 62%),
+        radial-gradient(46rem 32rem at 70% 96%, rgba(217, 70, 239, 0.12), transparent 60%),
+        radial-gradient(40rem 30rem at 20% 88%, rgba(16, 185, 129, 0.10), transparent 60%);
+}
+
+/* ==========================================================================
+   Liquid glass — primitiva única usada por toda a interface
+   ========================================================================== */
+
+.kd-glass {
+    position: relative;
+    isolation: isolate;
+    background-color: var(--glass-tint);
+    border: 1px solid var(--glass-border);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(165%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(165%);
+    box-shadow: inset 0 1px 0 var(--glass-specular), var(--glass-shadow);
+}
+
+/* Os dois brilhos cruzados que dão o volume do vidro */
+.kd-glass::before,
+.kd-glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+}
+.kd-glass::before {
+    background: linear-gradient(135deg, var(--glass-sheen-1), transparent 55%);
+}
+.kd-glass::after {
+    background: linear-gradient(315deg, var(--glass-sheen-2), transparent 45%);
+}
+
+/* Camada mais opaca: onde há texto denso para ler */
+.kd-glass--raised {
+    background-color: var(--glass-tint-raised);
+    border-color: var(--glass-border-bright);
+    -webkit-backdrop-filter: blur(var(--glass-blur-soft)) saturate(150%);
+    backdrop-filter: blur(var(--glass-blur-soft)) saturate(150%);
+}
+
+/*
+ * Desligar a transparência: pelo botão da barra superior, pela preferência do
+ * sistema, ou enquanto um card está sendo arrastado (o blur por card derruba
+ * o desempenho do arraste).
+ */
+html[data-glass="off"] .kd-glass,
+html.kd-dragging .kd-glass,
+.kd-glass.kd-glass--off {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: var(--surface-1);
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
+}
+/* O card conserva a cor mesmo sem vidro — só o desfoque é abandonado */
+html[data-glass="off"] .kd-card.kd-glass,
+html.kd-dragging .kd-card.kd-glass,
+.kd-card.kd-glass.kd-glass--off {
+    background-color: var(--card-solid);
+}
+
+html[data-glass="off"] .kd-glass::before,
+html[data-glass="off"] .kd-glass::after,
+html.kd-dragging .kd-glass::before,
+html.kd-dragging .kd-glass::after { display: none; }
+
+html[data-glass="off"] body::before { opacity: 0.35; }
+
+/* Sem escolha explícita do usuário, seguimos a preferência do sistema.
+   Se a pessoa ligar o vidro no botão (data-glass="on"), a escolha dela vence. */
+@media (prefers-reduced-transparency: reduce) {
+    html:not([data-glass="on"]) .kd-glass {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background-color: var(--surface-1);
+        border-color: var(--border);
+        box-shadow: var(--shadow-sm);
+    }
+    html:not([data-glass="on"]) .kd-card.kd-glass {
+        background-color: var(--card-solid);
+    }
+    html:not([data-glass="on"]) .kd-glass::before,
+    html:not([data-glass="on"]) .kd-glass::after { display: none; }
+    html:not([data-glass="on"]) body::before { opacity: 0.4; }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-faint) 35%, transparent);
+    border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text-faint) 60%, transparent);
+}
+
+/* Foco visível e consistente em tudo que é operável por teclado */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--brand-strong);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* Respeita quem pediu menos movimento no sistema operacional */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+.animate-fade-in { animation: kdFadeIn 0.18s ease-out; }
+@keyframes kdFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* O atributo hidden precisa vencer as classes de display do Tailwind
+   (um elemento .flex com [hidden] continuaria visível sem esta regra). */
+[hidden] { display: none !important; }
+
+/* Texto visível só para leitores de tela */
+.sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ==========================================================================
+   Ponte com as classes utilitárias do Tailwind usadas nas páginas PHP.
+
+   No tema escuro os tokens já coincidem com a paleta slate do Tailwind, então
+   nada precisa ser sobrescrito. No tema claro, cada utilitário passa a apontar
+   para um token: acrescentar uma classe nova no HTML não exige mais escrever
+   uma regra de tema claro para ela.
+   ========================================================================== */
+
+html.light .bg-slate-950,
+html.light .bg-slate-950\/60,
+html.light .bg-slate-950\/80 { background-color: var(--surface-sunken); }
+
+html.light .bg-slate-900,
+html.light .bg-slate-900\/60,
+html.light .bg-slate-900\/70,
+html.light .bg-slate-900\/80 { background-color: var(--surface-1); }
+
+html.light .bg-slate-800,
+html.light .bg-slate-800\/30,
+html.light .bg-slate-800\/50,
+html.light .bg-slate-800\/80 { background-color: var(--surface-3); }
+
+html.light .border-slate-800,
+html.light .border-slate-800\/60,
+html.light .border-slate-800\/70,
+html.light .border-slate-800\/80 { border-color: var(--border); }
+
+html.light .border-slate-700,
+html.light .border-slate-700\/40,
+html.light .border-slate-700\/50 { border-color: var(--border-strong); }
+
+html.light .text-white { color: var(--text-strong); }
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .text-slate-300 { color: var(--text); }
+html.light .text-slate-400,
+html.light .text-slate-500 { color: var(--text-muted); }
+html.light .placeholder-slate-500::placeholder { color: var(--text-faint); }
+
+html.light h1, html.light h2, html.light h3,
+html.light h4, html.light h5, html.light h6 { color: var(--text-strong); }
+
+html.light input:not([type="checkbox"]):not([type="radio"]),
+html.light select,
+html.light textarea {
+    background-color: var(--surface-1);
+    border-color: var(--border-strong);
+    color: var(--text);
+}
+
+html.light table thead { background-color: var(--surface-2); color: var(--text-muted); }
+html.light tbody tr:hover { background-color: var(--surface-2); }
+
+header.kd-header {
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+input::placeholder, textarea::placeholder { color: var(--text-faint); }
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-soft);
+    outline: none;
+}
+
+/* ==========================================================================
+   Botões
+   ========================================================================== */
+
+.kd-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.2;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+}
+.kd-btn:hover { background-color: var(--glass-tint-raised); color: var(--text-strong); }
+
+.kd-btn--primary {
+    background: var(--brand);
+    border-color: transparent;
+    color: #ffffff;
+    box-shadow: 0 8px 18px -10px var(--brand);
+}
+.kd-btn--primary:hover { background: var(--brand-strong); color: #ffffff; }
+
+.kd-btn--active {
+    background: var(--brand-soft);
+    border-color: color-mix(in srgb, var(--brand) 45%, transparent);
+    color: var(--brand-strong);
+}
+
+.kd-btn--danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); background: var(--danger-soft); }
+.kd-btn--danger:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); color: var(--danger); }
+
+/* Botão que mostra só o ícone e revela o rótulo ao passar o mouse.
+   O texto continua no DOM (recortado, não escondido), então leitores de tela
+   e a busca do navegador seguem encontrando o rótulo. */
+.kd-btn--icon {
+    gap: 0;
+    padding-inline: 0.65rem;
+}
+
+.kd-btn__label {
+    display: inline-block;
+    max-width: 0;
+    margin-left: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: max-width 0.25s ease, opacity 0.18s ease, margin-left 0.25s ease;
+}
+
+.kd-btn--icon:hover .kd-btn__label,
+.kd-btn--icon:focus-visible .kd-btn__label,
+.kd-btn--icon[aria-expanded="true"] .kd-btn__label,
+.kd-btn--icon[aria-pressed="true"] .kd-btn__label,
+.kd-btn--icon.kd-btn--active .kd-btn__label {
+    max-width: 12rem;
+    margin-left: 0.45rem;
+    opacity: 1;
+}
+
+/* O contador de filtros ativos aparece mesmo com o rótulo recolhido */
+.kd-btn--icon .kd-col__count { margin-left: 0.4rem; }
+
+/* Sem mouse (toque), o rótulo fica sempre visível */
+@media (hover: none) {
+    .kd-btn__label {
+        max-width: 12rem;
+        margin-left: 0.45rem;
+        opacity: 1;
+    }
+}
+
+/* Separador entre as métricas e os controles */
+.kd-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border-strong);
+    flex-shrink: 0;
+    margin-inline: 0.15rem;
+}
+
+.kd-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.kd-icon-btn:hover { background: var(--surface-3); color: var(--text-strong); }
+.kd-icon-btn[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand-strong); }
+
+/* ==========================================================================
+   Quadro e colunas
+   ========================================================================== */
+
+.kd-board {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+    min-height: calc(100vh - 230px);
+}
+
+.kd-col {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-width: 300px;
+    max-width: 380px;
+    max-height: calc(100vh - 230px);
+    border-radius: var(--radius-lg);
+    padding: 0.875rem;
+}
+
+.kd-col__body { position: relative; z-index: 1; }
+
+.kd-col__header {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-bottom: 0.625rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.kd-col__name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-strong);
+    min-width: 0;
+}
+
+.kd-col__dot { width: 10px; height: 10px; border-radius: 9999px; flex-shrink: 0; }
+
+.kd-col__count {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    background: var(--surface-3);
+    color: var(--text-muted);
+}
+.kd-col__count--over {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.kd-col__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    min-height: 60px;
+}
+
+.kd-col__empty {
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    padding: 1.25rem 0.75rem;
+    text-align: center;
+    font-size: 0.6875rem;
+    color: var(--text-faint);
+    line-height: 1.5;
+}
+
+.kd-col__add {
+    margin-top: 0.75rem;
+    width: 100%;
+    padding: 0.55rem;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+    cursor: pointer;
+}
+.kd-col__add:hover {
+    color: var(--brand-strong);
+    border-color: var(--brand);
+    background: var(--brand-soft);
+}
+
+.kd-col__wip {
+    font-size: 0.6875rem;
+    color: var(--danger);
+    background: var(--danger-soft);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+    border-radius: var(--radius-sm);
+    padding: 0.375rem 0.5rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+/* Coluna recolhida vira uma faixa vertical */
+.kd-col--collapsed {
+    min-width: 56px;
+    max-width: 56px;
+    padding: 0.75rem 0.5rem;
+    align-items: center;
+}
+.kd-col--collapsed .kd-col__body,
+.kd-col--collapsed .kd-col__add,
+.kd-col--collapsed .kd-col__wip,
+.kd-col--collapsed .kd-col__menu-wrap { display: none; }
+.kd-col--collapsed .kd-col__header {
+    flex-direction: column;
+    gap: 0.75rem;
+    border-bottom: none;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+.kd-col--collapsed .kd-col__name {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    gap: 0.75rem;
+}
+
+/* Divisor de agrupamento por cliente dentro da coluna */
+.kd-group-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.625rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    padding: 0.25rem 0.125rem;
+}
+.kd-group-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+/* ==========================================================================
+   Card
+   ========================================================================== */
+
+.kd-card {
+    position: relative;
+    border-radius: var(--radius);
+    padding: 0.7rem 0.875rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    cursor: grab;
+}
+.kd-card.kd-glass { background-color: var(--glass-tint-card); }
+
+.kd-card:hover {
+    border-color: var(--glass-border-bright);
+    box-shadow: inset 0 1px 0 var(--glass-specular), var(--shadow-md);
+}
+.kd-card:focus-visible {
+    outline: 2px solid var(--brand-strong);
+    outline-offset: 2px;
+}
+.kd-card:active { cursor: grabbing; }
+.kd-card.is-busy { opacity: 0.55; pointer-events: none; }
+
+/* Prioridade: chip com o rótulo, na cor do status e texto branco */
+.kd-prio {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 0.12rem 0.45rem;
+    border-radius: var(--radius-sm);
+    background: var(--prio-chip-low);
+    color: #ffffff;
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+.kd-card[data-priority="urgent"] .kd-prio { background: var(--prio-chip-urgent); }
+.kd-card[data-priority="high"]   .kd-prio { background: var(--prio-chip-high); }
+.kd-card[data-priority="medium"] .kd-prio { background: var(--prio-chip-medium); }
+.kd-card[data-priority="low"]    .kd-prio { background: var(--prio-chip-low); }
+
+/* Nome da empresa, logo abaixo do título */
+
+/* Estados especiais: um anel discreto, sem competir com o título */
+.kd-card[data-focus="1"] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent), var(--shadow-sm); }
+
+/*
+ * Bomba: borda vermelha cheia — precisa ser resolvida antes de estourar.
+ *
+ * Os seletores abaixo repetem o contexto de propósito: as regras de
+ * contingência do vidro (transparência reduzida, vidro desligado, arraste)
+ * definem border-color com especificidade maior e apagariam o vermelho.
+ */
+.kd-card[data-bomb="1"],
+.kd-card.kd-glass[data-bomb="1"],
+.kd-card.kd-glass[data-bomb="1"]:hover,
+html[data-glass="off"] .kd-card.kd-glass[data-bomb="1"],
+html.kd-dragging .kd-card.kd-glass[data-bomb="1"] {
+    border-color: var(--danger);
+    animation: kdBombPulse 1.8s ease-in-out infinite;
+    /* Não arrasta: a tarefa fica onde está até ser resolvida */
+    cursor: default;
+    -webkit-user-drag: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    html:not([data-glass="on"]) .kd-card.kd-glass[data-bomb="1"] {
+        border-color: var(--danger);
+        animation: kdBombPulse 1.8s ease-in-out infinite;
+    }
+}
+
+/*
+ * Um LED vermelho pulsando atrás do card: só o halo cresce e diminui.
+ * A borda permanece fixa — nenhum anel na animação, para a espessura da
+ * borda não parecer que está mudando.
+ *
+ * Os valores são literais de propósito: color-mix() com var() dentro de
+ * @keyframes não interpola, e a animação roda sem sair do lugar.
+ */
+@keyframes kdBombPulse {
+    0%, 100% {
+        box-shadow: 0 0 12px -2px rgba(244, 63, 94, 0.30),
+                    0 0 26px 0 rgba(244, 63, 94, 0.10);
+    }
+    50% {
+        box-shadow: 0 0 22px 3px rgba(244, 63, 94, 0.65),
+                    0 0 52px 12px rgba(244, 63, 94, 0.32);
+    }
+}
+
+/* Quem pediu menos movimento recebe o alerta parado, mas ainda visível */
+@media (prefers-reduced-motion: reduce) {
+    .kd-card[data-bomb="1"],
+    .kd-card.kd-glass[data-bomb="1"],
+    html[data-glass="off"] .kd-card.kd-glass[data-bomb="1"] {
+        animation: none;
+        box-shadow: 0 0 20px 2px rgba(244, 63, 94, 0.5),
+                    0 0 40px 8px rgba(244, 63, 94, 0.22);
+    }
+}
+.kd-card[data-running="1"] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 55%, transparent), var(--shadow-sm); }
+.kd-card[data-done="1"] .kd-card__title { color: var(--text-muted); text-decoration: line-through; }
+
+.kd-card__top {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 26px;
+}
+
+/* Ponto de prioridade + nome do cliente, à esquerda */
+.kd-card__meta-left {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+/* Nome do cliente: rótulo discreto abaixo do título, sem moldura */
+.kd-client {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    line-height: 1.3;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+}
+.kd-client--none { color: var(--text-faint); font-weight: 600; font-style: italic; }
+
+
+
+/* Etiquetas */
+.kd-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.kd-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    max-width: 100%;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1.5;
+    background: var(--surface-3);
+    color: var(--text-muted);
+    border: 1px solid var(--text-muted);
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.kd-tag:hover { border-color: var(--text); color: var(--text-strong); }
+
+.kd-tag--active { background: var(--brand-soft); color: var(--brand-strong); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+.kd-tag--more { cursor: default; }
+
+/* Editor de etiquetas no formulário */
+.kd-tag-editor {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface-sunken);
+    min-height: 42px;
+}
+.kd-tag-editor:focus-within {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.kd-tag-editor input {
+    flex: 1;
+    min-width: 130px;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0.15rem 0.1rem;
+    font-size: 0.75rem;
+    color: var(--text);
+    outline: none;
+}
+.kd-tag-editor .kd-tag { cursor: default; }
+.kd-tag__remove {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.1rem;
+    opacity: 0.65;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: inherit;
+    padding: 0;
+}
+.kd-tag__remove:hover { opacity: 1; }
+
+.kd-card__title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text-strong);
+    line-height: 1.35;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+}
+.kd-card__title:hover { color: var(--brand-strong); }
+
+/* Chip do cliente: único elemento com cor forte no card */
+.kd-chip-client {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start; /* não estica na coluna flex do card */
+    gap: 0.3rem;
+    max-width: 100%;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1.4;
+    border: 1px solid;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.kd-chip-client[data-color="0"] { color: #818cf8; background: rgba(99,102,241,.14); border-color: rgba(99,102,241,.3); }
+.kd-chip-client[data-color="1"] { color: #34d399; background: rgba(16,185,129,.14); border-color: rgba(16,185,129,.3); }
+.kd-chip-client[data-color="2"] { color: #f472b6; background: rgba(236,72,153,.14); border-color: rgba(236,72,153,.3); }
+.kd-chip-client[data-color="3"] { color: #38bdf8; background: rgba(14,165,233,.14); border-color: rgba(14,165,233,.3); }
+.kd-chip-client[data-color="4"] { color: #fbbf24; background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.3); }
+.kd-chip-client[data-color="5"] { color: #c084fc; background: rgba(168,85,247,.14); border-color: rgba(168,85,247,.3); }
+.kd-chip-client[data-color="6"] { color: #2dd4bf; background: rgba(20,184,166,.14); border-color: rgba(20,184,166,.3); }
+.kd-chip-client[data-color="7"] { color: #fb923c; background: rgba(249,115,22,.14); border-color: rgba(249,115,22,.3); }
+.kd-chip-client[data-color="8"] { color: #a3e635; background: rgba(132,204,22,.14); border-color: rgba(132,204,22,.3); }
+.kd-chip-client[data-color="9"] { color: #f87171; background: rgba(239,68,68,.14); border-color: rgba(239,68,68,.3); }
+
+html.light .kd-chip-client[data-color="0"] { color: #4338ca; }
+html.light .kd-chip-client[data-color="1"] { color: #047857; }
+html.light .kd-chip-client[data-color="2"] { color: #be185d; }
+html.light .kd-chip-client[data-color="3"] { color: #0369a1; }
+html.light .kd-chip-client[data-color="4"] { color: #b45309; }
+html.light .kd-chip-client[data-color="5"] { color: #7e22ce; }
+html.light .kd-chip-client[data-color="6"] { color: #0f766e; }
+html.light .kd-chip-client[data-color="7"] { color: #c2410c; }
+html.light .kd-chip-client[data-color="8"] { color: #4d7c0f; }
+html.light .kd-chip-client[data-color="9"] { color: #b91c1c; }
+
+/* Linha de metadados */
+.kd-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.375rem 0.625rem;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+}
+.kd-meta__item { display: inline-flex; align-items: center; gap: 0.25rem; }
+
+.kd-due {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+.kd-due[data-tone="overdue"] { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
+.kd-due[data-tone="today"]   { color: var(--warning); background: var(--warning-soft); border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
+.kd-due[data-tone="soon"]    { color: var(--text); background: var(--surface-3); border-color: var(--border); }
+.kd-due[data-tone="later"]   { color: var(--text-muted); background: transparent; border-color: var(--border); }
+
+/* Progresso do checklist */
+.kd-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-variant-numeric: tabular-nums;
+}
+.kd-progress__track {
+    width: 42px;
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--surface-3);
+    overflow: hidden;
+}
+.kd-progress__fill {
+    height: 100%;
+    border-radius: 9999px;
+    background: var(--brand);
+    transition: width 0.25s ease;
+}
+.kd-progress--done .kd-progress__fill { background: var(--success); }
+
+.kd-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.kd-avatars { display: flex; }
+.kd-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    background: var(--brand-soft);
+    color: var(--brand-strong);
+    font-size: 0.625rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--surface-1);
+    margin-left: -6px;
+}
+.kd-avatar:first-child { margin-left: 0; }
+.kd-avatar--empty { background: var(--surface-3); color: var(--text-faint); }
+
+.kd-timer {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+.kd-timer[data-running="1"] { color: var(--success); }
+
+.kd-play {
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--success-soft);
+    color: var(--success);
+    border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+    transition: transform 0.15s ease, background-color 0.15s ease;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.kd-play:hover { transform: scale(1.08); }
+.kd-play[data-running="1"] {
+    background: var(--warning-soft);
+    color: var(--warning);
+    border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+}
+
+/* Etiquetas de estado do card (foco, bomba, menção) */
+.kd-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    padding: 0.1rem 0.375rem;
+    border-radius: var(--radius-sm);
+}
+.kd-flag--focus { color: var(--brand-strong); background: var(--brand-soft); }
+.kd-flag--bomb { color: var(--danger); background: var(--danger-soft); }
+.kd-flag--mention { color: var(--success); background: var(--success-soft); }
+
+/* ==========================================================================
+   Menu de ações (substitui a gaveta de ícones sem rótulo)
+   ========================================================================== */
+
+.kd-menu-wrap { position: relative; flex-shrink: 0; }
+
+.kd-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 40;
+    min-width: 210px;
+    padding: 0.3rem;
+    border-radius: var(--radius);
+}
+.kd-menu[hidden] { display: none; }
+
+.kd-menu__item {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text);
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+}
+.kd-menu__item:hover, .kd-menu__item:focus-visible { background: var(--surface-3); color: var(--text-strong); }
+.kd-menu__item--danger { color: var(--danger); }
+.kd-menu__item--danger:hover { background: var(--danger-soft); color: var(--danger); }
+.kd-menu__sep { height: 1px; background: var(--border); margin: 0.3rem 0.25rem; }
+.kd-menu__hint { margin-left: auto; font-size: 0.625rem; color: var(--text-faint); font-weight: 500; }
+
+/* ==========================================================================
+   Toast com ação de Desfazer
+   ========================================================================== */
+
+.kd-toast-stack {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-end;
+    pointer-events: none;
+}
+
+.kd-toast {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: min(92vw, 26rem);
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.75rem;
+    font-weight: 600;
+    pointer-events: auto;
+    animation: kdToastIn 0.2s ease-out;
+}
+.kd-toast[data-tone="success"] { border-left: 3px solid var(--success); }
+.kd-toast[data-tone="error"] { border-left: 3px solid var(--danger); }
+.kd-toast[data-tone="info"] { border-left: 3px solid var(--brand); }
+.kd-toast.is-leaving { animation: kdToastOut 0.18s ease-in forwards; }
+
+.kd-toast__text { flex: 1; min-width: 0; }
+.kd-toast__action {
+    flex-shrink: 0;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius-sm);
+    background: var(--brand-soft);
+    color: var(--brand-strong);
+    font-weight: 700;
+    font-size: 0.6875rem;
+    border: none;
+    cursor: pointer;
+}
+.kd-toast__action:hover { background: color-mix(in srgb, var(--brand) 28%, transparent); }
+
+@keyframes kdToastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes kdToastOut { to { opacity: 0; transform: translateY(12px); } }
+
+/* ==========================================================================
+   Esqueleto de carregamento
+   ========================================================================== */
+
+.kd-skeleton {
+    background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-2) 37%, var(--surface-3) 63%);
+    background-size: 400% 100%;
+    animation: kdShimmer 1.4s ease infinite;
+    border-radius: var(--radius);
+}
+@keyframes kdShimmer { from { background-position: 100% 50%; } to { background-position: 0 50%; } }
+
+.kd-skeleton-card { height: 104px; }
+
+/* ==========================================================================
+   Barra de ferramentas do quadro
+   ========================================================================== */
+
+.kd-metric {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: var(--radius);
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.kd-metric__value { font-weight: 800; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.kd-metric__value[data-tone="warning"] { color: var(--warning); }
+.kd-metric__value[data-tone="danger"] { color: var(--danger); }
+.kd-metric__value[data-tone="success"] { color: var(--success); }
+
+.kd-field {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface-sunken);
+    color: var(--text);
+    font-size: 0.75rem;
+}
+
+.kd-chip-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    background: var(--brand-soft);
+    color: var(--brand-strong);
+    border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+}
+.kd-chip-filter button { display: inline-flex; }
+
+/* Seletor de coluna no celular */
+.kd-segmented {
+    display: none;
+    gap: 0.375rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+.kd-segmented__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.kd-segmented__item[aria-selected="true"] {
+    background: var(--brand-soft);
+    border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+    color: var(--brand-strong);
+}
+
+/* ==========================================================================
+   Modais
+   ========================================================================== */
+
+.kd-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 1rem;
+    overflow-y: auto;
+    background: var(--scrim);
+    backdrop-filter: blur(4px);
+}
+.kd-modal[hidden] { display: none; }
+
+.kd-modal__panel {
+    border-radius: var(--radius-lg);
+    width: 100%;
+    margin: 2rem 0;
+    padding: 1.5rem;
+    animation: kdFadeIn 0.18s ease-out;
+}
+
+.modal-tab-btn {
+    position: relative;
+    padding: 0.625rem 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    white-space: nowrap;
+    background: none;
+    cursor: pointer;
+}
+.modal-tab-btn:hover { color: var(--text-strong); }
+.modal-tab-btn[aria-selected="true"] { color: var(--brand-strong); border-bottom-color: var(--brand); }
+
+.kd-panel {
+    border-radius: var(--radius);
+    padding: 1.1rem;
+}
+
+.kd-inline-error {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.35rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--danger);
+}
+.kd-inline-error[hidden] { display: none; }
+
+.kd-field-invalid { border-color: var(--danger) !important; }
+
+/* ==========================================================================
+   Drag & drop
+   ========================================================================== */
+
+.sortable-ghost {
+    opacity: 0.35;
+    border: 2px dashed var(--brand) !important;
+    background: var(--brand-soft) !important;
+}
+.sortable-chosen { box-shadow: var(--shadow-lg); }
+.kd-col__body.kd-drop-target { background: var(--brand-soft); border-radius: var(--radius); }
+
+/* ==========================================================================
+   Responsivo — abaixo de 768px o quadro vira uma coluna por vez
+   ========================================================================== */
+
+@media (max-width: 767px) {
+    .kd-segmented { display: flex; }
+
+    .kd-board {
+        display: block;
+        overflow-x: visible;
+        min-height: 0;
+    }
+
+    .kd-col {
+        display: none;
+        max-width: 100%;
+        min-width: 0;
+        width: 100%;
+        max-height: none;
+        border: none;
+        background: transparent;
+        padding: 0;
+    }
+    .kd-col.is-active-mobile { display: flex; }
+    .kd-col--collapsed { min-width: 0; max-width: 100%; }
+    .kd-col--collapsed .kd-col__body,
+    .kd-col--collapsed .kd-col__add { display: flex; }
+    .kd-col--collapsed .kd-col__name { writing-mode: horizontal-tb; transform: none; }
+
+    .kd-col__body { overflow: visible; max-height: none; }
+
+    /* Recolher coluna não faz sentido quando só uma aparece por vez */
+    .kd-col [data-action="toggle-collapse"] { display: none; }
+
+    .kd-toast-stack { left: 1rem; right: 1rem; bottom: 1rem; align-items: stretch; }
+    .kd-toast { max-width: 100%; }
+
+    .kd-modal__panel { padding: 1.1rem; margin: 0.5rem 0; }
+}
