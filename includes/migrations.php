@@ -75,5 +75,50 @@ function kanbandoo_migrations(string $driver): array
             "ALTER TABLE tasks ADD COLUMN archived_at $datetime DEFAULT NULL",
             "CREATE INDEX IF NOT EXISTS idx_tasks_archived ON tasks (archived_at)",
         ],
+
+        // Modelos de tarefas pré-configurados
+        '005_task_templates' => [
+            $driver === 'sqlite'
+                ? "CREATE TABLE IF NOT EXISTS task_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    estimated_minutes INTEGER DEFAULT NULL,
+                    tags TEXT DEFAULT '[]',
+                    description TEXT DEFAULT NULL,
+                    checklist TEXT DEFAULT '[]',
+                    created_by INTEGER DEFAULT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )"
+                : "CREATE TABLE IF NOT EXISTS task_templates (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    estimated_minutes INT DEFAULT NULL,
+                    tags TEXT DEFAULT NULL,
+                    description TEXT DEFAULT NULL,
+                    checklist TEXT DEFAULT NULL,
+                    created_by INT DEFAULT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )",
+        ],
+
+        // Tarefas recorrentes (diário, semanal, quinzenal, mensal, anual, personalizada)
+        '006_task_recurrence' => [
+            "ALTER TABLE tasks ADD COLUMN is_recurring $int DEFAULT 0",
+            "ALTER TABLE tasks ADD COLUMN recurrence_type VARCHAR(50) DEFAULT NULL",
+            "ALTER TABLE tasks ADD COLUMN recurrence_config TEXT DEFAULT NULL",
+            "ALTER TABLE tasks ADD COLUMN parent_task_id $int DEFAULT NULL",
+        ],
+
+        // Horário de expediente, capacidade e preferências de visão do quadro
+        '007_work_hours_and_board_settings' => [
+            "ALTER TABLE tasks ADD COLUMN estimated_minutes $int DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN work_start_time VARCHAR(10) DEFAULT '09:00'",
+            "ALTER TABLE users ADD COLUMN work_end_time VARCHAR(10) DEFAULT '17:00'",
+            "ALTER TABLE users ADD COLUMN work_days VARCHAR(50) DEFAULT '1,2,3,4,5'",
+            "ALTER TABLE users ADD COLUMN board_view_mode VARCHAR(20) DEFAULT 'status'",
+            "ALTER TABLE users ADD COLUMN visible_columns_json TEXT DEFAULT NULL",
+        ],
     ];
 }

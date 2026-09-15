@@ -26,6 +26,11 @@ CREATE TABLE IF NOT EXISTS users (
     role TEXT NOT NULL DEFAULT 'member',
     avatar_path TEXT DEFAULT NULL,
     theme_preference TEXT NOT NULL DEFAULT 'dark',
+    work_start_time TEXT NOT NULL DEFAULT '09:00',
+    work_end_time TEXT NOT NULL DEFAULT '17:00',
+    work_days TEXT NOT NULL DEFAULT '1,2,3,4,5',
+    board_view_mode TEXT NOT NULL DEFAULT 'status',
+    visible_columns_json TEXT DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

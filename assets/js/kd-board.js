@@ -21,11 +21,22 @@ window.KD = window.KD || {};
         mobileStageId: null,
         showArchived: false,
         allTags: [],
+        viewMode: 'status', // 'status' ou 'weekdays'
+        tagVisibility: 'hover', // 'hover', 'always', 'hidden'
+        workHours: { start: '09:00', end: '17:00', capacityMinutes: 480 },
+        workDays: ['1', '2', '3', '4', '5'],
+        hiddenColumns: {
+            status: new Set(),
+            weekdays: new Set(),
+        },
     };
 
     const sortables = [];
     const COLLAPSE_KEY = 'kanbandoo_collapsed_stages';
     const VIEW_KEY = 'kanbandoo_board_view';
+    const VIEW_MODE_KEY = 'kanbandoo_board_view_mode';
+    const HIDDEN_COLS_KEY = 'kanbandoo_hidden_columns';
+    const TAG_VISIBILITY_KEY = 'kanbandoo_tag_visibility';
 
     KD.board = board;
 
@@ -36,10 +47,30 @@ window.KD = window.KD || {};
     function loadViewPrefs() {
         try {
             const collapsed = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]');
-            if (Array.isArray(collapsed)) collapsed.forEach((id) => board.collapsed.add(Number(id)));
+            if (Array.isArray(collapsed)) collapsed.forEach((id) => board.collapsed.add(String(id)));
 
             const view = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
             board.groupByClient = Boolean(view.groupByClient);
+
+            const savedMode = localStorage.getItem(VIEW_MODE_KEY);
+            if (savedMode === 'status' || savedMode === 'weekdays') {
+                board.viewMode = savedMode;
+            }
+
+            const savedTagVis = localStorage.getItem(TAG_VISIBILITY_KEY);
+            if (savedTagVis === 'hover' || savedTagVis === 'always' || savedTagVis === 'hidden') {
+                board.tagVisibility = savedTagVis;
+            }
+
+            const savedHidden = JSON.parse(localStorage.getItem(HIDDEN_COLS_KEY) || '{}');
+            if (savedHidden && typeof savedHidden === 'object') {
+                if (Array.isArray(savedHidden.status)) {
+                    board.hiddenColumns.status = new Set(savedHidden.status.map(String));
+                }
+                if (Array.isArray(savedHidden.weekdays)) {
+                    board.hiddenColumns.weekdays = new Set(savedHidden.weekdays.map(String));
+                }
+            }
         } catch (e) { /* localStorage indisponível */ }
     }
 
@@ -47,8 +78,42 @@ window.KD = window.KD || {};
         try {
             localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(board.collapsed)));
             localStorage.setItem(VIEW_KEY, JSON.stringify({ groupByClient: board.groupByClient }));
+            localStorage.setItem(VIEW_MODE_KEY, board.viewMode);
+            localStorage.setItem(TAG_VISIBILITY_KEY, board.tagVisibility);
+            localStorage.setItem(HIDDEN_COLS_KEY, JSON.stringify({
+                status: Array.from(board.hiddenColumns.status),
+                weekdays: Array.from(board.hiddenColumns.weekdays),
+            }));
         } catch (e) { /* localStorage indisponível */ }
     }
+
+    function applyTagVisibility() {
+        const container = el('kanbanBoard');
+        if (!container) return;
+        container.classList.remove('kd-tags-hover', 'kd-tags-always', 'kd-tags-hidden');
+        container.classList.add(`kd-tags-${board.tagVisibility || 'hover'}`);
+    }
+
+    function updateTagMenuCheckmarks() {
+        document.querySelectorAll('.tag-opt-check').forEach((chk) => {
+            chk.hidden = (chk.dataset.mode !== board.tagVisibility);
+        });
+    }
+
+    KD.setTagVisibility = function (mode) {
+        if (!['hover', 'always', 'hidden'].includes(mode)) return;
+        board.tagVisibility = mode;
+        saveViewPrefs();
+        applyTagVisibility();
+        updateTagMenuCheckmarks();
+
+        const messages = {
+            hover: 'Etiquetas serão exibidas ao passar o mouse sobre o cartão.',
+            always: 'Etiquetas sempre visíveis nos cartões.',
+            hidden: 'Etiquetas ocultadas nos cartões.',
+        };
+        KD.toast(messages[mode] || 'Preferência salva.');
+    };
 
     // ---------------------------------------------------------------
     // Filtros: lidos do formulário e refletidos na URL (link compartilhável)
@@ -122,6 +187,39 @@ window.KD = window.KD || {};
         if (groupBtn) {
             groupBtn.setAttribute('aria-pressed', String(board.groupByClient));
             groupBtn.classList.toggle('kd-btn--active', board.groupByClient);
+        }
+
+        // Modo de visão (Status vs Semana)
+        const isWeek = board.viewMode === 'weekdays';
+        const btnStatus = el('btnViewStatus');
+        const btnWeek = el('btnViewWeekdays');
+        if (btnStatus) {
+            btnStatus.classList.toggle('text-indigo-400', !isWeek);
+            btnStatus.classList.toggle('bg-indigo-600/15', !isWeek);
+            btnStatus.classList.toggle('border', !isWeek);
+            btnStatus.classList.toggle('border-indigo-500/20', !isWeek);
+            btnStatus.classList.toggle('text-slate-400', isWeek);
+        }
+        if (btnWeek) {
+            btnWeek.classList.toggle('text-indigo-400', isWeek);
+            btnWeek.classList.toggle('bg-indigo-600/15', isWeek);
+            btnWeek.classList.toggle('border', isWeek);
+            btnWeek.classList.toggle('border-indigo-500/20', isWeek);
+            btnWeek.classList.toggle('text-slate-400', !isWeek);
+        }
+
+        // Badge de colunas ocultas
+        const hiddenCount = (board.hiddenColumns && board.hiddenColumns[board.viewMode]) ? board.hiddenColumns[board.viewMode].size : 0;
+        const colBadge = el('columnsHiddenBadge');
+        if (colBadge) {
+            colBadge.textContent = hiddenCount > 0 ? `-${hiddenCount}` : '';
+            colBadge.hidden = hiddenCount === 0;
+        }
+
+        // Rótulo do botão de expediente
+        if (el('workHoursLabel') && board.workHours) {
+            const h = Math.round((board.workHours.capacityMinutes || 480) / 60);
+            el('workHoursLabel').textContent = `${(board.workHours.start || '09:00').slice(0, 2)}h–${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h)`;
         }
 
         const count = activeFilterCount();
@@ -205,6 +303,19 @@ window.KD = window.KD || {};
             board.doneVisibleDays = data.done_visible_days || 14;
             board.currentUserId = data.current_user_id || 0;
             board.allTags = data.all_tags || [];
+
+            if (data.work_start_time && data.work_end_time) {
+                board.workHours = {
+                    start: data.work_start_time,
+                    end: data.work_end_time,
+                    capacityMinutes: Number(data.work_capacity_minutes) || 480,
+                };
+            }
+            if (data.work_days) board.workDays = data.work_days;
+            if (data.board_view_mode && !localStorage.getItem(VIEW_MODE_KEY)) {
+                board.viewMode = data.board_view_mode;
+            }
+
             board.loaded = true;
             renderTagFilterOptions();
 
@@ -316,6 +427,91 @@ window.KD = window.KD || {};
         return board.tasks.filter((task) => Number(task.stage_id) === Number(stageId));
     }
 
+    function getColumnTimeInfo(tasks) {
+        const totalMinutes = tasks.reduce((sum, t) => sum + (Number(t.estimated_minutes) || 0), 0);
+        const capacity = Number((board.workHours && board.workHours.capacityMinutes) || 480);
+        const ratio = capacity > 0 ? (totalMinutes / capacity) : 0;
+
+        let tone = 'ok';
+        let label = 'Dentro da capacidade do expediente';
+        if (ratio > 1.0) {
+            tone = 'danger'; // Vermelho: extrapola o limite de horas do dia
+            label = 'Extrapolou a capacidade do expediente!';
+        } else if (ratio >= 0.8) {
+            tone = 'warning'; // Amarelo: próximo de extrapolar o horário
+            label = 'Próximo de extrapolar a capacidade do expediente';
+        }
+
+        return {
+            totalMinutes,
+            capacity,
+            ratio,
+            tone,
+            label,
+            formattedTotal: KD.formatMinutes ? KD.formatMinutes(totalMinutes) : `${totalMinutes}m`,
+            formattedCapacity: KD.formatMinutes ? KD.formatMinutes(capacity) : `${capacity}m`,
+        };
+    }
+
+    function getWeekDays() {
+        const now = new Date();
+        const currentDay = now.getDay(); // 0 = Domingo, 1 = Segunda, ...
+        const sunday = new Date(now);
+        sunday.setDate(now.getDate() - currentDay);
+        sunday.setHours(0, 0, 0, 0);
+
+        const days = [
+            { id: 'sun', dayIndex: 0, name: 'Domingo', short: 'Dom', color: '#ec4899' },
+            { id: 'mon', dayIndex: 1, name: 'Segunda-feira', short: 'Seg', color: '#6366f1' },
+            { id: 'tue', dayIndex: 2, name: 'Terça-feira', short: 'Ter', color: '#3b82f6' },
+            { id: 'wed', dayIndex: 3, name: 'Quarta-feira', short: 'Qua', color: '#06b6d4' },
+            { id: 'thu', dayIndex: 4, name: 'Quinta-feira', short: 'Qui', color: '#10b981' },
+            { id: 'fri', dayIndex: 5, name: 'Sexta-feira', short: 'Sex', color: '#f59e0b' },
+            { id: 'sat', dayIndex: 6, name: 'Sábado', short: 'Sáb', color: '#8b5cf6' },
+            { id: 'nodate', dayIndex: -1, name: 'Sem prazo', short: 'S/P', color: '#64748b' },
+        ];
+
+        const todayY = now.getFullYear();
+        const todayM = String(now.getMonth() + 1).padStart(2, '0');
+        const todayD = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${todayY}-${todayM}-${todayD}`;
+
+        days.forEach((d) => {
+            if (d.dayIndex >= 0) {
+                const date = new Date(sunday);
+                date.setDate(sunday.getDate() + d.dayIndex);
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                d.dateString = `${y}-${m}-${day}`;
+                d.formattedDate = `${day}/${m}`;
+                d.isToday = (d.dateString === todayStr);
+            } else {
+                d.dateString = '';
+                d.formattedDate = '';
+                d.isToday = false;
+            }
+        });
+
+        return days;
+    }
+
+    function tasksOfWeekday(day) {
+        if (day.id === 'nodate') {
+            return board.tasks.filter((t) => !t.due_date);
+        }
+        return board.tasks.filter((t) => {
+            if (!t.due_date) return false;
+            if (t.due_date === day.dateString) return true;
+            const parts = t.due_date.split('-');
+            if (parts.length === 3) {
+                const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                if (dt.getDay() === day.dayIndex) return true;
+            }
+            return false;
+        });
+    }
+
     function destroySortables() {
         while (sortables.length) {
             const instance = sortables.pop();
@@ -329,19 +525,33 @@ window.KD = window.KD || {};
 
         // Guarda a rolagem de cada coluna para não "pular" a cada atualização.
         const scrollMemory = {};
-        container.querySelectorAll('.kd-col__body[data-stage-id]').forEach((body) => {
-            scrollMemory[body.dataset.stageId] = body.scrollTop;
+        container.querySelectorAll('.kd-col__body').forEach((body) => {
+            const key = body.dataset.stageId || body.dataset.weekdayId;
+            if (key) scrollMemory[key] = body.scrollTop;
         });
         const boardScroll = container.scrollLeft;
         const focusedTaskId = document.activeElement?.closest?.('.kd-card')?.dataset.taskId || null;
 
         destroySortables();
-        container.innerHTML = board.stages.map(columnHtml).join('');
+
+        if (board.viewMode === 'weekdays') {
+            const days = getWeekDays();
+            const visibleDays = days.filter((d) => !board.hiddenColumns.weekdays.has(d.id));
+            container.innerHTML = visibleDays.length > 0
+                ? visibleDays.map(columnWeekdayHtml).join('')
+                : `<div class="p-8 text-center text-slate-400 text-sm">Todas as colunas deste modo estão ocultas. <button type="button" class="text-indigo-400 underline font-semibold ml-1" onclick="KD.resetVisibleColumns()">Restaurar colunas</button></div>`;
+        } else {
+            const visibleStages = board.stages.filter((s) => !board.hiddenColumns.status.has(String(s.id)));
+            container.innerHTML = visibleStages.length > 0
+                ? visibleStages.map(columnHtml).join('')
+                : `<div class="p-8 text-center text-slate-400 text-sm">Todas as colunas deste modo estão ocultas. <button type="button" class="text-indigo-400 underline font-semibold ml-1" onclick="KD.resetVisibleColumns()">Restaurar colunas</button></div>`;
+        }
 
         // Restaura rolagem, foco e reativa o arrastar
         container.scrollLeft = boardScroll;
-        container.querySelectorAll('.kd-col__body[data-stage-id]').forEach((body) => {
-            const remembered = scrollMemory[body.dataset.stageId];
+        container.querySelectorAll('.kd-col__body').forEach((body) => {
+            const key = body.dataset.stageId || body.dataset.weekdayId;
+            const remembered = scrollMemory[key];
             if (remembered) body.scrollTop = remembered;
             initSortable(body);
         });
@@ -353,15 +563,26 @@ window.KD = window.KD || {};
 
         renderStageTabs();
         applyMobileStage();
+        updateToolbarState();
+        applyTagVisibility();
+        updateTagMenuCheckmarks();
         KD.icons();
+    }
+
+    function isMentionsStage(stage) {
+        if (!stage) return false;
+        const slug = String(stage.slug || '').trim().toLowerCase();
+        const name = String(stage.name || '').trim().toLowerCase();
+        return slug === 'mentions' || name === 'menções' || name === 'mencoes' || name.startsWith('menç') || name.startsWith('menc');
     }
 
     function columnHtml(stage) {
         const tasks = tasksOfStage(stage.id);
-        const isCollapsed = board.collapsed.has(Number(stage.id));
+        const isCollapsed = board.collapsed.has(String(stage.id));
         const overLimit = stage.wip_limit && tasks.length > stage.wip_limit;
-
         const countLabel = stage.wip_limit ? `${tasks.length}/${stage.wip_limit}` : String(tasks.length);
+        const isMentions = isMentionsStage(stage);
+        const timeInfo = isMentions ? null : getColumnTimeInfo(tasks);
 
         return `
             <section class="kd-col kd-glass ${isCollapsed ? 'kd-col--collapsed' : ''}"
@@ -369,26 +590,41 @@ window.KD = window.KD || {};
                      aria-label="Coluna ${KD.escapeHtml(stage.name)}, ${tasks.length} tarefa(s)">
 
                 <header class="kd-col__header">
-                    <h3 class="kd-col__name">
-                        <span class="kd-col__dot" style="background-color:${KD.escapeHtml(stage.color || '#6366f1')}"></span>
-                        <span class="truncate">${KD.escapeHtml(stage.name)}</span>
-                        <span class="kd-col__count ${overLimit ? 'kd-col__count--over' : ''}">${countLabel}</span>
-                    </h3>
+                    <div class="flex items-center justify-between gap-2 min-w-0 w-full">
+                        <h3 class="kd-col__name flex-1 min-w-0">
+                            <span class="kd-col__dot flex-shrink-0" style="background-color:${KD.escapeHtml(stage.color || '#6366f1')}"></span>
+                            <span class="leading-snug break-words" title="${KD.escapeHtml(stage.name)}">${KD.escapeHtml(stage.name)}</span>
+                            <span class="kd-col__count flex-shrink-0 ${overLimit ? 'kd-col__count--over' : ''}">${countLabel}</span>
+                        </h3>
 
-                    <div class="flex items-center gap-1">
-                        <button type="button" class="kd-icon-btn" data-action="toggle-collapse" data-stage-id="${stage.id}"
-                                aria-label="${isCollapsed ? 'Expandir' : 'Recolher'} coluna ${KD.escapeHtml(stage.name)}">
-                            <i data-lucide="${isCollapsed ? 'chevrons-right' : 'chevrons-left'}" class="w-4 h-4"></i>
-                        </button>
-
-                        <div class="kd-menu-wrap kd-col__menu-wrap">
-                            <button type="button" class="kd-icon-btn" data-action="toggle-column-menu" data-stage-id="${stage.id}"
-                                    aria-haspopup="menu" aria-expanded="false" aria-label="Opções da coluna ${KD.escapeHtml(stage.name)}">
-                                <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button type="button" class="kd-icon-btn" data-action="toggle-collapse" data-stage-id="${stage.id}"
+                                    aria-label="${isCollapsed ? 'Expandir' : 'Recolher'} coluna ${KD.escapeHtml(stage.name)}">
+                                <i data-lucide="${isCollapsed ? 'chevrons-right' : 'chevrons-left'}" class="w-4 h-4"></i>
                             </button>
-                            ${columnMenuHtml(stage, tasks.length)}
+
+                            <div class="kd-menu-wrap kd-col__menu-wrap">
+                                <button type="button" class="kd-icon-btn" data-action="toggle-column-menu" data-stage-id="${stage.id}"
+                                        aria-haspopup="menu" aria-expanded="false" aria-label="Opções da coluna ${KD.escapeHtml(stage.name)}">
+                                    <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                                </button>
+                                ${columnMenuHtml(stage, tasks.length)}
+                            </div>
                         </div>
                     </div>
+
+                    ${timeInfo ? `
+                        <div class="kd-col__subbar">
+                            <span class="flex items-center gap-1 font-medium text-[11px] text-slate-400 whitespace-nowrap">
+                                <i data-lucide="clock" class="w-3 h-3 text-indigo-400 flex-shrink-0"></i>
+                                <span>Tempo:</span>
+                                <strong class="font-mono text-slate-200 text-xs">${timeInfo.formattedTotal}</strong>
+                            </span>
+                            <span class="kd-time-pill kd-time-pill--${timeInfo.tone} text-[10px]" title="Capacidade diária: ${timeInfo.formattedCapacity} (${timeInfo.label})">
+                                ${Math.round(timeInfo.ratio * 100)}% da jornada
+                            </span>
+                        </div>
+                    ` : ''}
                 </header>
 
                 ${overLimit ? `
@@ -397,6 +633,18 @@ window.KD = window.KD || {};
                         Acima do limite de ${stage.wip_limit} tarefa(s) em andamento
                     </p>
                 ` : ''}
+
+                ${timeInfo && timeInfo.tone === 'danger' ? `
+                    <p class="kd-col__wip" style="color:var(--danger)">
+                        <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                        Tarefas extrapolaram o limite diário de ${timeInfo.formattedCapacity}
+                    </p>
+                ` : (timeInfo && timeInfo.tone === 'warning' ? `
+                    <p class="kd-col__wip" style="color:var(--warning)">
+                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                        Próximo de extrapolar a capacidade diária (${Math.round(timeInfo.ratio * 100)}%)
+                    </p>
+                ` : '')}
 
                 <div class="kd-col__body" data-stage-id="${stage.id}" role="list">
                     ${tasks.length === 0 ? emptyStateHtml(stage) : cardsHtml(tasks, stage)}
@@ -414,6 +662,80 @@ window.KD = window.KD || {};
                 </button>
             </section>
         `;
+    }
+
+    function columnWeekdayHtml(day) {
+        const tasks = tasksOfWeekday(day);
+        const isCollapsed = board.collapsed.has(String(day.id));
+        const timeInfo = getColumnTimeInfo(tasks);
+
+        return `
+            <section class="kd-col kd-glass ${isCollapsed ? 'kd-col--collapsed' : ''}"
+                     data-weekday-id="${day.id}"
+                     aria-label="Coluna ${KD.escapeHtml(day.name)}, ${tasks.length} tarefa(s)">
+
+                <header class="kd-col__header">
+                    <div class="flex items-center justify-between gap-2 min-w-0 w-full">
+                        <h3 class="kd-col__name flex-1 min-w-0">
+                            <span class="kd-col__dot flex-shrink-0" style="background-color:${KD.escapeHtml(day.color || '#6366f1')}"></span>
+                            <span class="leading-snug break-words" title="${KD.escapeHtml(day.name)}">${KD.escapeHtml(day.name)}</span>
+                            ${day.formattedDate ? `<span class="kd-col-date flex-shrink-0">${day.formattedDate}</span>` : ''}
+                            ${day.isToday ? `<span class="kd-col-today-chip flex-shrink-0">Hoje</span>` : ''}
+                            <span class="kd-col__count flex-shrink-0">${tasks.length}</span>
+                        </h3>
+
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button type="button" class="kd-icon-btn" data-action="toggle-collapse-weekday" data-weekday-id="${day.id}"
+                                    aria-label="${isCollapsed ? 'Expandir' : 'Recolher'} coluna ${KD.escapeHtml(day.name)}">
+                                <i data-lucide="${isCollapsed ? 'chevrons-right' : 'chevrons-left'}" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="kd-col__subbar">
+                        <span class="flex items-center gap-1 font-medium text-[11px] text-slate-400 whitespace-nowrap">
+                            <i data-lucide="clock" class="w-3 h-3 text-indigo-400 flex-shrink-0"></i>
+                            <span>Tempo:</span>
+                            <strong class="font-mono text-slate-200 text-xs">${timeInfo.formattedTotal}</strong>
+                        </span>
+                        <span class="kd-time-pill kd-time-pill--${timeInfo.tone} text-[10px]" title="Capacidade: ${timeInfo.formattedCapacity} (${timeInfo.label})">
+                            ${Math.round(timeInfo.ratio * 100)}% da jornada
+                        </span>
+                    </div>
+                </header>
+
+                ${timeInfo.tone === 'danger' ? `
+                    <p class="kd-col__wip" style="color:var(--danger)">
+                        <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                        Tarefas extrapolaram o limite diário de ${timeInfo.formattedCapacity}
+                    </p>
+                ` : (timeInfo.tone === 'warning' ? `
+                    <p class="kd-col__wip" style="color:var(--warning)">
+                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                        Próximo de extrapolar a capacidade diária (${Math.round(timeInfo.ratio * 100)}%)
+                    </p>
+                ` : '')}
+
+                <div class="kd-col__body" data-weekday-id="${day.id}" data-due-date="${day.dateString || ''}" role="list">
+                    ${tasks.length === 0 ? emptyStateWeekdayHtml(day) : cardsHtml(tasks, { id: 0, name: day.name })}
+                </div>
+
+                <button type="button" class="kd-col__add" data-action="new-task-weekday" data-due-date="${day.dateString || ''}">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Adicionar tarefa
+                </button>
+            </section>
+        `;
+    }
+
+    function emptyStateWeekdayHtml(day) {
+        if (activeFilterCount() > 0) {
+            return `<p class="kd-col__empty">Nenhuma tarefa neste dia com os filtros atuais.</p>`;
+        }
+        if (day.id === 'nodate') {
+            return `<p class="kd-col__empty">Nenhuma tarefa sem prazo.<br>Arraste um card aqui para remover a data.</p>`;
+        }
+        return `<p class="kd-col__empty">Nenhuma entrega programada para ${KD.escapeHtml(day.name)}.<br>Arraste cards para este dia ou adicione abaixo.</p>`;
     }
 
     function columnMenuHtml(stage, count) {
@@ -557,8 +879,16 @@ window.KD = window.KD || {};
 
                 <div class="kd-meta">
                     ${due.text ? `
-                        <span class="kd-due" data-tone="${KD.escapeHtml(due.tone || 'later')}" title="${KD.escapeHtml(due.label || '')}">
-                            <i data-lucide="calendar" class="w-3 h-3"></i>${KD.escapeHtml(due.text)}
+                        <span class="kd-due" data-tone="${KD.escapeHtml(due.tone || 'later')}" title="${KD.escapeHtml(due.label || due.text || '')}">
+                            <i data-lucide="calendar" class="w-3 h-3"></i>
+                            <span class="kd-due__short">${KD.escapeHtml(due.short || due.text)}</span>
+                            <span class="kd-due__full">${KD.escapeHtml(due.text)}</span>
+                        </span>
+                    ` : ''}
+
+                    ${Number(task.is_recurring) === 1 ? `
+                        <span class="kd-meta__item kd-recurring-badge" title="Tarefa recorrente: ${KD.escapeHtml(task.recurrence_label || 'Ativa')}">
+                            <i data-lucide="repeat" class="w-3 h-3" style="color:var(--brand-strong)"></i>
                         </span>
                     ` : ''}
 
@@ -573,6 +903,13 @@ window.KD = window.KD || {};
                     ${comments > 0 ? `
                         <span class="kd-meta__item" title="${comments} comentário(s)">
                             <i data-lucide="message-square" class="w-3 h-3"></i>${comments}
+                        </span>
+                    ` : ''}
+
+                    ${Number(task.estimated_minutes) > 0 ? `
+                        <span class="kd-est-time-badge" title="Tempo estimado: ${KD.formatMinutes ? KD.formatMinutes(task.estimated_minutes) : `${task.estimated_minutes} min`}">
+                            <i data-lucide="clock" class="w-3 h-3"></i>
+                            <span>${KD.formatMinutes ? KD.formatMinutes(task.estimated_minutes) : `${task.estimated_minutes}m`}</span>
                         </span>
                     ` : ''}
 
@@ -718,35 +1055,65 @@ window.KD = window.KD || {};
         const card = event.item;
         const taskId = Number(card.dataset.taskId);
         const targetBody = event.to;
-        const stageId = Number(targetBody.dataset.stageId);
-        const fromStageId = Number(event.from.dataset.stageId);
+        const fromBody = event.from;
 
-        if (!taskId || !stageId) return;
-        if (stageId === fromStageId && event.oldIndex === event.newIndex) return;
-
-        const orderedIds = Array.from(targetBody.querySelectorAll('.kd-card')).map((node) => Number(node.dataset.taskId));
+        if (!taskId || !targetBody) return;
 
         card.classList.add('is-busy');
 
         try {
-            const result = await KD.api.tasks({
-                action: 'move',
-                task_id: taskId,
-                stage_id: stageId,
-                ordered_ids: orderedIds,
-            });
+            if (board.viewMode === 'weekdays') {
+                const newDueDate = targetBody.dataset.dueDate || null;
+                const oldDueDate = fromBody.dataset.dueDate || null;
 
-            const stage = board.stages.find((s) => Number(s.id) === stageId);
-            if (stage && stage.is_done) {
-                KD.toast('Tarefa concluída.', {
-                    undo: () => undoMove(result.undo),
+                if (newDueDate === oldDueDate && event.oldIndex === event.newIndex) {
+                    card.classList.remove('is-busy');
+                    return;
+                }
+
+                const orderedIds = Array.from(targetBody.querySelectorAll('.kd-card')).map((node) => Number(node.dataset.taskId));
+
+                await KD.api.tasks({
+                    action: 'move',
+                    task_id: taskId,
+                    due_date: newDueDate,
+                    ordered_ids: orderedIds,
                 });
-            }
 
-            await KD.loadBoard({ silent: true });
+                KD.toast(newDueDate ? `Reagendada para ${KD.formatDate(newDueDate)}.` : 'Prazo removido.');
+                await KD.loadBoard({ silent: true });
+            } else {
+                const stageId = Number(targetBody.dataset.stageId);
+                const fromStageId = Number(fromBody.dataset.stageId);
+
+                if (!stageId) {
+                    card.classList.remove('is-busy');
+                    return;
+                }
+                if (stageId === fromStageId && event.oldIndex === event.newIndex) {
+                    card.classList.remove('is-busy');
+                    return;
+                }
+
+                const orderedIds = Array.from(targetBody.querySelectorAll('.kd-card')).map((node) => Number(node.dataset.taskId));
+
+                const result = await KD.api.tasks({
+                    action: 'move',
+                    task_id: taskId,
+                    stage_id: stageId,
+                    ordered_ids: orderedIds,
+                });
+
+                const stage = board.stages.find((s) => Number(s.id) === stageId);
+                if (stage && stage.is_done) {
+                    KD.toast('Tarefa concluída.', {
+                        undo: () => undoMove(result.undo),
+                    });
+                }
+
+                await KD.loadBoard({ silent: true });
+            }
         } catch (error) {
-            // Falhou: devolve o card ao lugar de origem em vez de deixar
-            // a tela mostrando um estado que não existe no servidor.
             card.classList.remove('is-busy');
             KD.toastError(error.message || 'Não foi possível mover a tarefa. O quadro foi restaurado.');
             await KD.loadBoard({ silent: true });
@@ -787,6 +1154,13 @@ window.KD = window.KD || {};
                 KD.openTaskForm(null, stageId);
                 break;
 
+            case 'new-task-weekday': {
+                KD.closeMenus();
+                const dueDate = node.dataset.dueDate || null;
+                KD.openTaskForm(null, null, null, dueDate);
+                break;
+            }
+
             case 'toggle-card-menu':
             case 'toggle-column-menu': {
                 const menu = node.parentElement.querySelector('.kd-menu');
@@ -796,11 +1170,21 @@ window.KD = window.KD || {};
 
             case 'toggle-collapse':
                 KD.closeMenus();
-                if (board.collapsed.has(stageId)) board.collapsed.delete(stageId);
-                else board.collapsed.add(stageId);
+                if (board.collapsed.has(String(stageId))) board.collapsed.delete(String(stageId));
+                else board.collapsed.add(String(stageId));
                 saveViewPrefs();
                 render();
                 break;
+
+            case 'toggle-collapse-weekday': {
+                KD.closeMenus();
+                const wId = String(node.dataset.weekdayId || '');
+                if (board.collapsed.has(wId)) board.collapsed.delete(wId);
+                else board.collapsed.add(wId);
+                saveViewPrefs();
+                render();
+                break;
+            }
 
             case 'filter-tag':
                 KD.filterByTag(node.dataset.tag);
@@ -1035,6 +1419,129 @@ window.KD = window.KD || {};
             KD.loadBoard({ silent: true });
         }, 30000);
     }
+
+    // ---------------------------------------------------------------
+    // Controle de Modo de Visão e Colunas Visíveis
+    // ---------------------------------------------------------------
+
+    KD.renderBoard = function () {
+        render();
+    };
+
+    KD.setViewMode = function (mode) {
+        if (mode !== 'status' && mode !== 'weekdays') return;
+        board.viewMode = mode;
+        saveViewPrefs();
+        updateToolbarState();
+        render();
+        KD.syncPrefViewMode(mode);
+    };
+
+    KD.syncPrefViewMode = async function (mode) {
+        try {
+            await fetch(KD.url('/api/preferencias'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ board_view_mode: mode }),
+            });
+        } catch (e) {}
+    };
+
+    KD.toggleColumnsMenu = function (event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        const dropdown = el('columnsMenuDropdown');
+        const btn = el('btnToggleColumnsMenu');
+        if (!dropdown) return;
+        const willOpen = dropdown.hidden;
+        KD.closeMenus(willOpen ? dropdown : null);
+        dropdown.hidden = !willOpen;
+        if (btn) btn.setAttribute('aria-expanded', String(willOpen));
+        if (willOpen) KD.renderColumnsMenu();
+    };
+
+    KD.renderColumnsMenu = function () {
+        const list = el('columnsMenuList');
+        if (!list) return;
+
+        let columns = [];
+        if (board.viewMode === 'weekdays') {
+            const days = getWeekDays();
+            columns = days.map((d) => ({
+                id: d.id,
+                name: `${d.name}${d.formattedDate ? ` (${d.formattedDate})` : ''}`,
+                color: d.color,
+                checked: !board.hiddenColumns.weekdays.has(d.id),
+            }));
+        } else {
+            columns = board.stages.map((s) => ({
+                id: String(s.id),
+                name: s.name,
+                color: s.color,
+                checked: !board.hiddenColumns.status.has(String(s.id)),
+            }));
+        }
+
+        list.innerHTML = columns.map((c) => `
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-800/60 cursor-pointer text-xs select-none">
+                <input type="checkbox" ${c.checked ? 'checked' : ''} onchange="KD.toggleColumnVisibility('${c.id}', this.checked)" class="rounded">
+                <span class="kd-col__dot" style="background-color:${KD.escapeHtml(c.color || '#6366f1')}"></span>
+                <span class="truncate text-slate-200">${KD.escapeHtml(c.name)}</span>
+            </label>
+        `).join('');
+    };
+
+    KD.toggleColumnVisibility = function (colId, isVisible) {
+        const currentSet = board.hiddenColumns[board.viewMode];
+        if (!currentSet) return;
+        if (isVisible) {
+            currentSet.delete(String(colId));
+        } else {
+            currentSet.add(String(colId));
+        }
+        saveViewPrefs();
+        updateToolbarState();
+        render();
+        KD.syncPrefHiddenColumns();
+    };
+
+    KD.resetVisibleColumns = function () {
+        if (board.hiddenColumns[board.viewMode]) {
+            board.hiddenColumns[board.viewMode].clear();
+        }
+        saveViewPrefs();
+        KD.renderColumnsMenu();
+        updateToolbarState();
+        render();
+        KD.syncPrefHiddenColumns();
+        KD.toast('Todas as colunas estão visíveis.');
+    };
+
+    KD.syncPrefHiddenColumns = async function () {
+        try {
+            await fetch(KD.url('/api/preferencias'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    visible_columns: {
+                        status: Array.from(board.hiddenColumns.status),
+                        weekdays: Array.from(board.hiddenColumns.weekdays),
+                    },
+                }),
+            });
+        } catch (e) {}
+    };
+
+    // Fechar dropdown de colunas ao clicar fora
+    document.addEventListener('click', (event) => {
+        const wrap = el('columnsMenuWrap');
+        const dropdown = el('columnsMenuDropdown');
+        if (wrap && dropdown && !dropdown.hidden && !wrap.contains(event.target)) {
+            dropdown.hidden = true;
+            el('btnToggleColumnsMenu')?.setAttribute('aria-expanded', 'false');
+        }
+    });
 
     // ---------------------------------------------------------------
     // Início

@@ -25,6 +25,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('/perfil'));
     }
 
+    $workStartTime = trim((string)($_POST['work_start_time'] ?? '09:00'));
+    $workEndTime   = trim((string)($_POST['work_end_time'] ?? '17:00'));
+    $workDaysList  = isset($_POST['work_days']) && is_array($_POST['work_days']) ? implode(',', $_POST['work_days']) : '1,2,3,4,5';
+
+    if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $workStartTime)) $workStartTime = '09:00';
+    if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $workEndTime)) $workEndTime = '17:00';
+
     try {
         if ($newPassword !== '') {
             // Verificar senha atual
@@ -38,11 +45,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare('UPDATE users SET full_name = :f, email = :e, password_hash = :p WHERE id = :id');
-            $stmt->execute([':f' => $fullName, ':e' => $email, ':p' => $newHash, ':id' => $user['id']]);
+            $stmt = $pdo->prepare('UPDATE users SET full_name = :f, email = :e, password_hash = :p, work_start_time = :ws, work_end_time = :we, work_days = :wd WHERE id = :id');
+            $stmt->execute([
+                ':f' => $fullName,
+                ':e' => $email,
+                ':p' => $newHash,
+                ':ws' => $workStartTime,
+                ':we' => $workEndTime,
+                ':wd' => $workDaysList,
+                ':id' => $user['id'],
+            ]);
         } else {
-            $stmt = $pdo->prepare('UPDATE users SET full_name = :f, email = :e WHERE id = :id');
-            $stmt->execute([':f' => $fullName, ':e' => $email, ':id' => $user['id']]);
+            $stmt = $pdo->prepare('UPDATE users SET full_name = :f, email = :e, work_start_time = :ws, work_end_time = :we, work_days = :wd WHERE id = :id');
+            $stmt->execute([
+                ':f' => $fullName,
+                ':e' => $email,
+                ':ws' => $workStartTime,
+                ':we' => $workEndTime,
+                ':wd' => $workDaysList,
+                ':id' => $user['id'],
+            ]);
         }
 
         flash('success', 'Perfil atualizado com sucesso!');
@@ -53,6 +75,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(url('/perfil'));
 }
 
+// Recarregar dados do usuário
+$userStmt = $pdo->prepare('SELECT * FROM users WHERE id = :id');
+$userStmt->execute([':id' => $user['id']]);
+$user = $userStmt->fetch() ?: $user;
+
+$currentWorkStart = $user['work_start_time'] ?? '09:00';
+$currentWorkEnd   = $user['work_end_time'] ?? '17:00';
+$currentWorkDays  = !empty($user['work_days']) ? explode(',', $user['work_days']) : ['1', '2', '3', '4', '5'];
+
 view_header('Meu Perfil');
 ?>
 
@@ -62,7 +93,7 @@ view_header('Meu Perfil');
             <i data-lucide="user-cog" class="w-6 h-6 text-indigo-400"></i>
             <span>Meu Perfil</span>
         </h1>
-        <p class="text-xs text-slate-400 mt-0.5">Atualize seus dados pessoais e credenciais de acesso</p>
+        <p class="text-xs text-slate-400 mt-0.5">Atualize seus dados pessoais, expediente e preferências</p>
     </div>
 
     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
@@ -87,6 +118,54 @@ view_header('Meu Perfil');
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">E-mail</label>
                     <input type="email" name="email" value="<?= e($user['email']) ?>" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition">
+                </div>
+            </div>
+
+            <!-- Horário de Atuação / Expediente -->
+            <div class="pt-4 border-t border-slate-800">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                            <i data-lucide="clock" class="w-4 h-4 text-indigo-400"></i>
+                            Horário de Atuação (Expediente Diário)
+                        </h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Define o limite diário de horas utilizado para os contadores das colunas no quadro.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5">Início do Expediente</label>
+                        <input type="time" name="work_start_time" value="<?= e($currentWorkStart) ?>" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5">Fim do Expediente</label>
+                        <input type="time" name="work_end_time" value="<?= e($currentWorkEnd) ?>" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2">Dias de Trabalho Habitual</label>
+                    <div class="flex flex-wrap gap-2">
+                        <?php
+                        $weekdaysMap = [
+                            '1' => 'Segunda-feira',
+                            '2' => 'Terça-feira',
+                            '3' => 'Quarta-feira',
+                            '4' => 'Quinta-feira',
+                            '5' => 'Sexta-feira',
+                            '6' => 'Sábado',
+                            '0' => 'Domingo',
+                        ];
+                        foreach ($weekdaysMap as $dKey => $dLabel):
+                            $isChecked = in_array((string)$dKey, $currentWorkDays, true);
+                        ?>
+                            <label class="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-800 bg-slate-950/60 text-xs text-slate-300 cursor-pointer hover:border-slate-700 transition">
+                                <input type="checkbox" name="work_days[]" value="<?= $dKey ?>" <?= $isChecked ? 'checked' : '' ?> class="rounded">
+                                <span><?= $dLabel ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
             </div>
 

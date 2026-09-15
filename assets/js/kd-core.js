@@ -507,22 +507,35 @@ window.KD = window.KD || {};
     // Menu do usuário na barra superior
     // ---------------------------------------------------------------
 
-    KD.toggleUserMenu = function () {
+    KD.toggleUserMenu = function (event) {
+        if (event) {
+            event.stopPropagation();
+        }
         const popup = document.getElementById('userMenuPopup');
         const trigger = document.getElementById('userMenuTrigger');
         if (!popup) return;
         const willOpen = popup.hidden;
+        KD.closeMenus(willOpen ? popup : null);
         popup.hidden = !willOpen;
         if (trigger) trigger.setAttribute('aria-expanded', String(willOpen));
     };
 
     document.addEventListener('click', (event) => {
-        const popup = document.getElementById('userMenuPopup');
-        const wrap = document.getElementById('userMenuDropdown');
-        if (popup && wrap && !wrap.contains(event.target)) {
-            popup.hidden = true;
-            const trigger = document.getElementById('userMenuTrigger');
-            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        const wrap = event.target.closest('.kd-menu-wrap');
+        if (!wrap) {
+            KD.closeMenus();
+            const popup = document.getElementById('userMenuPopup');
+            if (popup && !popup.hidden) {
+                popup.hidden = true;
+                const trigger = document.getElementById('userMenuTrigger');
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            }
+            const colMenu = document.getElementById('columnsMenuDropdown');
+            if (colMenu && !colMenu.hidden) {
+                colMenu.hidden = true;
+                const colBtn = document.getElementById('btnToggleColumnsMenu');
+                if (colBtn) colBtn.setAttribute('aria-expanded', 'false');
+            }
         }
     });
 })(window.KD);

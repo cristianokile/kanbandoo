@@ -40,6 +40,26 @@ function touch_task(PDO $pdo, int $taskId): void
         ->execute([':now' => now(), ':id' => $taskId]);
 }
 
+/** Registra evento no histórico / activity log da tarefa */
+function log_task_activity(PDO $pdo, int $taskId, ?int $userId, string $action, ?string $details = null): void
+{
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO task_history (task_id, user_id, action, details, created_at)
+            VALUES (:tid, :uid, :act, :det, :now)
+        ");
+        $stmt->execute([
+            ':tid' => $taskId,
+            ':uid' => $userId,
+            ':act' => $action,
+            ':det' => $details,
+            ':now' => now(),
+        ]);
+    } catch (Throwable $e) {
+        // Log de histórico não deve travar o fluxo principal caso ocorra erro
+    }
+}
+
 /**
  * Reescreve o sort_order de uma coluna inteira, em passos de 10.
  * Sem isso, dois cards podem terminar com a mesma posição e o quadro
@@ -177,6 +197,7 @@ try {
             $task['is_running'] = (int)($task['is_timer_running'] ?? 0) === 1;
             $task['priority_info'] = priority_info($task['priority']);
             $task['due_badge'] = format_due_date_badge($task['due_date']);
+            $task['recurrence_label'] = recurrence_label($task['recurrence_type'] ?? '');
             $task['client_color'] = client_color_index($task['client_id'] ? (int)$task['client_id'] : null);
             $task['tags'] = array_map(
                 fn($tag) => ['name' => $tag, 'color' => tag_color_index($tag)],
@@ -203,7 +224,7 @@ try {
             $task['checklists'] = $checklistStmt->fetchAll();
 
             $commentsStmt = $pdo->prepare("
-                SELECT tc.id, tc.comment_text, tc.created_at, u.full_name AS user_name, u.avatar_path
+                SELECT tc.id, tc.user_id, tc.comment_text, tc.created_at, u.full_name AS user_name, u.avatar_path
                 FROM task_comments tc
                 JOIN users u ON tc.user_id = u.id
                 WHERE tc.task_id = :id
@@ -211,6 +232,16 @@ try {
             ");
             $commentsStmt->execute([':id' => $taskId]);
             $task['comments'] = $commentsStmt->fetchAll();
+
+            $historyStmt = $pdo->prepare("
+                SELECT th.id, th.action, th.details, th.created_at, u.full_name AS user_name, u.avatar_path
+                FROM task_history th
+                LEFT JOIN users u ON th.user_id = u.id
+                WHERE th.task_id = :id
+                ORDER BY th.created_at DESC, th.id DESC
+            ");
+            $historyStmt->execute([':id' => $taskId]);
+            $task['history'] = $historyStmt->fetchAll();
 
             $summariesStmt = $pdo->prepare("
                 SELECT ts.id, ts.summary_text, ts.created_at, u.full_name AS user_name, u.avatar_path
@@ -259,6 +290,7 @@ try {
             SELECT t.id, t.client_id, t.stage_id, t.title, t.description, t.priority, t.due_date, t.sort_order,
                    t.is_timer_running, t.timer_started_at, t.total_seconds, t.in_focus, t.is_bomb, t.tags,
                    t.source, t.group_name, t.mentioned_by, t.whatsapp_url, t.completed_at, t.created_at,
+                   t.estimated_minutes, t.is_recurring, t.recurrence_type, t.recurrence_config,
                    c.company_name AS client_company,
                    s.slug AS stage_slug,
                    (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) AS checklist_total,
@@ -340,6 +372,7 @@ try {
                 $t['effective_seconds'] = effective_seconds($t);
                 $t['client_color'] = client_color_index($t['client_id'] ? (int)$t['client_id'] : null);
                 $t['is_mine'] = (bool)array_filter($t['assignees'], fn($a) => $a['id'] === (int)$user['id']);
+                $t['recurrence_label'] = recurrence_label($t['recurrence_type'] ?? '');
 
                 $t['tags'] = array_map(
                     fn($tag) => ['name' => $tag, 'color' => tag_color_index($tag)],
@@ -383,6 +416,19 @@ try {
         ");
         $hiddenStmt->execute([':cutoff' => $cutoff]);
 
+        // Preferências de expediente e modo de visão do usuário logado
+        $userPrefStmt = $pdo->prepare("SELECT work_start_time, work_end_time, work_days, board_view_mode, visible_columns_json FROM users WHERE id = :id");
+        $userPrefStmt->execute([':id' => $user['id']]);
+        $userPrefs = $userPrefStmt->fetch() ?: [];
+
+        $wStart = $userPrefs['work_start_time'] ?? '09:00';
+        $wEnd   = $userPrefs['work_end_time'] ?? '17:00';
+        $startParts = explode(':', $wStart);
+        $endParts   = explode(':', $wEnd);
+        $startMins  = ((int)($startParts[0] ?? 9)) * 60 + ((int)($startParts[1] ?? 0));
+        $endMins    = ((int)($endParts[0] ?? 17)) * 60 + ((int)($endParts[1] ?? 0));
+        $wCapacity  = max(60, $endMins - $startMins);
+
         json_response([
             'success' => true,
             'stages' => $stages,
@@ -392,6 +438,12 @@ try {
             'done_hidden_count' => (int)$hiddenStmt->fetchColumn(),
             'done_visible_days' => DONE_VISIBLE_DAYS,
             'current_user_id' => (int)$user['id'],
+            'work_start_time' => $wStart,
+            'work_end_time' => $wEnd,
+            'work_capacity_minutes' => $wCapacity,
+            'work_days' => !empty($userPrefs['work_days']) ? explode(',', $userPrefs['work_days']) : ['1', '2', '3', '4', '5'],
+            'board_view_mode' => $userPrefs['board_view_mode'] ?? 'status',
+            'visible_columns' => !empty($userPrefs['visible_columns_json']) ? json_decode($userPrefs['visible_columns_json'], true) : null,
             'server_time' => now(),
         ]);
     }
@@ -427,6 +479,7 @@ try {
 
                 $pdo->prepare("UPDATE tasks SET is_timer_running = 0, timer_started_at = NULL, total_seconds = :sec, updated_at = :now WHERE id = :id")
                     ->execute([':sec' => $newTotal, ':now' => now(), ':id' => $taskId]);
+                log_task_activity($pdo, $taskId, (int)$user['id'], 'timer_stopped', 'Cronômetro pausado (total: ' . gmdate('H:i:s', $newTotal) . ')');
 
                 json_response(['success' => true, 'is_running' => false, 'total_seconds' => $newTotal]);
             }
@@ -442,11 +495,13 @@ try {
                 $pdo->prepare("UPDATE tasks SET is_timer_running = 0, timer_started_at = NULL, total_seconds = :s WHERE id = :id")
                     ->execute([':s' => $acc, ':id' => (int)$r['id']]);
                 $paused[] = (int)$r['id'];
+                log_task_activity($pdo, (int)$r['id'], (int)$user['id'], 'timer_stopped', 'Cronômetro pausado automaticamente');
             }
 
             $nowStr = now();
             $pdo->prepare("UPDATE tasks SET is_timer_running = 1, timer_started_at = :now, updated_at = :now2 WHERE id = :id")
                 ->execute([':now' => $nowStr, ':now2' => $nowStr, ':id' => $taskId]);
+            log_task_activity($pdo, $taskId, (int)$user['id'], 'timer_started', 'Cronômetro iniciado');
 
             $pdo->commit();
 
@@ -468,6 +523,7 @@ try {
 
             $pdo->prepare("UPDATE tasks SET in_focus = :val, updated_at = :now WHERE id = :id")
                 ->execute([':val' => $newVal, ':now' => now(), ':id' => $taskId]);
+            log_task_activity($pdo, $taskId, (int)$user['id'], 'focus_toggled', $newVal === 1 ? 'Colocou a tarefa em foco' : 'Retirou a tarefa do foco');
 
             json_response(['success' => true, 'in_focus' => $newVal]);
         }
@@ -488,6 +544,7 @@ try {
             $stageStmt->execute([':id' => $taskId]);
             normalize_stage_order($pdo, (int)$stageStmt->fetchColumn());
             $pdo->commit();
+            log_task_activity($pdo, $taskId, (int)$user['id'], 'bomb_toggled', $newVal === 1 ? 'Marcou a tarefa como bomba' : 'Desmarcou a tarefa como bomba');
 
             json_response(['success' => true, 'is_bomb' => $newVal]);
         }
@@ -517,7 +574,9 @@ try {
                     ->execute([':stg' => $doneId, ':now' => now(), ':now2' => now(), ':id' => $taskId]);
                 normalize_stage_order($pdo, $doneId);
                 normalize_stage_order($pdo, (int)$prev['stage_id']);
+                create_next_recurrence_task($pdo, $taskId, $user);
                 $pdo->commit();
+                log_task_activity($pdo, $taskId, (int)$user['id'], 'task_completed', 'Concluiu a tarefa');
 
                 json_response([
                     'success' => true,
@@ -527,6 +586,7 @@ try {
 
             $pdo->prepare("UPDATE tasks SET completed_at = NULL, archived_at = NULL, updated_at = :now WHERE id = :id")
                 ->execute([':now' => now(), ':id' => $taskId]);
+            log_task_activity($pdo, $taskId, (int)$user['id'], 'task_reopened', 'Reabriu a tarefa');
             json_response(['success' => true]);
         }
 
@@ -623,12 +683,14 @@ try {
             $taskId  = (int)($input['task_id'] ?? 0);
             $stageId = (int)($input['stage_id'] ?? 0);
             $orderedIds = isset($input['ordered_ids']) && is_array($input['ordered_ids']) ? $input['ordered_ids'] : [];
+            $hasDueDate = array_key_exists('due_date', $input);
+            $newDueDate = $hasDueDate ? (!empty($input['due_date']) ? $input['due_date'] : null) : false;
 
-            if ($taskId <= 0 || $stageId <= 0) {
-                json_response(['error' => 'Dados inválidos para movimentação.'], 400);
+            if ($taskId <= 0) {
+                json_response(['error' => 'Tarefa inválida para movimentação.'], 400);
             }
 
-            $stmt = $pdo->prepare("SELECT stage_id, completed_at, is_bomb, title FROM tasks WHERE id = :id");
+            $stmt = $pdo->prepare("SELECT stage_id, completed_at, is_bomb, title, due_date FROM tasks WHERE id = :id");
             $stmt->execute([':id' => $taskId]);
             $prev = $stmt->fetch();
             if (!$prev) {
@@ -636,6 +698,9 @@ try {
             }
 
             $fromStage = (int)$prev['stage_id'];
+            if ($stageId <= 0) {
+                $stageId = $fromStage;
+            }
 
             // Tarefa bomba não muda de coluna: ela precisa ser resolvida onde está.
             // Reordenar dentro da mesma coluna continua permitido.
@@ -651,19 +716,43 @@ try {
 
             // Entrar na coluna de conclusão fecha a tarefa; sair reabre.
             if ($doneId !== null && $stageId === $doneId && empty($prev['completed_at'])) {
-                $pdo->prepare("UPDATE tasks SET stage_id = :stg, completed_at = :now, is_timer_running = 0, updated_at = :now2 WHERE id = :id")
-                    ->execute([':stg' => $stageId, ':now' => now(), ':now2' => now(), ':id' => $taskId]);
+                if ($newDueDate !== false) {
+                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, due_date = :due, completed_at = :now, is_timer_running = 0, updated_at = :now2 WHERE id = :id")
+                        ->execute([':stg' => $stageId, ':due' => $newDueDate, ':now' => now(), ':now2' => now(), ':id' => $taskId]);
+                } else {
+                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, completed_at = :now, is_timer_running = 0, updated_at = :now2 WHERE id = :id")
+                        ->execute([':stg' => $stageId, ':now' => now(), ':now2' => now(), ':id' => $taskId]);
+                }
+                create_next_recurrence_task($pdo, $taskId, $user);
             } elseif ($doneId !== null && $stageId !== $doneId && !empty($prev['completed_at'])) {
-                $pdo->prepare("UPDATE tasks SET stage_id = :stg, completed_at = NULL, archived_at = NULL, updated_at = :now WHERE id = :id")
-                    ->execute([':stg' => $stageId, ':now' => now(), ':id' => $taskId]);
+                if ($newDueDate !== false) {
+                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, due_date = :due, completed_at = NULL, archived_at = NULL, updated_at = :now WHERE id = :id")
+                        ->execute([':stg' => $stageId, ':due' => $newDueDate, ':now' => now(), ':id' => $taskId]);
+                } else {
+                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, completed_at = NULL, archived_at = NULL, updated_at = :now WHERE id = :id")
+                        ->execute([':stg' => $stageId, ':now' => now(), ':id' => $taskId]);
+                }
             } else {
-                $pdo->prepare("UPDATE tasks SET stage_id = :stg, updated_at = :now WHERE id = :id")
-                    ->execute([':stg' => $stageId, ':now' => now(), ':id' => $taskId]);
+                if ($newDueDate !== false) {
+                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, due_date = :due, updated_at = :now WHERE id = :id")
+                        ->execute([':stg' => $stageId, ':due' => $newDueDate, ':now' => now(), ':id' => $taskId]);
+                } else {
+                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, updated_at = :now WHERE id = :id")
+                        ->execute([':stg' => $stageId, ':now' => now(), ':id' => $taskId]);
+                }
             }
 
             normalize_stage_order($pdo, $stageId, $orderedIds);
             if ($fromStage !== $stageId) {
                 normalize_stage_order($pdo, $fromStage);
+
+                $stgNames = $pdo->query("SELECT id, name FROM task_stages WHERE id IN ($fromStage, $stageId)")->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+                $fromName = $stgNames[$fromStage] ?? 'Coluna anterior';
+                $toName = $stgNames[$stageId] ?? 'Nova coluna';
+                log_task_activity($pdo, $taskId, (int)$user['id'], 'stage_changed', 'Movida de "' . $fromName . '" para "' . $toName . '"');
+            } elseif ($newDueDate !== false && $newDueDate !== $prev['due_date']) {
+                $dateLabel = $newDueDate ? format_date($newDueDate) : 'Sem prazo';
+                log_task_activity($pdo, $taskId, (int)$user['id'], 'due_date_changed', 'Prazo alterado para ' . $dateLabel);
             }
 
             $pdo->commit();
@@ -672,7 +761,25 @@ try {
                 'success' => true,
                 'undo' => ['action' => 'restore_stage', 'task_id' => $taskId, 'stage_id' => $fromStage],
                 'from_stage_id' => $fromStage,
+                'due_date' => $newDueDate !== false ? $newDueDate : $prev['due_date'],
             ]);
+        }
+
+        // 7.1 Alterar data de entrega / Reagendar dia diretamente
+        if ($action === 'set_due_date') {
+            $taskId = (int)($input['task_id'] ?? 0);
+            $dueDate = !empty($input['due_date']) ? trim((string)$input['due_date']) : null;
+            if ($taskId <= 0) {
+                json_response(['error' => 'Tarefa inválida.'], 400);
+            }
+            if ($dueDate !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dueDate)) {
+                json_response(['error' => 'Data inválida.'], 400);
+            }
+
+            $pdo->prepare("UPDATE tasks SET due_date = :due, updated_at = :now WHERE id = :id")
+                ->execute([':due' => $dueDate, ':now' => now(), ':id' => $taskId]);
+
+            json_response(['success' => true, 'due_date' => $dueDate]);
         }
 
         // 8. Salvar / Atualizar Tarefa
@@ -683,10 +790,16 @@ try {
             $stageId = !empty($input['stage_id']) ? (int)$input['stage_id'] : 1;
             $priority = in_array($input['priority'] ?? '', ['low', 'medium', 'high', 'urgent'], true) ? $input['priority'] : 'medium';
             $dueDate = !empty($input['due_date']) ? $input['due_date'] : null;
+            $estimatedMinutes = !empty($input['estimated_minutes']) ? max(1, (int)$input['estimated_minutes']) : null;
             $description = trim((string)($input['description'] ?? ''));
             $assignees = isset($input['assignees']) && is_array($input['assignees']) ? $input['assignees'] : [];
             $tags = normalize_tags(is_array($input['tags'] ?? null) ? $input['tags'] : parse_tags($input['tags'] ?? []));
             $tagsJson = json_encode($tags, JSON_UNESCAPED_UNICODE);
+
+            $isRecurring = !empty($input['is_recurring']) ? 1 : 0;
+            $recurrenceType = $isRecurring && !empty($input['recurrence_type']) ? $input['recurrence_type'] : null;
+            $recurrenceConfig = $isRecurring && !empty($input['recurrence_config']) ? (is_array($input['recurrence_config']) ? json_encode($input['recurrence_config'], JSON_UNESCAPED_UNICODE) : (string)$input['recurrence_config']) : null;
+            $initialChecklist = isset($input['initial_checklist']) && is_array($input['initial_checklist']) ? $input['initial_checklist'] : [];
 
             if ($title === '') {
                 json_response(['error' => 'Informe um título para a tarefa.', 'field' => 'title'], 400);
@@ -715,9 +828,11 @@ try {
                 $stmt = $pdo->prepare("
                     UPDATE tasks
                     SET title = :title, client_id = :client_id, stage_id = :stage_id,
-                        priority = :priority, due_date = :due_date, description = :description,
-                        source = :source, group_name = :group_name, mentioned_by = :mentioned_by,
-                        whatsapp_url = :whatsapp_url, tags = :tags, updated_at = :now
+                        priority = :priority, due_date = :due_date, estimated_minutes = :est,
+                        description = :description, source = :source, group_name = :group_name,
+                        mentioned_by = :mentioned_by, whatsapp_url = :whatsapp_url, tags = :tags,
+                        is_recurring = :is_rec, recurrence_type = :rec_type, recurrence_config = :rec_cfg,
+                        updated_at = :now
                     WHERE id = :id
                 ");
                 $stmt->execute([
@@ -726,21 +841,27 @@ try {
                     ':stage_id' => $stageId,
                     ':priority' => $priority,
                     ':due_date' => $dueDate,
+                    ':est' => $estimatedMinutes,
                     ':description' => $description,
                     ':source' => $source,
                     ':group_name' => $groupName,
                     ':mentioned_by' => $mentionedBy,
                     ':whatsapp_url' => $whatsappUrl,
                     ':tags' => $tagsJson,
+                    ':is_rec' => $isRecurring,
+                    ':rec_type' => $recurrenceType,
+                    ':rec_cfg' => $recurrenceConfig,
                     ':now' => now(),
                     ':id' => $taskId,
                 ]);
             } else {
                 $stmt = $pdo->prepare("
-                    INSERT INTO tasks (title, client_id, stage_id, priority, due_date, description, created_by,
-                                       status, source, group_name, mentioned_by, whatsapp_url, tags, created_at, updated_at)
-                    VALUES (:title, :client_id, :stage_id, :priority, :due_date, :description, :created_by,
-                            'open', :source, :group_name, :mentioned_by, :whatsapp_url, :tags, :now, :now2)
+                    INSERT INTO tasks (title, client_id, stage_id, priority, due_date, estimated_minutes, description, created_by,
+                                       status, source, group_name, mentioned_by, whatsapp_url, tags,
+                                       is_recurring, recurrence_type, recurrence_config, created_at, updated_at)
+                    VALUES (:title, :client_id, :stage_id, :priority, :due_date, :est, :description, :created_by,
+                            'open', :source, :group_name, :mentioned_by, :whatsapp_url, :tags,
+                            :is_rec, :rec_type, :rec_cfg, :now, :now2)
                 ");
                 $stmt->execute([
                     ':title' => $title,
@@ -748,6 +869,7 @@ try {
                     ':stage_id' => $stageId,
                     ':priority' => $priority,
                     ':due_date' => $dueDate,
+                    ':est' => $estimatedMinutes,
                     ':description' => $description,
                     ':created_by' => $user['id'],
                     ':source' => $source,
@@ -755,10 +877,25 @@ try {
                     ':mentioned_by' => $mentionedBy,
                     ':whatsapp_url' => $whatsappUrl,
                     ':tags' => $tagsJson,
+                    ':is_rec' => $isRecurring,
+                    ':rec_type' => $recurrenceType,
+                    ':rec_cfg' => $recurrenceConfig,
                     ':now' => now(),
                     ':now2' => now(),
                 ]);
                 $taskId = (int)$pdo->lastInsertId();
+
+                // Inserir itens de checklist inicial se houver
+                if (!empty($initialChecklist)) {
+                    $chkStmt = $pdo->prepare("INSERT INTO task_checklists (task_id, title, is_completed, sort_order) VALUES (:tid, :title, 0, :s)");
+                    foreach ($initialChecklist as $idx => $item) {
+                        $txt = is_array($item) ? ($item['title'] ?? '') : (string)$item;
+                        $txt = trim($txt);
+                        if ($txt !== '') {
+                            $chkStmt->execute([':tid' => $taskId, ':title' => $txt, ':s' => ($idx + 1) * 10]);
+                        }
+                    }
+                }
             }
 
             $pdo->prepare("DELETE FROM task_assignees WHERE task_id = :task_id")->execute([':task_id' => $taskId]);
@@ -770,6 +907,13 @@ try {
             }
 
             normalize_stage_order($pdo, $stageId);
+
+            if ($isNew) {
+                log_task_activity($pdo, $taskId, (int)$user['id'], 'task_created', 'Criou a tarefa');
+            } else {
+                log_task_activity($pdo, $taskId, (int)$user['id'], 'task_updated', 'Atualizou as informações da tarefa');
+            }
+
             $pdo->commit();
 
             json_response(['success' => true, 'task_id' => $taskId, 'created' => $isNew]);
@@ -880,16 +1024,71 @@ try {
             $stmt = $pdo->prepare("INSERT INTO task_comments (task_id, user_id, comment_text, created_at) VALUES (:task_id, :user_id, :text, :created)");
             $stmt->execute([':task_id' => $taskId, ':user_id' => $user['id'], ':text' => $commentText, ':created' => $createdAt]);
             touch_task($pdo, $taskId);
+            log_task_activity($pdo, $taskId, (int)$user['id'], 'comment_added', 'Adicionou um comentário');
 
             json_response([
                 'success' => true,
                 'comment' => [
                     'id' => (int)$pdo->lastInsertId(),
+                    'user_id' => (int)$user['id'],
                     'user_name' => $user['full_name'],
                     'comment_text' => $commentText,
                     'created_at' => $createdAt,
                 ],
             ]);
+        }
+
+        if ($action === 'update_comment') {
+            $commentId = (int)($input['comment_id'] ?? 0);
+            $commentText = trim((string)($input['comment_text'] ?? ''));
+
+            if ($commentId <= 0 || $commentText === '') {
+                json_response(['error' => 'Texto do comentário não pode estar vazio.'], 400);
+            }
+
+            $chk = $pdo->prepare("SELECT id, task_id, user_id FROM task_comments WHERE id = :id");
+            $chk->execute([':id' => $commentId]);
+            $cRow = $chk->fetch();
+            if (!$cRow) {
+                json_response(['error' => 'Comentário não encontrado.'], 404);
+            }
+
+            if (!is_admin() && (int)$cRow['user_id'] !== (int)$user['id']) {
+                json_response(['error' => 'Sem permissão para editar este comentário.'], 403);
+            }
+
+            $pdo->prepare("UPDATE task_comments SET comment_text = :txt, updated_at = :now WHERE id = :id")
+                ->execute([':txt' => $commentText, ':now' => now(), ':id' => $commentId]);
+            touch_task($pdo, (int)$cRow['task_id']);
+            log_task_activity($pdo, (int)$cRow['task_id'], (int)$user['id'], 'comment_updated', 'Editou um comentário');
+
+            json_response([
+                'success' => true,
+                'comment' => [
+                    'id' => $commentId,
+                    'comment_text' => $commentText,
+                ],
+            ]);
+        }
+
+        if ($action === 'delete_comment') {
+            $commentId = (int)($input['comment_id'] ?? 0);
+            $chk = $pdo->prepare("SELECT id, task_id, user_id FROM task_comments WHERE id = :id");
+            $chk->execute([':id' => $commentId]);
+            $cRow = $chk->fetch();
+            if (!$cRow) {
+                json_response(['error' => 'Comentário não encontrado.'], 404);
+            }
+
+            if (!is_admin() && (int)$cRow['user_id'] !== (int)$user['id']) {
+                json_response(['error' => 'Sem permissão para excluir este comentário.'], 403);
+            }
+
+            $pdo->prepare("DELETE FROM task_comments WHERE id = :id")->execute([':id' => $commentId]);
+            touch_task($pdo, (int)$cRow['task_id']);
+            log_task_activity($pdo, (int)$cRow['task_id'], (int)$user['id'], 'comment_deleted', 'Excluiu um comentário');
+
+            json_response(['success' => true]);
         }
 
         // 13. Resumos / Diário de Bordo

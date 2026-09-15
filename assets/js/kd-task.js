@@ -9,6 +9,7 @@ window.KD = window.KD || {};
     let activeTask = null;
     let detailTimerInterval = null;
     let formTags = [];
+    let formChecklistItems = [];
 
     function el(id) {
         return document.getElementById(id);
@@ -56,7 +57,6 @@ window.KD = window.KD || {};
         formTags.forEach((tag, index) => {
             const chip = document.createElement('span');
             chip.className = 'kd-tag';
-
             chip.textContent = tag;
 
             const remove = document.createElement('button');
@@ -128,28 +128,207 @@ window.KD = window.KD || {};
             .join('');
     }
 
-    KD.openTaskForm = async function (taskId, stageId) {
-        const form = el('taskForm');
-        if (!form) return;
+    // ---------------------------------------------------------------
+    // Checklist do formulário
+    // ---------------------------------------------------------------
 
-        form.reset();
-        clearFormErrors();
-        setupTagInput();
-        renderTagSuggestions();
-        formTags = [];
-        renderFormTags();
-        el('task_id').value = '';
-        document.querySelectorAll('.task-assignee-checkbox').forEach((box) => { box.checked = false; });
-        el('btnDeleteTask').hidden = true;
+    function renderFormChecklist() {
+        const container = el('formChecklistContainer');
+        const count = el('formChecklistCount');
+        if (!container) return;
 
-        if (!taskId) {
-            el('taskModalTitle').textContent = 'Nova tarefa';
-            if (stageId) el('task_stage_id').value = stageId;
-            KD.openModal('taskModal', { focus: '#task_title' });
+        if (count) {
+            count.textContent = `${formChecklistItems.length} ite${formChecklistItems.length === 1 ? 'm' : 'ns'}`;
+        }
+
+        if (formChecklistItems.length === 0) {
+            container.innerHTML = '<p class="text-slate-500 text-xs text-center py-1.5 italic" id="formChecklistEmpty">Nenhuma subtarefa adicionada.</p>';
             return;
         }
 
+        container.innerHTML = formChecklistItems.map((item, idx) => `
+            <div class="flex items-center justify-between gap-2 p-1.5 px-2.5 rounded-lg bg-slate-800/40 border border-slate-700/30 text-xs">
+                <span class="truncate flex items-center gap-1.5 text-slate-200">
+                    <i data-lucide="check" class="w-3.5 h-3.5 text-indigo-400 flex-shrink-0"></i>
+                    ${KD.escapeHtml(item)}
+                </span>
+                <button type="button" onclick="KD.removeFormChecklistItem(${idx})" class="text-slate-400 hover:text-rose-400 transition" title="Remover subtarefa">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        `).join('');
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    KD.addFormChecklistItem = function () {
+        const input = el('formNewChecklistItem');
+        if (!input) return;
+        const text = input.value.trim();
+        if (!text) return;
+        formChecklistItems.push(text);
+        input.value = '';
+        renderFormChecklist();
+        input.focus();
+    };
+
+    KD.removeFormChecklistItem = function (idx) {
+        formChecklistItems.splice(idx, 1);
+        renderFormChecklist();
+    };
+
+    function setupFormChecklistInput() {
+        const input = el('formNewChecklistItem');
+        if (!input || input.dataset.ready === '1') return;
+        input.dataset.ready = '1';
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                KD.addFormChecklistItem();
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------
+    // Recorrência
+    // ---------------------------------------------------------------
+
+    KD.toggleRecurrenceOptions = function (checked) {
+        const fields = el('recurrenceFields');
+        if (fields) fields.hidden = !checked;
+    };
+
+    KD.onRecurrenceTypeChange = function (type) {
+        const customWrap = el('recurrenceCustomWrap');
+        if (customWrap) customWrap.hidden = (type !== 'custom');
+    };
+
+    KD.toggleCustomRecurrenceMode = function (mode) {
+        const weekdaysWrap = el('customWeekdaysWrap');
+        const monthdayWrap = el('customMonthdayWrap');
+        if (weekdaysWrap) weekdaysWrap.hidden = (mode !== 'weekdays');
+        if (monthdayWrap) monthdayWrap.hidden = (mode !== 'monthday');
+    };
+
+    KD.toggleWeekdayBtn = function (btn) {
+        btn.classList.toggle('is-active');
+    };
+
+    function getSelectedWeekdays() {
+        const btns = document.querySelectorAll('#recurrenceWeekdaysList .kd-day-btn.is-active');
+        return Array.from(btns).map((b) => Number(b.dataset.day));
+    }
+
+    // ---------------------------------------------------------------
+    // Modelos de Tarefa
+    // ---------------------------------------------------------------
+
+    KD.applyTemplateToForm = async function (templateId, templateData = null) {
+        if (!templateId && !templateData) return;
+
+        let tpl = templateData;
+        if (!tpl && templateId) {
+            try {
+                const res = await fetch(`${KD.url('/api/modelos')}?id=${templateId}`);
+                const data = await res.json();
+                if (data.success) tpl = data.template;
+            } catch (e) {
+                console.error('Erro ao carregar modelo:', e);
+            }
+        }
+
+        if (!tpl) return;
+
+        if (tpl.title) el('task_title').value = tpl.title;
+        if (tpl.estimated_minutes && el('task_estimated_minutes')) el('task_estimated_minutes').value = tpl.estimated_minutes;
+        if (tpl.description) el('task_description').value = tpl.description;
+
+        // Tags
+        let tags = [];
+        if (Array.isArray(tpl.tags_list)) {
+            tags = tpl.tags_list;
+        } else if (typeof tpl.tags === 'string') {
+            try { tags = JSON.parse(tpl.tags); } catch (e) { tags = tpl.tags.split(',').map((s) => s.trim()).filter(Boolean); }
+        } else if (Array.isArray(tpl.tags)) {
+            tags = tpl.tags;
+        }
+        formTags = [];
+        tags.forEach((tag) => addFormTag(tag));
+
+        // Checklist
+        const checklist = tpl.checklist_items || (typeof tpl.checklist === 'string' ? JSON.parse(tpl.checklist || '[]') : (tpl.checklist || []));
+        formChecklistItems = [];
+        checklist.forEach((item) => {
+            const itemText = typeof item === 'object' ? (item.title || '') : String(item);
+            if (itemText.trim()) formChecklistItems.push(itemText.trim());
+        });
+        renderFormChecklist();
+
+        KD.toast(`Modelo "${tpl.title}" aplicado!`);
+    };
+
+    // ---------------------------------------------------------------
+    // Abrir Formulário de Tarefa
+    // ---------------------------------------------------------------
+
+    KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initialDueDate = null) {
         try {
+            const form = el('taskForm');
+            if (!form) return;
+
+            form.reset();
+            clearFormErrors();
+            setupTagInput();
+            setupFormChecklistInput();
+            renderTagSuggestions();
+            formTags = [];
+            renderFormTags();
+            formChecklistItems = [];
+            renderFormChecklist();
+
+            el('task_id').value = '';
+            if (el('task_estimated_minutes')) el('task_estimated_minutes').value = '';
+            KD.updateEstimatedPreview('');
+            document.querySelectorAll('.task-assignee-checkbox').forEach((box) => { box.checked = false; });
+            el('btnDeleteTask').hidden = true;
+
+            // Resetar opções de recorrência
+            const recBox = el('task_is_recurring');
+            if (recBox) {
+                recBox.checked = false;
+                KD.toggleRecurrenceOptions(false);
+            }
+            const recType = el('task_recurrence_type');
+            if (recType) recType.value = 'weekly';
+            KD.onRecurrenceTypeChange('weekly');
+            const modeWeekdays = el('mode_weekdays');
+            if (modeWeekdays) modeWeekdays.checked = true;
+            KD.toggleCustomRecurrenceMode('weekdays');
+            document.querySelectorAll('#recurrenceWeekdaysList .kd-day-btn').forEach(b => b.classList.remove('is-active'));
+            const monthdayInput = el('recurrence_monthday');
+            if (monthdayInput) monthdayInput.value = '1';
+
+            const templateWrap = el('taskTemplateSelectWrap');
+            const templateSelect = el('task_template_id');
+
+            if (!taskId) {
+                el('taskModalTitle').textContent = 'Nova tarefa';
+                if (stageId) el('task_stage_id').value = stageId;
+                if (initialDueDate && el('task_due_date')) el('task_due_date').value = initialDueDate;
+                if (templateWrap) templateWrap.hidden = false;
+                if (templateSelect) templateSelect.value = '';
+
+                if (initialTemplate) {
+                    if (templateSelect && initialTemplate.id) templateSelect.value = initialTemplate.id;
+                    await KD.applyTemplateToForm(initialTemplate.id, initialTemplate);
+                }
+
+                KD.openModal('taskModal', { focus: '#task_title' });
+                return;
+            }
+
+            if (templateWrap) templateWrap.hidden = true;
+
             const data = await KD.api.get(`${KD.url('/api/tarefas')}?id=${taskId}`);
             const task = data.task;
 
@@ -160,6 +339,35 @@ window.KD = window.KD || {};
             el('task_priority').value = task.priority || 'medium';
             el('task_due_date').value = task.due_date || '';
             el('task_description').value = task.description || '';
+            if (el('task_estimated_minutes')) el('task_estimated_minutes').value = task.estimated_minutes || '';
+
+            // Recorrência existente
+            const isRec = Number(task.is_recurring) === 1;
+            if (recBox) {
+                recBox.checked = isRec;
+                KD.toggleRecurrenceOptions(isRec);
+            }
+            if (recType && task.recurrence_type) {
+                recType.value = task.recurrence_type;
+                KD.onRecurrenceTypeChange(task.recurrence_type);
+            }
+            if (task.recurrence_config) {
+                try {
+                    const cfg = typeof task.recurrence_config === 'string' ? JSON.parse(task.recurrence_config) : task.recurrence_config;
+                    if (cfg && cfg.type === 'weekdays' && Array.isArray(cfg.days)) {
+                        if (modeWeekdays) modeWeekdays.checked = true;
+                        KD.toggleCustomRecurrenceMode('weekdays');
+                        document.querySelectorAll('#recurrenceWeekdaysList .kd-day-btn').forEach(b => {
+                            b.classList.toggle('is-active', cfg.days.includes(Number(b.dataset.day)));
+                        });
+                    } else if (cfg && cfg.type === 'monthday' && cfg.day) {
+                        const modeMonthday = el('mode_monthday');
+                        if (modeMonthday) modeMonthday.checked = true;
+                        KD.toggleCustomRecurrenceMode('monthday');
+                        if (monthdayInput) monthdayInput.value = cfg.day;
+                    }
+                } catch (e) {}
+            }
 
             formTags = (task.tags || []).map((tag) => tag.name);
             renderFormTags();
@@ -174,7 +382,8 @@ window.KD = window.KD || {};
 
             KD.openModal('taskModal', { focus: '#task_title' });
         } catch (error) {
-            KD.toastError(error.message);
+            console.error('Erro ao abrir formulário de tarefa:', error);
+            KD.toastError(error.message || 'Erro ao abrir formulário');
         }
     };
 
@@ -195,6 +404,22 @@ window.KD = window.KD || {};
         const assignees = Array.from(document.querySelectorAll('.task-assignee-checkbox:checked'))
             .map((box) => Number(box.value));
 
+        const isRecurring = el('task_is_recurring')?.checked ? 1 : 0;
+        let recurrenceType = null;
+        let recurrenceConfig = null;
+
+        if (isRecurring) {
+            recurrenceType = el('task_recurrence_type')?.value || 'weekly';
+            if (recurrenceType === 'custom') {
+                const mode = document.querySelector('input[name="recurrence_custom_mode"]:checked')?.value || 'weekdays';
+                if (mode === 'weekdays') {
+                    recurrenceConfig = JSON.stringify({ type: 'weekdays', days: getSelectedWeekdays() });
+                } else {
+                    recurrenceConfig = JSON.stringify({ type: 'monthday', day: Number(el('recurrence_monthday')?.value || 1) });
+                }
+            }
+        }
+
         const payload = {
             action: 'save',
             id: el('task_id').value || null,
@@ -203,9 +428,14 @@ window.KD = window.KD || {};
             stage_id: el('task_stage_id').value,
             priority: el('task_priority').value,
             due_date: el('task_due_date').value || null,
+            estimated_minutes: el('task_estimated_minutes')?.value || null,
             description: el('task_description').value,
             assignees,
             tags: formTags,
+            is_recurring: isRecurring,
+            recurrence_type: recurrenceType,
+            recurrence_config: recurrenceConfig,
+            initial_checklist: formChecklistItems,
         };
 
         const saveBtn = el('btnSaveTask');
@@ -332,7 +562,9 @@ window.KD = window.KD || {};
                 : '<span class="text-slate-400" style="font-size:0.75rem">Ninguém atribuído</span>';
         }
 
-        // Cronômetro
+        // Cronômetro e Tempo Estimado
+        const estMinutes = Number(task.estimated_minutes || 0);
+        setText('detailEstimated', estMinutes > 0 ? KD.formatMinutes(estMinutes) : 'Não informado');
         setText('detailTimer', KD.formatSeconds(task.effective_seconds));
         updateDetailPlayButton(Boolean(task.is_running));
 
@@ -363,12 +595,12 @@ window.KD = window.KD || {};
 
         renderChecklist(task.checklists || []);
         renderComments(task.comments || []);
-        renderSummaries(task.summaries || []);
         renderClientLinks(task.client_links_json);
         renderClientActivities(task.client_recent_tasks || []);
         renderClientProfile(task);
+        renderDetailHistory(task.history || []);
 
-        switchTab('activities');
+        switchTab('details');
         KD.icons();
     }
 
@@ -395,7 +627,7 @@ window.KD = window.KD || {};
     // Abas
     // ---------------------------------------------------------------
 
-    const TABS = ['activities', 'links', 'summary', 'client'];
+    const TABS = ['details', 'comments', 'links', 'client', 'history'];
 
     function switchTab(name) {
         TABS.forEach((tab) => {
@@ -442,7 +674,7 @@ window.KD = window.KD || {};
     }
 
     // ---------------------------------------------------------------
-    // Subtarefas
+    // Subtarefas (Visualização com checklist interativo)
     // ---------------------------------------------------------------
 
     function renderChecklist(items) {
@@ -461,120 +693,205 @@ window.KD = window.KD || {};
         }
 
         if (total === 0) {
-            list.innerHTML = '<p class="kd-col__empty">Quebre a tarefa em passos menores para acompanhar o progresso no card.</p>';
+            list.innerHTML = '<p class="text-xs text-slate-500 italic p-3 text-center">Nenhuma subtarefa vinculada. Para adicionar ou gerenciar subtarefas, clique no botão de editar acima.</p>';
             return;
         }
 
         list.innerHTML = items.map((item) => {
             const checked = Number(item.is_completed) === 1;
             return `
-                <div class="flex items-center gap-3 p-2.5 rounded-xl" style="background:var(--surface-1);border:1px solid var(--border)">
+                <div class="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/60 transition hover:border-slate-700/60">
                     <input type="checkbox" id="chk-${item.id}" ${checked ? 'checked' : ''}
                            data-detail-action="toggle-checklist" data-item-id="${item.id}"
-                           class="w-4 h-4 rounded cursor-pointer">
-                    <label for="chk-${item.id}" style="flex:1;font-size:0.75rem;cursor:pointer;${checked ? 'text-decoration:line-through;color:var(--text-faint)' : 'color:var(--text)'}">
+                           class="w-4 h-4 rounded cursor-pointer accent-indigo-500">
+                    <label for="chk-${item.id}" class="flex-1 text-xs cursor-pointer select-none ${checked ? 'line-through text-slate-500' : 'text-slate-200'}">
                         ${KD.escapeHtml(item.title)}
                     </label>
-                    <button type="button" class="kd-icon-btn" data-detail-action="delete-checklist" data-item-id="${item.id}"
-                            aria-label="Remover subtarefa ${KD.escapeHtml(item.title)}">
-                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                    </button>
                 </div>
             `;
         }).join('');
     }
 
-    KD.addChecklistItem = async function (event) {
-        event.preventDefault();
-        const input = el('newChecklistInput');
-        const title = input.value.trim();
-        if (!title || !activeTask) return;
-
-        try {
-            await KD.api.tasks({ action: 'add_checklist', task_id: activeTask.id, title });
-            input.value = '';
-            await refreshDetail();
-            input.focus();
-        } catch (error) {
-            KD.toastError(error.message);
-        }
-    };
-
     // ---------------------------------------------------------------
-    // Comentários e resumos
+    // Comentários: Feed (50%) e Editor CRUD (50%)
     // ---------------------------------------------------------------
 
     function renderComments(comments) {
         const container = el('detailComments');
         if (!container) return;
 
+        setText('detailCommentsCount', String(comments.length));
+        setText('detailCommentsTabBadge', String(comments.length));
+
+        KD.cancelEditComment();
+
         if (comments.length === 0) {
-            container.innerHTML = '<p class="kd-col__empty">Nenhum comentário ainda.</p>';
+            container.innerHTML = '<p class="text-xs text-slate-500 italic p-4 text-center">Nenhum comentário registrado ainda. Utilize o editor ao lado para enviar uma mensagem.</p>';
             return;
         }
 
         container.innerHTML = comments.map((comment) => `
-            <div class="p-3 rounded-xl" style="background:var(--surface-1);border:1px solid var(--border)">
-                <div class="flex items-center justify-between gap-2 mb-1">
-                    <span style="font-size:0.75rem;font-weight:700;color:var(--brand-strong)">${KD.escapeHtml(comment.user_name)}</span>
-                    <span style="font-size:0.6875rem;color:var(--text-faint)">${KD.escapeHtml(KD.formatRelative(comment.created_at))}</span>
+            <div class="p-3 rounded-xl bg-slate-900/50 border border-slate-800/80 space-y-2 group">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-300 font-bold text-[10px] flex items-center justify-center border border-indigo-500/30">
+                            ${KD.escapeHtml((comment.user_name || 'U').charAt(0).toUpperCase())}
+                        </span>
+                        <span class="text-xs font-bold text-slate-200">${KD.escapeHtml(comment.user_name || 'Usuário')}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] text-slate-500">${KD.escapeHtml(KD.formatRelative(comment.created_at))}</span>
+                        <button type="button" class="p-1 text-slate-400 hover:text-indigo-300 transition"
+                                data-detail-action="edit-comment"
+                                data-comment-id="${comment.id}"
+                                title="Editar comentário">
+                            <i data-lucide="pencil" class="w-3 h-3"></i>
+                        </button>
+                        <button type="button" class="p-1 text-slate-400 hover:text-rose-400 transition"
+                                data-detail-action="delete-comment"
+                                data-comment-id="${comment.id}"
+                                title="Excluir comentário">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i>
+                        </button>
+                    </div>
                 </div>
-                <p style="font-size:0.75rem;line-height:1.6;white-space:pre-wrap">${KD.escapeHtml(comment.comment_text)}</p>
+                <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap pl-1" id="comment-text-${comment.id}">${KD.escapeHtml(comment.comment_text)}</p>
             </div>
         `).join('');
+
+        KD.icons();
     }
 
-    KD.addComment = async function (event) {
+    KD.submitComment = async function (event) {
         event.preventDefault();
         const input = el('newCommentInput');
         const text = input.value.trim();
         if (!text || !activeTask) return;
 
+        const editId = el('editingCommentId').value;
+        const btn = el('btnSubmitComment');
+        btn.disabled = true;
+
         try {
-            await KD.api.tasks({ action: 'add_comment', task_id: activeTask.id, comment_text: text });
-            input.value = '';
+            if (editId) {
+                await KD.api.tasks({
+                    action: 'update_comment',
+                    comment_id: Number(editId),
+                    task_id: activeTask.id,
+                    comment_text: text,
+                });
+                KD.toast('Comentário atualizado.');
+            } else {
+                await KD.api.tasks({
+                    action: 'add_comment',
+                    task_id: activeTask.id,
+                    comment_text: text,
+                });
+                KD.toast('Comentário enviado.');
+            }
+            KD.cancelEditComment();
             await refreshDetail();
-            input.focus();
+        } catch (error) {
+            KD.toastError(error.message);
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    KD.editComment = function (commentId) {
+        const textEl = el(`comment-text-${commentId}`);
+        if (!textEl) return;
+
+        el('editingCommentId').value = commentId;
+        el('newCommentInput').value = textEl.innerText || textEl.textContent || '';
+        el('commentEditingIndicator').hidden = false;
+        el('btnCancelEditComment').hidden = false;
+        setText('btnSubmitCommentLabel', 'Salvar alteração');
+        el('commentEditorHeading').innerHTML = '<i data-lucide="pencil" class="w-4 h-4 text-amber-400"></i> Editar Comentário';
+        el('newCommentInput').focus();
+        KD.icons();
+    };
+
+    KD.cancelEditComment = function () {
+        if (el('editingCommentId')) el('editingCommentId').value = '';
+        if (el('newCommentInput')) el('newCommentInput').value = '';
+        if (el('commentEditingIndicator')) el('commentEditingIndicator').hidden = true;
+        if (el('btnCancelEditComment')) el('btnCancelEditComment').hidden = true;
+        setText('btnSubmitCommentLabel', 'Enviar comentário');
+        if (el('commentEditorHeading')) {
+            el('commentEditorHeading').innerHTML = '<i data-lucide="edit-3" class="w-4 h-4 text-emerald-400"></i> Novo Comentário';
+        }
+        KD.icons();
+    };
+
+    KD.deleteComment = async function (commentId) {
+        if (!confirm('Deseja realmente excluir este comentário?')) return;
+        if (!activeTask) return;
+
+        try {
+            await KD.api.tasks({
+                action: 'delete_comment',
+                comment_id: Number(commentId),
+                task_id: activeTask.id,
+            });
+            KD.toast('Comentário excluído.');
+            await refreshDetail();
         } catch (error) {
             KD.toastError(error.message);
         }
     };
 
-    function renderSummaries(summaries) {
-        const container = el('detailSummaries');
+    // ---------------------------------------------------------------
+    // Histórico da Tarefa (Activity Log)
+    // ---------------------------------------------------------------
+
+    const HISTORY_ACTION_MAP = {
+        task_created: { icon: 'plus-circle', color: 'text-emerald-400', label: 'Tarefa criada' },
+        task_updated: { icon: 'edit', color: 'text-blue-400', label: 'Tarefa editada' },
+        stage_changed: { icon: 'arrow-right-circle', color: 'text-indigo-400', label: 'Coluna alterada' },
+        due_date_changed: { icon: 'calendar', color: 'text-amber-400', label: 'Prazo alterado' },
+        timer_started: { icon: 'play', color: 'text-emerald-400', label: 'Cronômetro iniciado' },
+        timer_stopped: { icon: 'pause', color: 'text-amber-400', label: 'Cronômetro pausado' },
+        task_completed: { icon: 'check-circle-2', color: 'text-emerald-400', label: 'Tarefa concluída' },
+        task_reopened: { icon: 'rotate-ccw', color: 'text-amber-400', label: 'Tarefa reaberta' },
+        comment_added: { icon: 'message-square', color: 'text-indigo-400', label: 'Comentário adicionado' },
+        comment_updated: { icon: 'edit-2', color: 'text-indigo-400', label: 'Comentário editado' },
+        comment_deleted: { icon: 'trash-2', color: 'text-rose-400', label: 'Comentário excluído' },
+        checklist_toggle: { icon: 'check-square', color: 'text-emerald-400', label: 'Subtarefa atualizada' },
+        focus_toggled: { icon: 'target', color: 'text-amber-400', label: 'Foco alterado' },
+        bomb_toggled: { icon: 'flame', color: 'text-rose-400', label: 'Urgência alterada' },
+    };
+
+    function renderDetailHistory(history) {
+        const container = el('detailHistoryTimeline');
         if (!container) return;
 
-        if (summaries.length === 0) {
-            container.innerHTML = '<p class="kd-col__empty">Nenhum registro no histórico de execução.</p>';
+        if (!history || history.length === 0) {
+            container.innerHTML = '<p class="text-xs text-slate-500 italic p-4 text-center">Nenhuma atividade registrada no histórico desta tarefa.</p>';
             return;
         }
 
-        container.innerHTML = summaries.map((summary) => `
-            <div class="p-3.5 rounded-xl" style="background:var(--surface-1);border:1px solid var(--border)">
-                <div class="flex items-center justify-between gap-2 mb-1.5">
-                    <span style="font-size:0.75rem;font-weight:700;color:var(--text-strong)">${KD.escapeHtml(summary.user_name)}</span>
-                    <span style="font-size:0.6875rem;color:var(--text-faint)">${KD.escapeHtml(KD.formatRelative(summary.created_at))}</span>
+        container.innerHTML = history.map((item) => {
+            const meta = HISTORY_ACTION_MAP[item.action] || { icon: 'activity', color: 'text-slate-400', label: item.action };
+            return `
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-900/40 border border-slate-800/60">
+                    <div class="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0 ${meta.color}">
+                        <i data-lucide="${meta.icon}" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-0.5">
+                            <span class="text-xs font-bold text-slate-200">${meta.label}</span>
+                            <span class="text-[10px] text-slate-500 flex-shrink-0">${KD.escapeHtml(KD.formatRelative(item.created_at))}</span>
+                        </div>
+                        ${item.details ? `<p class="text-xs text-slate-400 leading-relaxed">${KD.escapeHtml(item.details)}</p>` : ''}
+                        <span class="text-[10px] text-slate-500 mt-1 block">Por: ${KD.escapeHtml(item.user_name || 'Sistema')}</span>
+                    </div>
                 </div>
-                <p style="font-size:0.75rem;line-height:1.65;white-space:pre-wrap">${KD.escapeHtml(summary.summary_text)}</p>
-            </div>
-        `).join('');
+            `;
+        }).join('');
+
+        KD.icons();
     }
-
-    KD.addSummary = async function (event) {
-        event.preventDefault();
-        const input = el('taskSummaryInput');
-        const text = input.value.trim();
-        if (!text || !activeTask) return;
-
-        try {
-            await KD.api.tasks({ action: 'add_summary', task_id: activeTask.id, summary_text: text });
-            input.value = '';
-            await refreshDetail();
-            KD.toast('Resumo registrado.');
-        } catch (error) {
-            KD.toastError(error.message);
-        }
-    };
 
     // ---------------------------------------------------------------
     // Links úteis do cliente
@@ -770,6 +1087,14 @@ window.KD = window.KD || {};
                 break;
             }
 
+            case 'edit-comment':
+                KD.editComment(Number(node.dataset.commentId));
+                break;
+
+            case 'delete-comment':
+                await KD.deleteComment(Number(node.dataset.commentId));
+                break;
+
             case 'open-task':
                 await KD.openTaskDetail(Number(node.dataset.taskId));
                 break;
@@ -802,5 +1127,131 @@ window.KD = window.KD || {};
         if (!event.target.closest('#taskDetailModal')) return;
         if (event.target.type !== 'checkbox') return;
         handleDetailEvent(event);
+    });
+
+    // ---------------------------------------------------------------
+    // Helpers de Tempo Estimado e Expediente
+    // ---------------------------------------------------------------
+
+    KD.formatMinutes = function (totalMinutes) {
+        const mins = Math.max(0, Number(totalMinutes || 0));
+        if (mins === 0) return '0 min';
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        if (h === 0) return `${m}m`;
+        if (m === 0) return `${h}h`;
+        return `${h}h ${m}m`;
+    };
+
+    KD.updateEstimatedPreview = function (val) {
+        const preview = el('task_estimated_preview');
+        if (!preview) return;
+        const mins = Number(val || 0);
+        if (mins > 0) {
+            preview.textContent = `= ${KD.formatMinutes(mins)}`;
+            preview.hidden = false;
+        } else {
+            preview.hidden = true;
+        }
+    };
+
+    KD.setEstimatedMinutes = function (val) {
+        const input = el('task_estimated_minutes');
+        if (input) {
+            input.value = val;
+            KD.updateEstimatedPreview(val);
+            input.focus();
+        }
+    };
+
+    KD.openWorkHoursModal = async function () {
+        const startInput = el('work_start_time_input');
+        const endInput = el('work_end_time_input');
+
+        if (KD.board && KD.board.workHours) {
+            if (startInput) startInput.value = KD.board.workHours.start || '09:00';
+            if (endInput) endInput.value = KD.board.workHours.end || '17:00';
+        } else {
+            try {
+                const res = await fetch(KD.url('/api/preferencias'));
+                const data = await res.json();
+                if (data.success) {
+                    if (startInput) startInput.value = data.work_start_time || '09:00';
+                    if (endInput) endInput.value = data.work_end_time || '17:00';
+                }
+            } catch (e) {}
+        }
+
+        KD.calculateWorkHoursPreview();
+        KD.openModal('workHoursModal', { focus: '#work_start_time_input' });
+    };
+
+    KD.calculateWorkHoursPreview = function () {
+        const start = el('work_start_time_input')?.value || '09:00';
+        const end = el('work_end_time_input')?.value || '17:00';
+        const calcEl = el('workHoursCalculated');
+        if (!calcEl) return;
+
+        const startParts = start.split(':').map(Number);
+        const endParts = end.split(':').map(Number);
+        const startM = (startParts[0] || 0) * 60 + (startParts[1] || 0);
+        const endM = (endParts[0] || 0) * 60 + (endParts[1] || 0);
+        const diff = Math.max(0, endM - startM);
+
+        calcEl.textContent = `${KD.formatMinutes(diff)} (${diff} min)`;
+        if (diff <= 0) {
+            calcEl.classList.add('text-rose-400');
+            calcEl.classList.remove('text-indigo-400');
+        } else {
+            calcEl.classList.remove('text-rose-400');
+            calcEl.classList.add('text-indigo-400');
+        }
+    };
+
+    KD.submitWorkHoursForm = async function (event) {
+        event.preventDefault();
+        const start = el('work_start_time_input')?.value || '09:00';
+        const end = el('work_end_time_input')?.value || '17:00';
+
+        try {
+            const res = await fetch(KD.url('/api/preferencias'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ work_start_time: start, work_end_time: end }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao salvar expediente.');
+
+            if (KD.board) {
+                KD.board.workHours = {
+                    start: data.work_start_time,
+                    end: data.work_end_time,
+                    capacityMinutes: data.work_capacity_minutes,
+                };
+                if (el('workHoursLabel')) {
+                    const h = Math.round(data.work_capacity_minutes / 60);
+                    el('workHoursLabel').textContent = `${data.work_start_time.slice(0, 2)}h–${data.work_end_time.slice(0, 2)}h (${h}h)`;
+                }
+                KD.renderBoard();
+            }
+
+            KD.closeModal('workHoursModal');
+            KD.toast('Horário de expediente salvo com sucesso!');
+        } catch (err) {
+            KD.toastError(err.message);
+        }
+    };
+
+    // Se a página carregar com ?create_with_template=X, abre automaticamente o modal com o modelo
+    document.addEventListener('DOMContentLoaded', () => {
+        const params = new URLSearchParams(window.location.search);
+        const tplId = params.get('create_with_template');
+        if (tplId) {
+            setTimeout(() => {
+                if (window.KD && KD.openTaskForm) {
+                    KD.openTaskForm(null, null, { id: Number(tplId) });
+                }
+            }, 250);
+        }
     });
 })(window.KD);

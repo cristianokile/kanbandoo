@@ -466,51 +466,76 @@ textarea:focus {
 .kd-icon-btn[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand-strong); }
 
 /* ==========================================================================
-   Quadro e colunas
+   Quadro e colunas (Scroll horizontal fluido e vertical por coluna)
    ========================================================================== */
 
 .kd-board {
     display: flex;
     gap: 1rem;
-    align-items: flex-start;
+    align-items: stretch;
     overflow-x: auto;
-    padding-bottom: 1rem;
-    min-height: calc(100vh - 230px);
+    overflow-y: hidden;
+    padding-bottom: 0.75rem;
+    flex: 1 1 0;
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(99, 102, 241, 0.4) rgba(15, 23, 42, 0.5);
+}
+
+.kd-board::-webkit-scrollbar {
+    height: 9px;
+}
+.kd-board::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 9999px;
+    margin: 0 0.5rem;
+}
+.kd-board::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.45);
+    border-radius: 9999px;
+    border: 2px solid rgba(15, 23, 42, 0.6);
+}
+.kd-board::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.75);
 }
 
 .kd-col {
     display: flex;
     flex-direction: column;
-    flex: 1 1 0;
-    min-width: 300px;
-    max-width: 380px;
-    max-height: calc(100vh - 230px);
+    align-self: stretch;
+    flex: 0 0 315px;
+    width: 315px;
+    min-width: 315px;
+    max-width: 340px;
+    height: 100%;
+    max-height: 100%;
     border-radius: var(--radius-lg);
     padding: 0.875rem;
+    box-sizing: border-box;
 }
-
-.kd-col__body { position: relative; z-index: 1; }
 
 .kd-col__header {
     position: relative;
     z-index: 1;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
+    flex-direction: column;
     padding-bottom: 0.625rem;
     margin-bottom: 0.75rem;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
 
 .kd-col__name {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.8125rem;
+    font-size: 0.84rem;
     font-weight: 700;
     color: var(--text-strong);
     min-width: 0;
+    line-height: 1.35;
 }
 
 .kd-col__dot { width: 10px; height: 10px; border-radius: 9999px; flex-shrink: 0; }
@@ -528,14 +553,76 @@ textarea:focus {
     color: var(--danger);
 }
 
+.kd-col__subbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.25rem 0.5rem;
+    margin-top: 0.45rem;
+}
+
+.kd-time-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.625rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 9999px;
+    background: var(--surface-3);
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.kd-time-pill--ok {
+    background: color-mix(in srgb, var(--brand) 15%, transparent);
+    color: var(--brand-strong);
+}
+.kd-time-pill--warning {
+    background: var(--warning-soft);
+    color: var(--warning);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+}
+.kd-time-pill--danger {
+    background: var(--danger-soft);
+    color: var(--danger);
+    border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+    animation: kdPulse 2s infinite;
+}
+
 .kd-col__body {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     gap: 0.625rem;
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 120px;
+    max-height: 100%;
     overflow-y: auto;
-    padding-right: 0.25rem;
-    min-height: 60px;
+    overflow-x: hidden;
+    padding-right: 0.35rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.kd-col__body::-webkit-scrollbar {
+    width: 6px;
+}
+.kd-col__body::-webkit-scrollbar-track {
+    background: transparent;
+}
+.kd-col__body::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.25);
+    border-radius: 9999px;
+}
+.kd-col__body::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
 }
 
 .kd-col__empty {
@@ -585,6 +672,7 @@ textarea:focus {
 
 /* Coluna recolhida vira uma faixa vertical */
 .kd-col--collapsed {
+    flex: 0 0 56px;
     min-width: 56px;
     max-width: 56px;
     padding: 0.75rem 0.5rem;
@@ -641,6 +729,8 @@ textarea:focus {
     box-shadow: var(--shadow-sm);
     transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
     cursor: grab;
+    flex-shrink: 0;
+    min-height: fit-content;
 }
 .kd-card.kd-glass { background-color: var(--glass-tint-card); }
 
@@ -785,6 +875,38 @@ html.kd-dragging .kd-card.kd-glass[data-bomb="1"] {
     gap: 0.3rem;
 }
 
+/* Modos de exibição nos cartões do Kanban */
+.kd-tags-hover .kd-card .kd-tags {
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    margin-top: 0;
+    margin-bottom: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.2s ease, max-height 0.25s ease, margin 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+.kd-tags-hover .kd-card:hover .kd-tags,
+.kd-tags-hover .kd-card:focus-within .kd-tags {
+    opacity: 1;
+    max-height: 70px;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.kd-tags-hidden .kd-card .kd-tags {
+    display: none !important;
+}
+
+.kd-tags-always .kd-card .kd-tags {
+    opacity: 1;
+    max-height: none;
+    overflow: visible;
+    transform: none;
+}
+
 .kd-tag {
     display: inline-flex;
     align-items: center;
@@ -922,15 +1044,49 @@ html.light .kd-chip-client[data-color="9"] { color: #b91c1c; }
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.1rem 0.45rem;
+    padding: 0.12rem 0.45rem;
     border-radius: var(--radius-sm);
-    font-weight: 600;
+    font-weight: 700;
     border: 1px solid transparent;
+    cursor: default;
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .kd-due[data-tone="overdue"] { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
 .kd-due[data-tone="today"]   { color: var(--warning); background: var(--warning-soft); border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
 .kd-due[data-tone="soon"]    { color: var(--text); background: var(--surface-3); border-color: var(--border); }
 .kd-due[data-tone="later"]   { color: var(--text-muted); background: transparent; border-color: var(--border); }
+
+.kd-due__short {
+    display: inline-block;
+}
+.kd-due__full {
+    display: inline-block;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: max-width 0.22s ease, opacity 0.18s ease;
+}
+.kd-due:hover .kd-due__short,
+.kd-card:hover .kd-due:hover .kd-due__short {
+    display: none;
+}
+.kd-due:hover .kd-due__full,
+.kd-card:hover .kd-due:hover .kd-due__full {
+    max-width: 14rem;
+    opacity: 1;
+}
+
+/* Badge de recorrência no card */
+.kd-recurring-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.35rem;
+    border-radius: var(--radius-sm);
+    background: var(--brand-soft);
+    color: var(--brand-strong);
+    border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
+}
 
 /* Progresso do checklist */
 .kd-progress {
@@ -1309,3 +1465,137 @@ html.light .kd-chip-client[data-color="9"] { color: #b91c1c; }
 
     .kd-modal__panel { padding: 1.1rem; margin: 0.5rem 0; }
 }
+
+/* Botões seletores de dias da semana para recorrência */
+.kd-day-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
+    height: 2rem;
+    padding: 0 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.kd-day-btn:hover {
+    background: var(--surface-3);
+    color: var(--text-strong);
+}
+.kd-day-btn.is-active {
+    background: var(--brand);
+    color: #ffffff;
+    border-color: transparent;
+    box-shadow: 0 0 10px -2px var(--brand);
+}
+
+/* Abas do Modal de Detalhes da Tarefa */
+.modal-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    background: transparent;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    white-space: nowrap;
+}
+.modal-tab-btn:hover {
+    color: var(--text-strong);
+    background: var(--surface-2);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.modal-tab-btn[aria-selected="true"] {
+    color: var(--brand-strong);
+    border-bottom-color: var(--brand);
+    font-weight: 700;
+}
+
+/* ==========================================================================
+   Contadores de Tempo nas Colunas e Estimativas nos Cards
+   ========================================================================== */
+
+.kd-time-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    letter-spacing: -0.01em;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.kd-time-badge--ok {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+.kd-time-badge--warning {
+    background: rgba(245, 158, 11, 0.18);
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.45);
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
+}
+
+.kd-time-badge--danger {
+    background: rgba(239, 68, 68, 0.22);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.5);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    animation: kd-pulse 2s infinite ease-in-out;
+}
+
+@keyframes kd-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.9; transform: scale(1.02); }
+}
+
+.kd-est-time-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--brand-strong);
+    background: var(--brand-soft);
+    padding: 0.1rem 0.35rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
+}
+
+.kd-col-date {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--text-faint);
+    margin-left: 0.25rem;
+}
+
+.kd-col-today-chip {
+    font-size: 0.5625rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--brand);
+    color: #fff;
+    padding: 0.05rem 0.3rem;
+    border-radius: 9999px;
+    margin-left: 0.3rem;
+}
+

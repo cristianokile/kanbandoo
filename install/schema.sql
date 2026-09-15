@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS users (
     role ENUM('admin', 'member') NOT NULL DEFAULT 'member',
     avatar_path VARCHAR(255) DEFAULT NULL,
     theme_preference ENUM('light', 'dark') NOT NULL DEFAULT 'dark',
+    work_start_time VARCHAR(10) NOT NULL DEFAULT '09:00',
+    work_end_time VARCHAR(10) NOT NULL DEFAULT '17:00',
+    work_days VARCHAR(50) NOT NULL DEFAULT '1,2,3,4,5',
+    board_view_mode VARCHAR(20) NOT NULL DEFAULT 'status',
+    visible_columns_json TEXT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_users_role (role)

@@ -18,10 +18,10 @@ $clients = $pdo->query("SELECT id, company_name FROM clients WHERE status = 'act
 $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")->fetchAll();
 ?>
 
-<main id="conteudo" class="flex-1 w-full px-4 lg:px-8 py-6 flex flex-col">
+<main id="conteudo" class="flex-1 w-full px-4 lg:px-8 py-3 flex flex-col min-h-0 h-[calc(100vh-62px)] overflow-hidden">
 
     <!-- Cabeçalho da página: título, métricas e controles de visão -->
-    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-3 flex-shrink-0">
         <div>
             <h1 class="text-2xl font-extrabold tracking-tight">Quadro de tarefas</h1>
             <p class="text-xs text-slate-400 mt-0.5 hidden md:block">
@@ -32,7 +32,7 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
             </p>
         </div>
 
-        <!-- Métricas e controles de visão na mesma linha; os botões abrem no hover -->
+        <!-- Métricas e controles de visão organizados sem espremer -->
         <div class="flex items-center gap-2 flex-wrap lg:flex-nowrap lg:justify-end">
             <span class="kd-metric kd-glass">
                 <span class="kd-col__dot" style="background:var(--brand)"></span>
@@ -53,23 +53,69 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
 
             <span class="kd-divider" aria-hidden="true"></span>
 
+            <!-- Seletor de Modo de Visão (Status vs Dias da Semana) - Apenas ícones -->
+            <div class="inline-flex items-center p-1 rounded-xl bg-slate-900/80 border border-slate-800 gap-1" role="group" aria-label="Modo de visão do quadro">
+                <button type="button" id="btnViewStatus" onclick="KD.setViewMode('status')"
+                        class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition text-indigo-400 bg-indigo-600/15 border border-indigo-500/20"
+                        title="Visão por Status (A Fazer, Em Andamento, etc.)" aria-label="Visão por Status">
+                    <i data-lucide="columns" class="w-4 h-4"></i>
+                </button>
+                <button type="button" id="btnViewWeekdays" onclick="KD.setViewMode('weekdays')"
+                        class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition text-slate-400 hover:text-white"
+                        title="Visão por Dias da Semana (Dom, Seg, Ter, Qua, Qui, Sex, Sáb)" aria-label="Visão por Dias da Semana">
+                    <i data-lucide="calendar-days" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Seletor de Colunas Visíveis -->
+            <div class="relative inline-block text-left kd-menu-wrap" id="columnsMenuWrap">
+                <button type="button" id="btnToggleColumnsMenu" class="kd-btn kd-btn--icon kd-glass" onclick="KD.toggleColumnsMenu(event)"
+                        aria-haspopup="menu" aria-expanded="false" title="Exibir ou ocultar colunas" aria-label="Exibir ou ocultar colunas">
+                    <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+                    <span id="columnsHiddenBadge" class="kd-col__count" style="background:var(--warning);color:#000" hidden></span>
+                </button>
+                <div id="columnsMenuDropdown" class="kd-menu kd-glass kd-glass--raised absolute right-0 mt-2 z-50 p-2 space-y-1" role="menu" hidden style="min-width:14rem">
+                    <div class="px-2 py-1 mb-1 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                        <span>Colunas Visíveis</span>
+                        <button type="button" onclick="KD.resetVisibleColumns()" class="text-[10px] text-indigo-400 hover:underline">Restaurar</button>
+                    </div>
+                    <div id="columnsMenuList" class="space-y-1 max-h-60 overflow-y-auto"></div>
+                    <div class="border-t border-slate-800 pt-1.5 mt-1.5 px-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Etiquetas nos cards</span>
+                        <div class="space-y-0.5">
+                            <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between text-xs py-1" onclick="KD.setTagVisibility('hover')">
+                                <span class="flex items-center gap-1.5"><i data-lucide="mouse-pointer" class="w-3 h-3 text-indigo-400"></i> Ao passar o mouse</span>
+                                <span class="tag-opt-check" data-mode="hover"><i data-lucide="check" class="w-3 h-3 text-indigo-400"></i></span>
+                            </button>
+                            <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between text-xs py-1" onclick="KD.setTagVisibility('always')">
+                                <span class="flex items-center gap-1.5"><i data-lucide="eye" class="w-3 h-3 text-slate-400"></i> Sempre visíveis</span>
+                                <span class="tag-opt-check" data-mode="always" hidden><i data-lucide="check" class="w-3 h-3 text-indigo-400"></i></span>
+                            </button>
+                            <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between text-xs py-1" onclick="KD.setTagVisibility('hidden')">
+                                <span class="flex items-center gap-1.5"><i data-lucide="eye-off" class="w-3 h-3 text-slate-400"></i> Ocultar etiquetas</span>
+                                <span class="tag-opt-check" data-mode="hidden" hidden><i data-lucide="check" class="w-3 h-3 text-indigo-400"></i></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <span class="kd-divider" aria-hidden="true"></span>
+
             <button type="button" id="toggleFilterBarBtn" class="kd-btn kd-btn--icon kd-glass" onclick="KD.toggleFilterBar()"
-                    aria-expanded="false" aria-controls="kanbanFilterBar" title="Buscar e filtrar">
+                    aria-expanded="false" aria-controls="kanbanFilterBar" title="Buscar e filtrar" aria-label="Buscar e filtrar">
                 <i data-lucide="filter" class="w-4 h-4"></i>
-                <span class="kd-btn__label">Buscar e filtrar</span>
                 <span id="filterCountBadge" class="kd-col__count" hidden></span>
             </button>
 
             <button type="button" id="btnOnlyMine" class="kd-btn kd-btn--icon kd-glass" onclick="KD.toggleOnlyMine()"
-                    aria-pressed="false" title="Minhas tarefas">
+                    aria-pressed="false" title="Minhas tarefas" aria-label="Minhas tarefas">
                 <i data-lucide="user-check" class="w-4 h-4"></i>
-                <span class="kd-btn__label">Minhas tarefas</span>
             </button>
 
             <button type="button" id="btnGroupClient" class="kd-btn kd-btn--icon kd-glass" onclick="KD.toggleGroupByClient()"
-                    aria-pressed="false" title="Agrupar por cliente">
+                    aria-pressed="false" title="Agrupar por cliente" aria-label="Agrupar por cliente">
                 <i data-lucide="layers" class="w-4 h-4"></i>
-                <span class="kd-btn__label">Agrupar por cliente</span>
             </button>
         </div>
     </div>
@@ -79,7 +125,7 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
     </p>
 
     <!-- Filtros -->
-    <div id="kanbanFilterBar" class="kd-glass rounded-2xl p-3.5 mb-5 flex flex-wrap items-end gap-3 animate-fade-in" hidden>
+    <div id="kanbanFilterBar" class="kd-glass rounded-2xl p-3.5 mb-4 flex flex-wrap items-end gap-3 animate-fade-in" hidden>
 
         <div class="flex-1 min-w-[220px]">
             <label for="filterSearch" class="block text-[11px] font-semibold text-slate-400 mb-1">Buscar</label>
@@ -134,7 +180,7 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
     <div id="kanbanStageTabs" class="kd-segmented" role="tablist" aria-label="Escolher coluna"></div>
 
     <!-- Quadro -->
-    <div id="kanbanBoard" class="kd-board" aria-label="Quadro Kanban"></div>
+    <div id="kanbanBoard" class="kd-board flex-1 min-h-0" aria-label="Quadro Kanban"></div>
 </main>
 
 <?php view_footer(); ?>
