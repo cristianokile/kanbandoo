@@ -18,10 +18,10 @@ $clients = $pdo->query("SELECT id, company_name FROM clients WHERE status = 'act
 $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")->fetchAll();
 ?>
 
-<main id="conteudo" class="flex-1 w-full px-4 lg:px-8 py-3 flex flex-col min-h-0 h-[calc(100vh-62px)] overflow-hidden">
+<main id="conteudo" class="kd-main-board flex-1 w-full pt-3 flex flex-col min-h-0 overflow-hidden">
 
     <!-- Cabeçalho da página: título, métricas e controles de visão -->
-    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-3 flex-shrink-0">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-3 flex-shrink-0 px-4 lg:px-8">
         <div>
             <h1 class="text-2xl font-extrabold tracking-tight">Quadro de tarefas</h1>
             <p class="text-xs text-slate-400 mt-0.5 hidden md:block">
@@ -120,12 +120,12 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
         </div>
     </div>
 
-    <p id="groupDragHint" class="text-[11px] text-slate-400 mb-4" hidden>
+    <p id="groupDragHint" class="text-[11px] text-slate-400 mb-4 px-4 lg:px-8" hidden>
         Enquanto agrupado, mova os cards pelo menu <strong>⋮</strong> do card.
     </p>
 
     <!-- Filtros -->
-    <div id="kanbanFilterBar" class="kd-glass rounded-2xl p-3.5 mb-4 flex flex-wrap items-end gap-3 animate-fade-in" hidden>
+    <div id="kanbanFilterBar" class="kd-glass rounded-2xl p-3.5 mb-4 mx-4 lg:mx-8 flex flex-wrap items-end gap-3 animate-fade-in" hidden>
 
         <div class="flex-1 min-w-[220px]">
             <label for="filterSearch" class="block text-[11px] font-semibold text-slate-400 mb-1">Buscar</label>
@@ -177,10 +177,10 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
     </div>
 
     <!-- Seletor de coluna (somente no celular) -->
-    <div id="kanbanStageTabs" class="kd-segmented" role="tablist" aria-label="Escolher coluna"></div>
+    <div id="kanbanStageTabs" class="kd-segmented mx-4 mb-3" role="tablist" aria-label="Escolher coluna"></div>
 
-    <!-- Quadro -->
-    <div id="kanbanBoard" class="kd-board flex-1 min-h-0" aria-label="Quadro Kanban"></div>
+    <!-- Quadro Full-Width -->
+    <div id="kanbanBoard" class="kd-board flex-1 min-h-0 w-full" aria-label="Quadro Kanban"></div>
 </main>
 
 <?php view_footer(); ?>

@@ -29,6 +29,7 @@ window.KD = window.KD || {};
             status: new Set(),
             weekdays: new Set(),
         },
+        pausedTimers: new Set(),
     };
 
     const sortables = [];
@@ -805,43 +806,112 @@ window.KD = window.KD || {};
         const percent = checklistTotal > 0 ? Math.round((checklistDone / checklistTotal) * 100) : 0;
         const comments = Number(task.comments_count || 0);
         const due = task.due_badge || {};
-        const priority = (task.priority_info && task.priority_info.label) || 'Média';
+        const prioritySlug = task.priority || 'medium';
 
         const tags = task.tags || [];
         const assignees = task.assignees || [];
-        const shown = assignees.slice(0, 3);
-        const extra = assignees.length - shown.length;
+        const primaryUser = assignees[0] || null;
 
-        const ariaLabel = [
-            task.title,
-            task.client_company ? `cliente ${task.client_company}` : null,
-            `prioridade ${priority}`,
-            due.label || null,
-            checklistTotal > 0 ? `${checklistDone} de ${checklistTotal} subtarefas` : null,
-            isBomb ? 'tarefa bomba, presa a esta coluna até ser resolvida' : null,
-        ].filter(Boolean).join(', ');
+        // Determinação unificada da cor de status (border-bottom, botão de play/timer e texto tracking-wide)
+        let statusColor = '#eab308';
+        if (isDone) {
+            statusColor = '#10b981';
+        } else if (due.tone === 'overdue') {
+            statusColor = '#ef4444';
+        } else if (due.tone === 'today') {
+            statusColor = '#eab308';
+        } else if (due.tone === 'soon') {
+            statusColor = '#38bdf8';
+        } else if (prioritySlug === 'urgent') {
+            statusColor = '#ef4444';
+        } else if (prioritySlug === 'high') {
+            statusColor = '#f97316';
+        } else if (prioritySlug === 'medium') {
+            statusColor = '#eab308';
+        } else if (prioritySlug === 'low') {
+            statusColor = '#38bdf8';
+        } else if (stage && stage.color) {
+            statusColor = stage.color;
+        }
+
+        // 1. Avatar do responsável em primeiro (topo à esquerda) - 1.5rem
+        let avatarHtml = '';
+        if (primaryUser && primaryUser.avatar) {
+            avatarHtml = `<img src="${primaryUser.avatar}" alt="${KD.escapeHtml(primaryUser.name || '')}" class="rounded-full object-cover border border-slate-600/80 shadow-sm" style="width: 1.5rem; height: 1.5rem;" title="${KD.escapeHtml(primaryUser.name || '')}">`;
+        } else if (primaryUser) {
+            const initial = (primaryUser.initial || primaryUser.name?.charAt(0) || 'U').toUpperCase();
+            avatarHtml = `<div class="rounded-full bg-slate-700/80 border border-slate-600/80 text-white font-bold text-[10px] flex items-center justify-center shadow-sm" style="width: 1.5rem; height: 1.5rem;" title="${KD.escapeHtml(primaryUser.name || '')}">${KD.escapeHtml(initial)}</div>`;
+        } else {
+            avatarHtml = `<div class="rounded-full bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center" style="width: 1.5rem; height: 1.5rem;" title="Sem responsável"><i data-lucide="user" class="w-3 h-3"></i></div>`;
+        }
+
+        // 2. Etapas / Subtarefas (ex: 01 de 02)
+        let stepsHtml = '';
+        if (checklistTotal > 0) {
+            const donePad = String(checklistDone).padStart(2, '0');
+            const totalPad = String(checklistTotal).padStart(2, '0');
+            stepsHtml = `
+                <div class="kd-card__steps" title="${donePad} de ${totalPad} etapas concluídas">
+                    <i data-lucide="check-square" class="w-3.5 h-3.5 text-slate-400"></i>
+                    <span>${donePad} de ${totalPad}</span>
+                </div>
+            `;
+        }
+
+        // 3. Prazo no rodapé à esquerda (texto do tracking-wide na mesma cor do status)
+        let dueHtml = '';
+        if (due.text) {
+            dueHtml = `<span class="text-xs font-bold tracking-wide leading-tight" style="color: var(--card-status-color);">${KD.escapeHtml(due.text)}</span>`;
+        } else {
+            dueHtml = `<span class="text-xs font-mono font-bold tracking-wide leading-tight" style="color: var(--card-status-color);">#${task.id}</span>`;
+        }
+
+        // 4. Botão Play / Timer Expandido (toggle suave)
+        const isPaused = !isRunning && board.pausedTimers && board.pausedTimers.has(Number(task.id));
+        const isTimerActive = isRunning || isPaused;
+
+        const timerControlHtml = `
+            <div class="kd-timer-toggle ${isTimerActive ? 'is-active' : ''}">
+                <button type="button" class="kd-play-btn" data-action="timer-play" data-task-id="${task.id}" title="Iniciar tarefa" tabindex="${isTimerActive ? '-1' : '0'}">
+                    <i data-lucide="play" class="w-3 h-3 fill-current"></i>
+                </button>
+                <div class="kd-timer-pill ${isPaused ? 'is-paused' : ''}" id="kdTimerWrap-${task.id}">
+                    <button type="button" class="kd-timer-pill__stop" data-action="timer-stop" data-task-id="${task.id}" title="Parar tarefa e voltar ao play" tabindex="${isTimerActive ? '0' : '-1'}">
+                        <i data-lucide="square" class="w-2.5 h-2.5 fill-current"></i>
+                    </button>
+                    <span class="kd-timer-pill__time ${isPaused ? 'kd-timer-pill__time--paused' : ''}" id="kdTimer-${task.id}">${KD.formatSeconds(task.effective_seconds)}</span>
+                    <button type="button" class="kd-timer-pill__pause" data-action="${isRunning ? 'timer-pause' : 'timer-play'}" data-task-id="${task.id}" title="${isRunning ? 'Pausar tarefa' : 'Retomar tarefa'}" tabindex="${isTimerActive ? '0' : '-1'}">
+                        <i data-lucide="${isRunning ? 'pause' : 'play'}" class="w-2.5 h-2.5 ${isRunning ? '' : 'fill-current'}"></i>
+                    </button>
+                </div>
+            </div>
+        `;
 
         return `
-            <article class="kd-card kd-glass kd-glass--raised"
+            <article class="kd-card kd-glass"
                      role="listitem"
                      tabindex="0"
                      data-task-id="${task.id}"
                      data-stage-id="${task.stage_id}"
-                     data-priority="${KD.escapeHtml(task.priority || 'medium')}"
+                     data-priority="${KD.escapeHtml(prioritySlug)}"
                      data-running="${isRunning ? 1 : 0}"
+                     data-paused="${isPaused ? 1 : 0}"
                      data-focus="${inFocus ? 1 : 0}"
                      data-bomb="${isBomb ? 1 : 0}"
                      data-done="${isDone ? 1 : 0}"
                      data-seconds="${Number(task.effective_seconds || 0)}"
-                     aria-label="${KD.escapeHtml(ariaLabel)}">
+                     style="--card-status-color: ${statusColor};"
+                     aria-label="${KD.escapeHtml(task.title)}">
 
-                <div class="kd-card__top">
-                    <div class="kd-card__meta-left">
-                        <span class="kd-prio">${KD.escapeHtml(priority)}</span>
+                <!-- Topo: Avatar do responsável à esquerda e menu ⋮ à direita -->
+                <div class="flex items-center justify-between gap-3 w-full">
+                    <div class="flex items-center gap-2 min-w-0">
+                        ${avatarHtml}
                     </div>
 
-                    <div class="kd-menu-wrap">
-                        <button type="button" class="kd-icon-btn" data-action="toggle-card-menu" data-task-id="${task.id}"
+                    <div class="kd-menu-wrap flex items-center gap-1">
+                        <button type="button" class="w-7 h-7 rounded-lg text-slate-400 hover:text-white flex items-center justify-center transition"
+                                data-action="toggle-card-menu" data-task-id="${task.id}"
                                 aria-haspopup="menu" aria-expanded="false"
                                 aria-label="Ações da tarefa ${KD.escapeHtml(task.title)}">
                             <i data-lucide="more-vertical" class="w-4 h-4"></i>
@@ -850,14 +920,20 @@ window.KD = window.KD || {};
                     </div>
                 </div>
 
+                <!-- Subtítulo: Nome do cliente (12px, tom cinza) -->
+                <div class="kd-card__client truncate" title="${KD.escapeHtml(task.client_company || 'Sem cliente')}">
+                    ${KD.escapeHtml(task.client_company || 'Sem cliente')}
+                </div>
+
+                <!-- Título da tarefa (18px, branco) -->
                 <button type="button" class="kd-card__title" data-action="open" data-task-id="${task.id}">
                     ${KD.escapeHtml(task.title)}
                 </button>
 
-                ${task.client_company
-                    ? `<span class="kd-client" title="${KD.escapeHtml(task.client_company)}">${KD.escapeHtml(task.client_company)}</span>`
-                    : '<span class="kd-client kd-client--none">Sem cliente</span>'}
+                <!-- Etapas / Subtarefas -->
+                ${stepsHtml}
 
+                <!-- Etiquetas (Tags nos cards - com hover) -->
                 ${tags.length > 0 ? `
                     <div class="kd-tags">
                         ${tags.slice(0, 3).map((tag) => `
@@ -872,69 +948,24 @@ window.KD = window.KD || {};
                 ${(inFocus || isBomb || isMention) ? `
                     <div class="flex items-center gap-1.5 flex-wrap">
                         ${inFocus ? '<span class="kd-flag kd-flag--focus"><i data-lucide="target" class="w-3 h-3"></i>Foco</span>' : ''}
-                        ${isBomb ? '<span class="kd-flag kd-flag--bomb" title="Precisa ser resolvida antes de estourar. Não muda de coluna enquanto estiver marcada."><i data-lucide="flame" class="w-3 h-3"></i>Bomba</span>' : ''}
+                        ${isBomb ? '<span class="kd-flag kd-flag--bomb" title="Precisa ser resolvida antes de estourar."><i data-lucide="flame" class="w-3 h-3"></i>Bomba</span>' : ''}
                         ${isMention ? `<span class="kd-flag kd-flag--mention"><i data-lucide="message-circle" class="w-3 h-3"></i>${KD.escapeHtml(task.mentioned_by ? '@' + task.mentioned_by : 'WhatsApp')}</span>` : ''}
                     </div>
                 ` : ''}
 
-                <div class="kd-meta">
-                    ${due.text ? `
-                        <span class="kd-due" data-tone="${KD.escapeHtml(due.tone || 'later')}" title="${KD.escapeHtml(due.label || due.text || '')}">
-                            <i data-lucide="calendar" class="w-3 h-3"></i>
-                            <span class="kd-due__short">${KD.escapeHtml(due.short || due.text)}</span>
-                            <span class="kd-due__full">${KD.escapeHtml(due.text)}</span>
-                        </span>
-                    ` : ''}
-
-                    ${Number(task.is_recurring) === 1 ? `
-                        <span class="kd-meta__item kd-recurring-badge" title="Tarefa recorrente: ${KD.escapeHtml(task.recurrence_label || 'Ativa')}">
-                            <i data-lucide="repeat" class="w-3 h-3" style="color:var(--brand-strong)"></i>
-                        </span>
-                    ` : ''}
-
-                    ${checklistTotal > 0 ? `
-                        <span class="kd-progress ${percent === 100 ? 'kd-progress--done' : ''}"
-                              title="${checklistDone} de ${checklistTotal} subtarefas concluídas">
-                            <span class="kd-progress__track"><span class="kd-progress__fill" style="width:${percent}%"></span></span>
-                            <span>${checklistDone}/${checklistTotal}</span>
-                        </span>
-                    ` : ''}
-
-                    ${comments > 0 ? `
-                        <span class="kd-meta__item" title="${comments} comentário(s)">
-                            <i data-lucide="message-square" class="w-3 h-3"></i>${comments}
-                        </span>
-                    ` : ''}
-
-                    ${Number(task.estimated_minutes) > 0 ? `
-                        <span class="kd-est-time-badge" title="Tempo estimado: ${KD.formatMinutes ? KD.formatMinutes(task.estimated_minutes) : `${task.estimated_minutes} min`}">
-                            <i data-lucide="clock" class="w-3 h-3"></i>
-                            <span>${KD.formatMinutes ? KD.formatMinutes(task.estimated_minutes) : `${task.estimated_minutes}m`}</span>
-                        </span>
-                    ` : ''}
-
-                    <span class="kd-meta__item" style="opacity:.7" title="Identificador da tarefa">#${task.id}</span>
-                </div>
-
-                <div class="kd-card__footer">
-                    <div class="kd-avatars">
-                        ${shown.length > 0
-                            ? shown.map((user) => `<span class="kd-avatar" title="${KD.escapeHtml(user.name)}">${KD.escapeHtml(user.initial)}</span>`).join('')
-                              + (extra > 0 ? `<span class="kd-avatar kd-avatar--empty" title="Mais ${extra} responsável(is)">+${extra}</span>` : '')
-                            : '<span class="kd-avatar kd-avatar--empty" title="Sem responsável">—</span>'}
+                <!-- Rodapé: Prazo à esquerda e Botão Play/Timer à direita -->
+                <div class="flex items-center justify-between gap-3 pt-1 mt-auto">
+                    <div>
+                        ${dueHtml}
                     </div>
 
-                    <div class="flex items-center gap-2">
-                        <span class="kd-timer" data-running="${isRunning ? 1 : 0}" id="kdTimer-${task.id}">
-                            ${KD.formatSeconds(task.effective_seconds)}
-                        </span>
-                        <button type="button" class="kd-play" data-running="${isRunning ? 1 : 0}"
-                                data-action="timer" data-task-id="${task.id}"
-                                aria-label="${isRunning ? 'Pausar' : 'Iniciar'} cronômetro de ${KD.escapeHtml(task.title)}">
-                            <i data-lucide="${isRunning ? 'pause' : 'play'}" class="w-3.5 h-3.5"></i>
-                        </button>
+                    <div>
+                        ${timerControlHtml}
                     </div>
                 </div>
+
+                <!-- Barra de status colorida no rodapé -->
+                <div class="kd-card__status-bar" aria-hidden="true"></div>
             </article>
         `;
     }
@@ -1197,7 +1228,15 @@ window.KD = window.KD || {};
                 break;
 
             case 'timer':
-                await toggleTimer(taskId);
+            case 'timer-play':
+            case 'timer-pause':
+                node.blur();
+                await toggleTimer(taskId, node);
+                break;
+
+            case 'timer-stop':
+                node.blur();
+                await stopTimer(taskId, node);
                 break;
 
             case 'focus':
@@ -1301,14 +1340,67 @@ window.KD = window.KD || {};
         }
     }
 
-    async function toggleTimer(taskId) {
+    async function toggleTimer(taskId, triggerNode) {
         try {
-            const result = await KD.api.tasks({ action: 'toggle_timer', task_id: taskId });
+            const numId = Number(taskId);
+            const card = document.querySelector(`.kd-card[data-task-id="${numId}"]`);
+            const toggleWrap = card?.querySelector('.kd-timer-toggle');
+            if (toggleWrap && !toggleWrap.classList.contains('is-active')) {
+                toggleWrap.classList.add('is-active');
+            }
+            if (triggerNode) triggerNode.blur();
+
+            const p = KD.api.tasks({ action: 'toggle_timer', task_id: numId });
+
+            // Aguarda a transição suave de abertura (240ms) antes de re-renderizar o quadro
+            const [result] = await Promise.all([
+                p,
+                new Promise((resolve) => setTimeout(resolve, 240))
+            ]);
+            
+            if (result.is_running) {
+                board.pausedTimers.delete(numId);
+            } else {
+                board.pausedTimers.add(numId);
+            }
+
+            if (result.paused_tasks && Array.isArray(result.paused_tasks)) {
+                result.paused_tasks.forEach((pId) => board.pausedTimers.delete(Number(pId)));
+            }
+
             await KD.loadBoard({ silent: true });
             KD.toast(result.is_running ? 'Cronômetro iniciado.' : 'Cronômetro pausado.', { tone: 'info' });
             if (result.is_running && result.paused_tasks && result.paused_tasks.length > 0) {
                 KD.toast('O cronômetro da outra tarefa foi pausado.', { tone: 'info' });
             }
+        } catch (error) {
+            KD.toastError(error.message);
+        }
+    }
+
+    async function stopTimer(taskId, triggerNode) {
+        try {
+            const numId = Number(taskId);
+            board.pausedTimers.delete(numId);
+            const card = document.querySelector(`.kd-card[data-task-id="${numId}"]`);
+            const toggleWrap = card?.querySelector('.kd-timer-toggle');
+            if (toggleWrap) {
+                toggleWrap.classList.remove('is-active');
+            }
+            if (triggerNode) triggerNode.blur();
+
+            const p = (card && card.dataset.running === '1')
+                ? KD.api.tasks({ action: 'toggle_timer', task_id: numId })
+                : Promise.resolve();
+
+            // Aguarda a animação suave de recolhimento antes de re-renderizar o quadro
+            await Promise.all([
+                p,
+                new Promise((resolve) => setTimeout(resolve, 240))
+            ]);
+
+            await KD.loadBoard({ silent: true });
+            KD.toast('Cronômetro finalizado.', { tone: 'info' });
         } catch (error) {
             KD.toastError(error.message);
         }
