@@ -23,6 +23,8 @@ window.KD = window.KD || {};
         allTags: [],
         viewMode: 'status', // 'status' ou 'weekdays'
         tagVisibility: 'hover', // 'hover', 'always', 'hidden'
+        showCardAvatar: true,
+        showCardStatusBar: true,
         workHours: { start: '09:00', end: '17:00', capacityMinutes: 480 },
         workDays: ['1', '2', '3', '4', '5'],
         hiddenColumns: {
@@ -38,6 +40,8 @@ window.KD = window.KD || {};
     const VIEW_MODE_KEY = 'kanbandoo_board_view_mode';
     const HIDDEN_COLS_KEY = 'kanbandoo_hidden_columns';
     const TAG_VISIBILITY_KEY = 'kanbandoo_tag_visibility';
+    const SHOW_CARD_AVATAR_KEY = 'kanbandoo_show_card_avatar';
+    const SHOW_CARD_STATUS_BAR_KEY = 'kanbandoo_show_card_status_bar';
 
     KD.board = board;
 
@@ -72,6 +76,16 @@ window.KD = window.KD || {};
                     board.hiddenColumns.weekdays = new Set(savedHidden.weekdays.map(String));
                 }
             }
+
+            const savedAvatar = localStorage.getItem(SHOW_CARD_AVATAR_KEY);
+            if (savedAvatar !== null) {
+                board.showCardAvatar = savedAvatar === 'true';
+            }
+
+            const savedStatusBar = localStorage.getItem(SHOW_CARD_STATUS_BAR_KEY);
+            if (savedStatusBar !== null) {
+                board.showCardStatusBar = savedStatusBar === 'true';
+            }
         } catch (e) { /* localStorage indisponível */ }
     }
 
@@ -81,6 +95,8 @@ window.KD = window.KD || {};
             localStorage.setItem(VIEW_KEY, JSON.stringify({ groupByClient: board.groupByClient }));
             localStorage.setItem(VIEW_MODE_KEY, board.viewMode);
             localStorage.setItem(TAG_VISIBILITY_KEY, board.tagVisibility);
+            localStorage.setItem(SHOW_CARD_AVATAR_KEY, String(board.showCardAvatar));
+            localStorage.setItem(SHOW_CARD_STATUS_BAR_KEY, String(board.showCardStatusBar));
             localStorage.setItem(HIDDEN_COLS_KEY, JSON.stringify({
                 status: Array.from(board.hiddenColumns.status),
                 weekdays: Array.from(board.hiddenColumns.weekdays),
@@ -100,6 +116,38 @@ window.KD = window.KD || {};
             chk.hidden = (chk.dataset.mode !== board.tagVisibility);
         });
     }
+
+    function applyCardVisualPrefs() {
+        const container = el('kanbanBoard');
+        if (!container) return;
+        container.classList.toggle('kd-hide-card-avatar', !board.showCardAvatar);
+        container.classList.toggle('kd-hide-card-status-bar', !board.showCardStatusBar);
+        updateCardVisualCheckmarks();
+    }
+
+    function updateCardVisualCheckmarks() {
+        const chkAvatar = el('cardAvatarCheck');
+        if (chkAvatar) chkAvatar.hidden = !board.showCardAvatar;
+
+        const chkStatusBar = el('cardStatusBarCheck');
+        if (chkStatusBar) chkStatusBar.hidden = !board.showCardStatusBar;
+    }
+
+    KD.toggleCardAvatar = function () {
+        board.showCardAvatar = !board.showCardAvatar;
+        saveViewPrefs();
+        applyCardVisualPrefs();
+        render();
+        KD.toast(board.showCardAvatar ? 'Avatares visíveis nos cards.' : 'Avatares ocultados nos cards.');
+    };
+
+    KD.toggleCardStatusBar = function () {
+        board.showCardStatusBar = !board.showCardStatusBar;
+        saveViewPrefs();
+        applyCardVisualPrefs();
+        render();
+        KD.toast(board.showCardStatusBar ? 'Barra de status visível nos cards.' : 'Barra de status ocultada nos cards.');
+    };
 
     KD.setTagVisibility = function (mode) {
         if (!['hover', 'always', 'hidden'].includes(mode)) return;
@@ -562,10 +610,14 @@ window.KD = window.KD || {};
             if (card) card.focus({ preventScroll: true });
         }
 
+        const uncollapsedCols = container.querySelectorAll('.kd-col:not(.kd-col--collapsed)');
+        container.classList.toggle('kd-board--many-cols', uncollapsedCols.length > 5);
+
         renderStageTabs();
         applyMobileStage();
         updateToolbarState();
         applyTagVisibility();
+        applyCardVisualPrefs();
         updateTagMenuCheckmarks();
         KD.icons();
     }
@@ -585,18 +637,59 @@ window.KD = window.KD || {};
         const isMentions = isMentionsStage(stage);
         const timeInfo = isMentions ? null : getColumnTimeInfo(tasks);
 
+        if (isCollapsed) {
+            return `
+                <section class="kd-col kd-glass kd-col--collapsed"
+                         data-stage-id="${stage.id}"
+                         aria-label="Coluna ${KD.escapeHtml(stage.name)} recolhida, ${tasks.length} tarefa(s)">
+                    <div class="kd-col-collapsed__inner" data-action="toggle-collapse" data-stage-id="${stage.id}" title="Clique para expandir a coluna ${KD.escapeHtml(stage.name)}">
+                        <!-- 1. Nome da coluna na vertical -->
+                        <div class="kd-col-collapsed__title-wrap">
+                            <span class="kd-col-collapsed__pill" style="--pill-color:${KD.escapeHtml(stage.color || '#6366f1')};">
+                                <span class="kd-col-collapsed__title-text">${KD.escapeHtml(stage.name)}</span>
+                            </span>
+                        </div>
+
+                        <!-- 2. Quantidade de cards embaixo do título -->
+                        <div class="kd-col-collapsed__count-wrap">
+                            <span class="kd-col-collapsed__count ${overLimit ? 'kd-col__count--over' : ''}" title="${tasks.length} tarefa(s)">
+                                ${countLabel}
+                            </span>
+                        </div>
+
+                        <!-- 3. Botão para restaurar o tamanho da coluna embaixo do número -->
+                        <button type="button" class="kd-icon-btn kd-col-collapsed__restore-btn"
+                                data-action="toggle-collapse" data-stage-id="${stage.id}"
+                                title="Restaurar tamanho da coluna ${KD.escapeHtml(stage.name)}"
+                                aria-label="Restaurar tamanho da coluna ${KD.escapeHtml(stage.name)}">
+                            <i data-lucide="chevrons-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </section>
+            `;
+        }
+
         return `
-            <section class="kd-col kd-glass ${isCollapsed ? 'kd-col--collapsed' : ''}"
+            <section class="kd-col kd-glass"
                      data-stage-id="${stage.id}"
                      aria-label="Coluna ${KD.escapeHtml(stage.name)}, ${tasks.length} tarefa(s)">
 
                 <header class="kd-col__header">
                     <div class="flex items-center justify-between gap-2 min-w-0 w-full">
-                        <h3 class="kd-col__name flex-1 min-w-0">
-                            <span class="kd-col__dot flex-shrink-0" style="background-color:${KD.escapeHtml(stage.color || '#6366f1')}"></span>
-                            <span class="leading-snug break-words" title="${KD.escapeHtml(stage.name)}">${KD.escapeHtml(stage.name)}</span>
+                        <div class="flex items-center gap-2 flex-1 min-w-0">
+                            <button type="button" class="kd-col__pill" style="--pill-color:${KD.escapeHtml(stage.color || '#6366f1')};"
+                                    data-action="pick-stage-color" data-stage-id="${stage.id}"
+                                    title="Clique para alterar a cor da coluna ${KD.escapeHtml(stage.name)}">
+                                <span class="kd-col__pill-icon flex-shrink-0">
+                                    ${stage.is_done
+                                        ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 stroke-[2.5]"></i>'
+                                        : '<span class="kd-col__pill-ring"></span>'
+                                    }
+                                </span>
+                                <span class="kd-col__pill-text">${KD.escapeHtml(stage.name)}</span>
+                            </button>
                             <span class="kd-col__count flex-shrink-0 ${overLimit ? 'kd-col__count--over' : ''}">${countLabel}</span>
-                        </h3>
+                        </div>
 
                         <div class="flex items-center gap-1 flex-shrink-0">
                             <button type="button" class="kd-icon-btn" data-action="toggle-collapse" data-stage-id="${stage.id}"
@@ -670,8 +763,40 @@ window.KD = window.KD || {};
         const isCollapsed = board.collapsed.has(String(day.id));
         const timeInfo = getColumnTimeInfo(tasks);
 
+        if (isCollapsed) {
+            return `
+                <section class="kd-col kd-glass kd-col--collapsed"
+                         data-weekday-id="${day.id}"
+                         aria-label="Coluna ${KD.escapeHtml(day.name)} recolhida, ${tasks.length} tarefa(s)">
+                    <div class="kd-col-collapsed__inner" data-action="toggle-collapse-weekday" data-weekday-id="${day.id}" title="Clique para expandir a coluna ${KD.escapeHtml(day.name)}">
+                        <!-- 1. Nome da coluna na vertical -->
+                        <div class="kd-col-collapsed__title-wrap">
+                            <span class="kd-col-collapsed__pill" style="--pill-color:${KD.escapeHtml(day.color || '#6366f1')};">
+                                <span class="kd-col-collapsed__title-text">${KD.escapeHtml(day.name)}</span>
+                            </span>
+                        </div>
+
+                        <!-- 2. Quantidade de cards embaixo do título -->
+                        <div class="kd-col-collapsed__count-wrap">
+                            <span class="kd-col-collapsed__count" title="${tasks.length} tarefa(s)">
+                                ${tasks.length}
+                            </span>
+                        </div>
+
+                        <!-- 3. Botão para restaurar o tamanho da coluna embaixo do número -->
+                        <button type="button" class="kd-icon-btn kd-col-collapsed__restore-btn"
+                                data-action="toggle-collapse-weekday" data-weekday-id="${day.id}"
+                                title="Restaurar tamanho da coluna ${KD.escapeHtml(day.name)}"
+                                aria-label="Restaurar tamanho da coluna ${KD.escapeHtml(day.name)}">
+                            <i data-lucide="chevrons-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </section>
+            `;
+        }
+
         return `
-            <section class="kd-col kd-glass ${isCollapsed ? 'kd-col--collapsed' : ''}"
+            <section class="kd-col kd-glass"
                      data-weekday-id="${day.id}"
                      aria-label="Coluna ${KD.escapeHtml(day.name)}, ${tasks.length} tarefa(s)">
 
@@ -745,6 +870,9 @@ window.KD = window.KD || {};
                 <button type="button" class="kd-menu__item" role="menuitem" data-action="new-task" data-stage-id="${stage.id}">
                     <i data-lucide="plus" class="w-4 h-4"></i> Adicionar tarefa
                 </button>
+                <button type="button" class="kd-menu__item" role="menuitem" data-action="pick-stage-color" data-stage-id="${stage.id}">
+                    <i data-lucide="palette" class="w-4 h-4"></i> Alterar cor
+                </button>
                 <button type="button" class="kd-menu__item" role="menuitem" data-action="set-wip" data-stage-id="${stage.id}">
                     <i data-lucide="gauge" class="w-4 h-4"></i>
                     ${stage.wip_limit ? `Limite de WIP: ${stage.wip_limit}` : 'Definir limite de WIP'}
@@ -759,6 +887,15 @@ window.KD = window.KD || {};
                         <i data-lucide="archive" class="w-4 h-4"></i> Arquivar concluídas
                     </button>
                 ` : ''}
+                <div class="kd-menu__sep"></div>
+                <button type="button" class="kd-menu__item" role="menuitem" onclick="KD.toggleCardAvatar()">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                    ${board.showCardAvatar ? 'Ocultar avatares' : 'Exibir avatares'}
+                </button>
+                <button type="button" class="kd-menu__item" role="menuitem" onclick="KD.toggleCardStatusBar()">
+                    <i data-lucide="minus" class="w-4 h-4"></i>
+                    ${board.showCardStatusBar ? 'Ocultar barra de status' : 'Exibir barra de status'}
+                </button>
             </div>
         `;
     }
@@ -904,12 +1041,12 @@ window.KD = window.KD || {};
                      aria-label="${KD.escapeHtml(task.title)}">
 
                 <!-- Topo: Avatar do responsável à esquerda e menu ⋮ à direita -->
-                <div class="flex items-center justify-between gap-3 w-full">
-                    <div class="flex items-center gap-2 min-w-0">
+                <div class="kd-card__top flex items-center justify-between gap-3 w-full">
+                    <div class="kd-card__avatar-wrap flex items-center gap-2 min-w-0">
                         ${avatarHtml}
                     </div>
 
-                    <div class="kd-menu-wrap flex items-center gap-1">
+                    <div class="kd-menu-wrap flex items-center gap-1 ml-auto">
                         <button type="button" class="w-7 h-7 rounded-lg text-slate-400 hover:text-white flex items-center justify-center transition"
                                 data-action="toggle-card-menu" data-task-id="${task.id}"
                                 aria-haspopup="menu" aria-expanded="false"
@@ -954,7 +1091,7 @@ window.KD = window.KD || {};
                 ` : ''}
 
                 <!-- Rodapé: Prazo à esquerda e Botão Play/Timer à direita -->
-                <div class="flex items-center justify-between gap-3 pt-1 mt-auto">
+                <div class="kd-card__footer flex items-center justify-between gap-3 mt-auto">
                     <div>
                         ${dueHtml}
                     </div>
@@ -1335,9 +1472,126 @@ window.KD = window.KD || {};
                 break;
             }
 
+            case 'pick-stage-color': {
+                openStageColorPicker(stageId, node);
+                break;
+            }
+
             default:
                 break;
         }
+    }
+
+    function closeColorPopover() {
+        const existing = document.getElementById('kdStageColorPopover');
+        if (existing) existing.remove();
+    }
+
+    function openStageColorPicker(stageId, anchorEl) {
+        closeColorPopover();
+        KD.closeMenus();
+
+        const stage = board.stages.find((s) => Number(s.id) === Number(stageId));
+        if (!stage) return;
+
+        const currentColor = (stage.color || '#6366f1').toLowerCase();
+
+        const palette = [
+            '#5c52d6', // Roxo ClickUp (Em Progresso)
+            '#7c3aed', // Violeta
+            '#6366f1', // Índigo
+            '#3b82f6', // Azul
+            '#0ea5e9', // Ciano / Sky
+            '#00b884', // Verde ClickUp (Feito)
+            '#10b981', // Esmeralda
+            '#eab308', // Amarelo
+            '#f97316', // Laranja
+            '#ef4444', // Vermelho
+            '#ec4899', // Rosa
+            '#64748b', // Slate / Cinza
+        ];
+
+        const popover = document.createElement('div');
+        popover.id = 'kdStageColorPopover';
+        popover.className = 'kd-color-popover kd-glass kd-glass--raised';
+        popover.innerHTML = `
+            <div class="kd-color-popover__title">
+                <span>Cor da coluna</span>
+                <span class="text-[10px] font-bold text-slate-400 font-mono">${currentColor}</span>
+            </div>
+            <div class="kd-color-grid">
+                ${palette.map((hex) => {
+                    const isSelected = hex.toLowerCase() === currentColor;
+                    return `
+                        <button type="button" class="kd-color-swatch ${isSelected ? 'is-active' : ''}"
+                                style="background-color: ${hex};"
+                                data-color="${hex}"
+                                title="${hex}">
+                            ${isSelected ? '<i data-lucide="check" class="w-3 h-3 text-white stroke-[3]"></i>' : ''}
+                        </button>
+                    `;
+                }).join('')}
+                <label class="kd-color-custom-btn" title="Cor personalizada">
+                    <i data-lucide="plus" class="w-3.5 h-3.5 text-white stroke-[3]"></i>
+                    <input type="color" value="${currentColor}" id="kdCustomColorInput">
+                </label>
+            </div>
+        `;
+
+        document.body.appendChild(popover);
+        KD.icons();
+
+        // Posicionamento inteligente abaixo do anchorEl
+        const rect = anchorEl.getBoundingClientRect();
+        const popoverWidth = 210;
+        let left = rect.left;
+        if (left + popoverWidth > window.innerWidth - 12) {
+            left = window.innerWidth - popoverWidth - 12;
+        }
+        if (left < 12) left = 12;
+        let top = rect.bottom + 6;
+        if (top + 120 > window.innerHeight) {
+            top = rect.top - 120;
+        }
+
+        popover.style.left = `${left}px`;
+        popover.style.top = `${top}px`;
+
+        const applyColor = async (newColor) => {
+            closeColorPopover();
+            if (!newColor || newColor.toLowerCase() === currentColor) return;
+            try {
+                stage.color = newColor;
+                render();
+                await KD.api.tasks({ action: 'set_stage_color', stage_id: stage.id, color: newColor });
+                KD.toast(`Cor de "${stage.name}" atualizada.`);
+            } catch (err) {
+                KD.toastError(err.message || 'Erro ao alterar a cor.');
+                await KD.loadBoard({ silent: true });
+            }
+        };
+
+        popover.querySelectorAll('.kd-color-swatch').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                applyColor(btn.dataset.color);
+            });
+        });
+
+        const customInput = popover.querySelector('#kdCustomColorInput');
+        if (customInput) {
+            customInput.addEventListener('change', (e) => {
+                applyColor(e.target.value);
+            });
+        }
+
+        const onDocClick = (e) => {
+            if (!popover.contains(e.target) && !anchorEl.contains(e.target)) {
+                closeColorPopover();
+                document.removeEventListener('click', onDocClick);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', onDocClick), 20);
     }
 
     async function toggleTimer(taskId, triggerNode) {
@@ -1582,6 +1836,9 @@ window.KD = window.KD || {};
                 <span class="truncate text-slate-200">${KD.escapeHtml(c.name)}</span>
             </label>
         `).join('');
+
+        updateCardVisualCheckmarks();
+        KD.icons();
     };
 
     KD.toggleColumnVisibility = function (colId, isVisible) {
@@ -1636,6 +1893,93 @@ window.KD = window.KD || {};
     });
 
     // ---------------------------------------------------------------
+    // Panning do Quadro (Arrastar e mover o board estilo ClickUp)
+    // ---------------------------------------------------------------
+
+    function initBoardPan() {
+        const boardEl = el('kanbanBoard');
+        if (!boardEl) return;
+
+        let isDown = false;
+        let startX = 0;
+        let startY = 0;
+        let scrollLeft = 0;
+        let scrollTop = 0;
+        let hasMoved = false;
+
+        boardEl.addEventListener('mousedown', (e) => {
+            // Apenas botão esquerdo do mouse
+            if (e.button !== 0) return;
+
+            // Se estiver arrastando card (Sortable), não faz pan do board
+            if (board.dragging) return;
+
+            // Ignora se o clique for sobre a barra de rolagem nativa do board
+            const rect = boardEl.getBoundingClientRect();
+            if (e.clientY >= rect.bottom - 14) return;
+
+            // Não inicia arrasto de tela se o clique foi em cartões, botões, inputs, links ou menus
+            if (e.target.closest('.kd-card, button, input, select, textarea, a, label, [data-action], .kd-menu, .kd-color-popover, .tag-opt-check')) {
+                return;
+            }
+
+            isDown = true;
+            hasMoved = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            scrollLeft = boardEl.scrollLeft;
+            scrollTop = boardEl.scrollTop;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            // Limiar de 3px para não bloquear cliques normais
+            if (!hasMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+                hasMoved = true;
+                document.body.classList.add('kd-board-panning');
+            }
+
+            if (hasMoved) {
+                e.preventDefault();
+                boardEl.scrollLeft = scrollLeft - dx;
+                if (boardEl.scrollHeight > boardEl.clientHeight) {
+                    boardEl.scrollTop = scrollTop - dy;
+                }
+            }
+        }, { passive: false });
+
+        const endPan = () => {
+            if (!isDown) return;
+            isDown = false;
+
+            if (hasMoved) {
+                document.body.classList.remove('kd-board-panning');
+
+                // Evita disparar cliques acidentais em elementos ao soltar o mouse após arrastar
+                const captureClick = (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    window.removeEventListener('click', captureClick, true);
+                };
+                window.addEventListener('click', captureClick, true);
+                setTimeout(() => {
+                    window.removeEventListener('click', captureClick, true);
+                }, 80);
+            }
+        };
+
+        window.addEventListener('mouseup', endPan);
+        window.addEventListener('blur', endPan);
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isDown) endPan();
+        });
+    }
+
+    // ---------------------------------------------------------------
     // Início
     // ---------------------------------------------------------------
 
@@ -1647,6 +1991,7 @@ window.KD = window.KD || {};
         KD.loadBoard();
         startTicker();
         startAutoRefresh();
+        initBoardPan();
 
         el('filterSearch')?.addEventListener('input', KD.onFilterInput);
         ['filterClient', 'filterPriority', 'filterAssignee', 'filterTag'].forEach((id) => {

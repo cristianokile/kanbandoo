@@ -374,10 +374,13 @@ html.light textarea {
 html.light table thead { background-color: var(--surface-2); color: var(--text-muted); }
 html.light tbody tr:hover { background-color: var(--surface-2); }
 
-header.kd-header {
+header.kd-header,
+.kd-header {
     background-color: transparent;
     border: none;
     border-bottom: 1px solid var(--glass-border);
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
 }
 
 input::placeholder, textarea::placeholder { color: var(--text-faint); }
@@ -537,15 +540,16 @@ body:has(#kanbanBoard) main#conteudo,
     flex-shrink: 0 !important;
 }
 
+#kanbanBoard,
 .kd-board {
     display: flex;
-    gap: 1rem;
-    align-items: stretch;
+    gap: 0.75rem;
+    align-items: flex-start;
     overflow-x: auto;
     overflow-y: hidden;
     padding-bottom: 0.75rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
     flex: 1 1 0%;
     min-height: 0;
     height: 100%;
@@ -555,16 +559,17 @@ body:has(#kanbanBoard) main#conteudo,
     scrollbar-width: thin;
     scrollbar-color: rgba(129, 140, 248, 0.4) rgba(15, 23, 42, 0.45);
     transition: scrollbar-color 0.2s ease;
+    cursor: grab;
 }
 .kd-board:hover {
     scrollbar-color: rgba(129, 140, 248, 0.85) rgba(15, 23, 42, 0.45);
 }
 
-@media (min-width: 1024px) {
-    .kd-board {
-        padding-left: 2rem;
-        padding-right: 2rem;
-    }
+/* Panning do Quadro (arrastar fundo do board estilo ClickUp) */
+body.kd-board-panning,
+body.kd-board-panning * {
+    cursor: grabbing !important;
+    user-select: none !important;
 }
 
 .kd-board::-webkit-scrollbar {
@@ -598,18 +603,26 @@ body:has(#kanbanBoard) main#conteudo,
 .kd-col {
     display: flex;
     flex-direction: column;
-    align-self: stretch;
-    flex: 0 0 315px;
-    width: 315px;
-    min-width: 315px;
-    max-width: 340px;
-    height: 100%;
+    align-self: flex-start;
+    flex: 1 1 calc((100% - 3rem) / 5);
+    width: calc((100% - 3rem) / 5);
+    min-width: 250px;
+    max-width: none;
     max-height: 100%;
     min-height: 0;
     overflow: hidden;
     border-radius: var(--radius-lg);
-    padding: 0.875rem;
+    padding: 0.875rem 0.35rem 0.875rem 0.875rem;
     box-sizing: border-box;
+    cursor: default;
+}
+
+/* Quando houver mais de 5 colunas abertas: exibe 5 completas e a 6ª pela metade (estilo Trello) */
+.kd-board--many-cols .kd-col:not(.kd-col--collapsed) {
+    flex: 0 0 calc((100% - 3.75rem) / 5.5) !important;
+    width: calc((100% - 3.75rem) / 5.5) !important;
+    min-width: 245px !important;
+    max-width: none !important;
 }
 
 .kd-col__header {
@@ -618,6 +631,7 @@ body:has(#kanbanBoard) main#conteudo,
     display: flex;
     flex-direction: column;
     padding-bottom: 0.625rem;
+    padding-right: 0.525rem;
     margin-bottom: 0.75rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
@@ -634,19 +648,140 @@ body:has(#kanbanBoard) main#conteudo,
     line-height: 1.35;
 }
 
+/* Título da coluna em formato de pílula sólida (Estilo ClickUp) */
+.kd-col__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 9999px;
+    background-color: var(--pill-color, #6366f1);
+    color: #ffffff !important;
+    border: none;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.3;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    min-width: 0;
+    max-width: 100%;
+}
+
+.kd-col__pill:hover {
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+.kd-col__pill:active {
+    transform: translateY(0);
+}
+
+.kd-col__pill-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Ícone de status: círculo vazado com borda branca ou check para concluído */
+.kd-col__pill-ring {
+    display: inline-block;
+    width: 9.5px;
+    height: 9.5px;
+    border-radius: 9999px;
+    border: 1.8px solid rgba(255, 255, 255, 0.9);
+    background: transparent;
+    flex-shrink: 0;
+}
+
 .kd-col__dot { width: 10px; height: 10px; border-radius: 9999px; flex-shrink: 0; }
 
 .kd-col__count {
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
     font-weight: 700;
-    padding: 0.125rem 0.5rem;
-    border-radius: 9999px;
-    background: var(--surface-3);
-    color: var(--text-muted);
+    color: var(--text-faint);
+    background: transparent;
+    padding: 0;
+    min-width: 1.2rem;
 }
 .kd-col__count--over {
-    background: var(--danger-soft);
     color: var(--danger);
+    font-weight: 800;
+}
+
+/* Popover do Seletor de Cores da Coluna */
+.kd-color-popover {
+    position: fixed;
+    z-index: 9999;
+    padding: 0.75rem;
+    border-radius: var(--radius);
+    width: 210px;
+    box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    animation: kdFadeIn 0.15s ease-out;
+}
+.kd-color-popover__title {
+    font-size: 0.6875rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-faint);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.kd-color-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.4rem;
+}
+.kd-color-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.kd-color-swatch:hover {
+    transform: scale(1.18);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+.kd-color-swatch.is-active {
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+.kd-color-custom-btn {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    background: conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red);
+    cursor: pointer;
+    border: 2px solid transparent;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease;
+}
+.kd-color-custom-btn:hover {
+    transform: scale(1.18);
+    border-color: #ffffff;
+}
+.kd-color-custom-btn input[type="color"] {
+    position: absolute;
+    inset: -10px;
+    width: 50px;
+    height: 50px;
+    opacity: 0;
+    cursor: pointer;
 }
 
 .kd-col__subbar {
@@ -697,13 +832,13 @@ body:has(#kanbanBoard) main#conteudo,
     display: flex;
     flex-direction: column;
     gap: 0.625rem;
-    flex: 1 1 0px;
+    flex: 1 1 auto;
     min-height: 0;
     max-height: 100%;
     overflow-y: auto !important;
     overflow-x: hidden;
     overscroll-behavior-y: contain;
-    padding-right: 0.35rem;
+    padding-right: 0.45rem;
     scrollbar-width: thin;
     scrollbar-color: rgba(129, 140, 248, 0.5) rgba(15, 23, 42, 0.45);
     transition: scrollbar-color 0.2s ease;
@@ -713,7 +848,7 @@ body:has(#kanbanBoard) main#conteudo,
 }
 
 .kd-col__body::-webkit-scrollbar {
-    width: 7px;
+    width: 6px;
 }
 .kd-col__body::-webkit-scrollbar-track {
     background: rgba(15, 23, 42, 0.45);
@@ -750,11 +885,12 @@ body:has(#kanbanBoard) main#conteudo,
     color: var(--text-faint);
     line-height: 1.5;
     flex-shrink: 0;
+    margin-right: 0.525rem;
 }
 
 .kd-col__add {
     margin-top: 0.75rem;
-    width: 100%;
+    width: calc(100% - 0.525rem);
     padding: 0.55rem;
     border: 1px dashed var(--border-strong);
     border-radius: var(--radius);
@@ -783,36 +919,140 @@ body:has(#kanbanBoard) main#conteudo,
     border-radius: var(--radius-sm);
     padding: 0.375rem 0.5rem;
     margin-bottom: 0.5rem;
+    margin-right: 0.525rem;
     display: flex;
     align-items: center;
     gap: 0.375rem;
     flex-shrink: 0;
 }
 
-/* Coluna recolhida vira uma faixa vertical */
+/* Coluna recolhida: faixa vertical compacta */
 .kd-col--collapsed {
-    flex: 0 0 56px;
-    min-width: 56px;
-    max-width: 56px;
-    padding: 0.75rem 0.5rem;
-    align-items: center;
+    align-self: stretch !important;
+    height: 100% !important;
+    flex: 0 0 54px !important;
+    width: 54px !important;
+    min-width: 54px !important;
+    max-width: 54px !important;
+    padding: 0.875rem 0.35rem 0.65rem 0.35rem !important;
+    overflow: hidden !important;
+    cursor: pointer !important;
+    background: rgba(21, 34, 56, 0.6) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: var(--radius-lg);
+    box-sizing: border-box;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.kd-col--collapsed .kd-col__body,
-.kd-col--collapsed .kd-col__add,
-.kd-col--collapsed .kd-col__wip,
-.kd-col--collapsed .kd-col__menu-wrap { display: none; }
-.kd-col--collapsed .kd-col__header {
+.kd-col--collapsed:hover {
+    background: rgba(30, 41, 59, 0.85) !important;
+    border-color: rgba(129, 140, 248, 0.45) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.kd-col-collapsed__inner {
+    display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    border-bottom: none;
-    margin: 0;
-    padding: 0;
+    align-items: center;
+    justify-content: flex-start;
     height: 100%;
+    width: 100%;
+    gap: 0.85rem;
+    box-sizing: border-box;
+    user-select: none;
 }
-.kd-col--collapsed .kd-col__name {
+
+/* 1. Nome da coluna na vertical */
+.kd-col-collapsed__title-wrap {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 0.25rem;
+}
+
+.kd-col-collapsed__pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 0.3rem;
+    border-radius: 9999px;
+    background-color: var(--pill-color, #6366f1);
+    color: #ffffff !important;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
     writing-mode: vertical-rl;
     transform: rotate(180deg);
-    gap: 0.75rem;
+    white-space: nowrap;
+    max-height: 100%;
+}
+
+.kd-col-collapsed__title-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 2. Quantidade de cards embaixo do título da coluna */
+.kd-col-collapsed__count-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.kd-col-collapsed__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 0.4rem;
+    border-radius: 9999px;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-strong, #ffffff);
+    font-size: 0.75rem;
+    font-weight: 800;
+    font-family: monospace;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+.kd-col-collapsed__count.kd-col__count--over {
+    background: var(--danger-soft, rgba(239, 68, 68, 0.2));
+    border-color: var(--danger, #ef4444);
+    color: var(--danger, #ef4444);
+}
+
+/* 3. Botão para restaurar o tamanho da coluna embaixo do número */
+.kd-col-collapsed__restore-btn {
+    flex-shrink: 0;
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 10px !important;
+    background: rgba(99, 102, 241, 0.2) !important;
+    border: 1px solid rgba(99, 102, 241, 0.4) !important;
+    color: #a5b4fc !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.15s ease !important;
+    cursor: pointer !important;
+    margin-bottom: 0.25rem;
+}
+
+.kd-col-collapsed__restore-btn:hover {
+    background: rgba(99, 102, 241, 0.5) !important;
+    border-color: #818cf8 !important;
+    color: #ffffff !important;
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.5) !important;
 }
 
 /* Divisor de agrupamento por cliente dentro da coluna */
@@ -841,7 +1081,7 @@ body:has(#kanbanBoard) main#conteudo,
 .kd-card {
     position: relative;
     border-radius: 20px;
-    padding: 20px;
+    padding: 15px;
     padding-bottom: 30px;
     display: flex;
     flex-direction: column;
@@ -863,13 +1103,46 @@ body:has(#kanbanBoard) main#conteudo,
     bottom: 0;
     left: 0;
     right: 0;
-    height: 8px;
+    height: 5px;
     background-color: var(--card-status-color, #eab308);
     pointer-events: none;
     z-index: 5;
 }
+
 .kd-card.kd-glass {
     background-color: #152238;
+    padding: 15px;
+    padding-bottom: 30px;
+}
+
+/* Exibição opcional de avatar e barra de status nos cards (via Opções de Colunas) */
+.kd-hide-card-avatar .kd-card__avatar-wrap {
+    display: none !important;
+}
+
+/* Quando o avatar estiver oculto, o topo do card se compacta automaticamente:
+   o menu ⋮ alinha-se no canto superior direito e o cliente sobe sem deixar linha vazia */
+.kd-hide-card-avatar .kd-card__top {
+    margin-bottom: -1.75rem;
+    pointer-events: none;
+}
+.kd-hide-card-avatar .kd-card__top .kd-menu-wrap {
+    pointer-events: auto;
+    z-index: 2;
+}
+.kd-hide-card-avatar .kd-card__client {
+    padding-right: 2rem;
+}
+
+/* Quando a barra de status estiver oculta, o padding inferior se ajusta de 30px para 15px
+   acompanhando o novo tamanho do card e a borda inferior volta a ser renderizada */
+.kd-hide-card-status-bar .kd-card__status-bar {
+    display: none !important;
+}
+.kd-hide-card-status-bar .kd-card,
+.kd-hide-card-status-bar .kd-card.kd-glass {
+    padding-bottom: 15px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 .kd-card:hover {
@@ -1207,17 +1480,17 @@ html.kd-dragging .kd-card.kd-glass[data-bomb="1"] {
     opacity: 0;
     max-height: 0;
     overflow: hidden;
-    margin-top: 0;
+    margin-top: -0.65rem;
     margin-bottom: 0;
     transform: translateY(-2px);
-    transition: opacity 0.2s ease, max-height 0.25s ease, margin 0.2s ease, transform 0.2s ease;
+    transition: opacity 0.2s ease, max-height 0.25s ease, margin-top 0.2s ease, transform 0.2s ease;
     pointer-events: none;
 }
 .kd-tags-hover .kd-card:hover .kd-tags {
     opacity: 1;
     max-height: 70px;
-    margin-top: 0.25rem;
-    margin-bottom: 0.25rem;
+    margin-top: 0;
+    margin-bottom: 0;
     transform: translateY(0);
     pointer-events: auto;
 }
@@ -1780,10 +2053,9 @@ html.light .kd-chip-client[data-color="9"] { color: #b91c1c; }
         padding: 0;
     }
     .kd-col.is-active-mobile { display: flex; }
-    .kd-col--collapsed { min-width: 0; max-width: 100%; }
-    .kd-col--collapsed .kd-col__body,
-    .kd-col--collapsed .kd-col__add { display: flex; }
-    .kd-col--collapsed .kd-col__name { writing-mode: horizontal-tb; transform: none; }
+    .kd-col--collapsed { min-width: 0 !important; max-width: 100% !important; width: 100% !important; flex: 1 1 auto !important; height: auto !important; }
+    .kd-col-collapsed__inner { flex-direction: row; justify-content: space-between; padding: 0.5rem 0.75rem; }
+    .kd-col-collapsed__pill { writing-mode: horizontal-tb; transform: none; }
 
     .kd-col__body { overflow: visible; max-height: none; }
 
@@ -1928,4 +2200,45 @@ html.light .kd-chip-client[data-color="9"] { color: #b91c1c; }
     border-radius: 9999px;
     margin-left: 0.3rem;
 }
+
+/* Botão Concluir compacto estilo ClickUp no modal de detalhes */
+.kd-complete-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--success);
+    background: var(--success-soft);
+    border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+.kd-complete-pill:hover {
+    background: color-mix(in srgb, var(--success) 28%, transparent);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+}
+.kd-complete-pill--reopen {
+    color: var(--warning);
+    background: var(--warning-soft);
+    border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+}
+.kd-complete-pill--reopen:hover {
+    background: color-mix(in srgb, var(--warning) 28%, transparent);
+    box-shadow: 0 2px 6px rgba(234, 179, 8, 0.25);
+}
+
+/* Descrição da tarefa sem moldura/padding para alinhamento direto estilo ClickUp */
+#detailDescription,
+.detailDescription {
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+
+
 

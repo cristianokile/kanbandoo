@@ -97,6 +97,19 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                             </button>
                         </div>
                     </div>
+                    <div class="border-t border-slate-800 pt-1.5 mt-1.5 px-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Elementos dos cards</span>
+                        <div class="space-y-0.5">
+                            <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between text-xs py-1" onclick="KD.toggleCardAvatar()">
+                                <span class="flex items-center gap-1.5"><i data-lucide="user" class="w-3 h-3 text-slate-400"></i> Avatar do responsável</span>
+                                <span id="cardAvatarCheck" class="card-avatar-check"><i data-lucide="check" class="w-3 h-3 text-indigo-400"></i></span>
+                            </button>
+                            <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between text-xs py-1" onclick="KD.toggleCardStatusBar()">
+                                <span class="flex items-center gap-1.5"><i data-lucide="minus" class="w-3 h-3 text-slate-400"></i> Barra de status</span>
+                                <span id="cardStatusBarCheck" class="card-status-bar-check"><i data-lucide="check" class="w-3 h-3 text-indigo-400"></i></span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

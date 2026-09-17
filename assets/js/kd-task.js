@@ -576,8 +576,16 @@ window.KD = window.KD || {};
 
         const completeBtn = el('detailCompleteBtn');
         if (completeBtn) {
-            completeBtn.dataset.detailAction = task.completed_at ? 'reopen' : 'complete';
-            completeBtn.querySelector('span').textContent = task.completed_at ? 'Reabrir' : 'Concluir';
+            const isDone = Boolean(task.completed_at);
+            completeBtn.dataset.detailAction = isDone ? 'reopen' : 'complete';
+            completeBtn.title = isDone ? 'Reabrir tarefa' : 'Concluir tarefa';
+            completeBtn.classList.toggle('kd-complete-pill--reopen', isDone);
+            const icon = completeBtn.querySelector('i');
+            if (icon) {
+                icon.setAttribute('data-lucide', isDone ? 'rotate-ccw' : 'check-circle-2');
+            }
+            const span = completeBtn.querySelector('span');
+            if (span) span.textContent = isDone ? 'Reabrir' : 'Concluir';
         }
 
         // Menção do WhatsApp

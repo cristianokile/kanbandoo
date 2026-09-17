@@ -128,8 +128,22 @@ $sql = "
 $params = [];
 
 if ($search !== '') {
-    $sql .= " AND (c.company_name LIKE :s OR c.contact_name LIKE :s OR c.email LIKE :s)";
-    $params[':s'] = "%{$search}%";
+    $driver = defined('DB_DRIVER') ? DB_DRIVER : 'sqlite';
+    if ($driver === 'sqlite') {
+        $words = array_values(array_filter(preg_split('/\s+/', kd_normalize_text($search))));
+        $clauses = [];
+        foreach ($words as $idx => $w) {
+            $pk = ":s_$idx";
+            $clauses[] = "(kd_norm(c.company_name) LIKE $pk OR kd_norm(c.contact_name) LIKE $pk OR kd_norm(c.email) LIKE $pk)";
+            $params[$pk] = "%$w%";
+        }
+        if (!empty($clauses)) {
+            $sql .= " AND (" . implode(" AND ", $clauses) . ")";
+        }
+    } else {
+        $sql .= " AND (c.company_name LIKE :s OR c.contact_name LIKE :s OR c.email LIKE :s)";
+        $params[':s'] = "%{$search}%";
+    }
 }
 if ($statusFilter !== '') {
     $sql .= " AND c.status = :st";

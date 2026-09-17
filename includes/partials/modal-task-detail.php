@@ -44,31 +44,37 @@
         <!-- Informações principais -->
         <dl class="grid grid-cols-2 md:grid-cols-4 gap-3 py-3 text-xs" style="border-block:1px solid var(--border)">
             <div>
-                <dt class="text-slate-400 font-medium mb-0.5">Coluna</dt>
-                <dd id="detailStage" class="font-semibold text-slate-200"></dd>
+                <dt class="text-slate-400 font-medium mb-1">Coluna / Status</dt>
+                <dd class="flex items-center gap-2 flex-wrap">
+                    <span id="detailStage" class="font-bold text-slate-200"></span>
+                    <button type="button" id="detailCompleteBtn" class="kd-complete-pill" data-detail-action="complete" title="Concluir tarefa">
+                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                        <span>Concluir</span>
+                    </button>
+                </dd>
             </div>
             <div>
-                <dt class="text-slate-400 font-medium mb-0.5">Prazo</dt>
+                <dt class="text-slate-400 font-medium mb-1">Prazo</dt>
                 <dd id="detailDue" class="font-semibold text-slate-200"></dd>
             </div>
             <div>
-                <dt class="text-slate-400 font-medium mb-0.5">Criada</dt>
+                <dt class="text-slate-400 font-medium mb-1">Criada</dt>
                 <dd id="detailCreated" class="font-semibold text-slate-200"></dd>
             </div>
             <div>
-                <dt class="text-slate-400 font-medium mb-0.5">Conclusão</dt>
+                <dt class="text-slate-400 font-medium mb-1">Conclusão</dt>
                 <dd id="detailCompleted" class="font-semibold text-slate-200"></dd>
             </div>
             <div class="col-span-2">
-                <dt class="text-slate-400 font-medium mb-0.5">Responsáveis</dt>
+                <dt class="text-slate-400 font-medium mb-1">Responsáveis</dt>
                 <dd id="detailAssignees" class="kd-avatars"></dd>
             </div>
             <div class="col-span-1">
-                <dt class="text-slate-400 font-medium mb-0.5">Tempo estimado</dt>
+                <dt class="text-slate-400 font-medium mb-1">Tempo estimado</dt>
                 <dd id="detailEstimated" class="font-semibold text-indigo-300">—</dd>
             </div>
             <div class="col-span-1">
-                <dt class="text-slate-400 font-medium mb-0.5">Tempo dedicado</dt>
+                <dt class="text-slate-400 font-medium mb-1">Tempo dedicado</dt>
                 <dd class="flex items-center gap-2">
                     <span id="detailTimer" class="kd-timer" style="font-size:0.8125rem">00:00:00</span>
                     <button type="button" id="detailPlayBtn" class="kd-play" data-detail-action="timer" data-running="0"
@@ -78,18 +84,6 @@
                 </dd>
             </div>
         </dl>
-
-        <!-- Ações principais -->
-        <div class="flex flex-wrap items-center justify-between gap-2 py-3">
-            <div class="flex items-center gap-2">
-                <button type="button" class="kd-btn kd-btn--primary" data-detail-action="edit">
-                    <i data-lucide="edit-3" class="w-4 h-4"></i> <span>Editar tarefa</span>
-                </button>
-                <button type="button" id="detailCompleteBtn" class="kd-btn" data-detail-action="complete">
-                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> <span>Concluir</span>
-                </button>
-            </div>
-        </div>
 
         <!-- Menção do WhatsApp -->
         <div id="detailMentionBox" class="mb-4 p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
@@ -112,7 +106,7 @@
         <div class="flex items-center gap-1 mb-4 overflow-x-auto" style="border-bottom:1px solid var(--border)" role="tablist" aria-label="Seções da tarefa">
             <button type="button" id="tabBtn-details" class="modal-tab-btn" role="tab" aria-selected="true"
                     aria-controls="tabPanel-details" data-detail-action="tab" data-tab="details">
-                <i data-lucide="file-text" class="w-4 h-4 inline"></i> Detalhes
+                <i data-lucide="align-left" class="w-4 h-4 inline"></i> Descrição
             </button>
             <button type="button" id="tabBtn-comments" class="modal-tab-btn" role="tab" aria-selected="false"
                     aria-controls="tabPanel-comments" data-detail-action="tab" data-tab="comments">
@@ -133,18 +127,15 @@
             </button>
         </div>
 
-        <!-- Aba 1: Detalhes (Descrição e Subtarefas apenas em modo de visualização) -->
-        <div id="tabPanel-details" class="space-y-4" role="tabpanel" aria-labelledby="tabBtn-details">
-            <section class="kd-panel kd-glass space-y-2">
-                <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                    <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-slate-300">
-                        <i data-lucide="align-left" class="w-4 h-4 text-indigo-400"></i> Descrição da Tarefa
-                    </h3>
-                    <button type="button" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1.5 transition" data-detail-action="edit" title="Editar descrição e tarefa">
+        <!-- Aba 1: Descrição e Subtarefas -->
+        <div id="tabPanel-details" class="space-y-5" role="tabpanel" aria-labelledby="tabBtn-details">
+            <section class="space-y-2">
+                <div class="flex items-center justify-end">
+                    <button type="button" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1.5 transition px-2 py-1 rounded-lg hover:bg-slate-800/50" data-detail-action="edit" title="Editar descrição e tarefa">
                         <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar
                     </button>
                 </div>
-                <div id="detailDescription" class="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap p-3.5 rounded-xl bg-slate-900/40 border border-slate-800/60 min-h-[60px]"></div>
+                <div id="detailDescription" class="detailDescription text-sm text-slate-200 leading-relaxed whitespace-pre-wrap min-h-[40px]"></div>
             </section>
 
             <section class="kd-panel kd-glass space-y-3">

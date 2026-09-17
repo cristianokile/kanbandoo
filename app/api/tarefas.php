@@ -327,8 +327,37 @@ try {
             $params[':assignee_id'] = $assigneeId;
         }
         if ($search) {
-            $query .= " AND (t.title LIKE :search OR t.description LIKE :search OR c.company_name LIKE :search OR t.tags LIKE :search)";
-            $params[':search'] = '%' . $search . '%';
+            $words = array_values(array_filter(preg_split('/\s+/', kd_normalize_text($search))));
+            if (!empty($words)) {
+                $driver = defined('DB_DRIVER') ? DB_DRIVER : 'sqlite';
+                $searchClauses = [];
+                if ($driver === 'sqlite') {
+                    foreach ($words as $idx => $word) {
+                        $paramKey = ":search_$idx";
+                        $searchClauses[] = "(
+                            kd_norm(t.title) LIKE $paramKey
+                            OR kd_norm(t.description) LIKE $paramKey
+                            OR kd_norm(c.company_name) LIKE $paramKey
+                            OR kd_norm(c.contact_name) LIKE $paramKey
+                            OR kd_norm(t.tags) LIKE $paramKey
+                        )";
+                        $params[$paramKey] = '%' . $word . '%';
+                    }
+                } else {
+                    foreach ($words as $idx => $word) {
+                        $paramKey = ":search_$idx";
+                        $searchClauses[] = "(
+                            t.title LIKE $paramKey
+                            OR t.description LIKE $paramKey
+                            OR c.company_name LIKE $paramKey
+                            OR c.contact_name LIKE $paramKey
+                            OR t.tags LIKE $paramKey
+                        )";
+                        $params[$paramKey] = '%' . $word . '%';
+                    }
+                }
+                $query .= " AND (" . implode(" AND ", $searchClauses) . ")";
+            }
         }
         if ($tagFilter) {
             // As etiquetas ficam num JSON; a comparação exata é refeita em PHP logo abaixo.
@@ -1146,6 +1175,21 @@ try {
             $stmt->execute([':now' => now(), ':now2' => now(), ':stg' => $doneId]);
 
             json_response(['success' => true, 'archived' => $stmt->rowCount()]);
+        }
+
+        // 16. Alterar a cor da coluna (estágio)
+        if ($action === 'set_stage_color') {
+            $stageId = (int)($input['stage_id'] ?? 0);
+            $color = trim((string)($input['color'] ?? ''));
+
+            if ($stageId <= 0 || !preg_match('/^#(?:[0-9a-fA-F]{3}){1,2}$/', $color)) {
+                json_response(['error' => 'Cor ou coluna inválida.'], 400);
+            }
+
+            $pdo->prepare("UPDATE task_stages SET color = :color WHERE id = :id")
+                ->execute([':color' => $color, ':id' => $stageId]);
+
+            json_response(['success' => true, 'color' => $color]);
         }
 
         json_response(['error' => 'Ação desconhecida.'], 400);

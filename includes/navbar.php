@@ -22,7 +22,7 @@ $navItems = [
     ['href' => url('/equipe'),   'icon' => 'users',       'label' => 'Equipe',   'active' => current_path() === '/equipe', 'admin' => true],
 ];
 ?>
-<header class="kd-header kd-glass sticky top-0 z-40 px-4 lg:px-8 py-3">
+<header class="kd-header kd-glass sticky top-0 z-40 px-8 py-3">
     <div class="w-full flex items-center justify-between gap-4">
 
         <div class="flex items-center gap-6">
