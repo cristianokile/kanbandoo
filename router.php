@@ -15,6 +15,9 @@ if ($path !== '/' && is_file($file)) {
     if (str_ends_with($file, '.php')) {
         return false;
     }
+    if (preg_match('/\.(js|css)$/', $file)) {
+        header('Cache-Control: no-cache, must-revalidate');
+    }
     return false; // o servidor embutido entrega o estático
 }
 

@@ -4,7 +4,7 @@
  */
 ?>
 <div id="workHoursModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="workHoursModalTitle" hidden>
-    <div class="kd-modal__panel kd-glass kd-glass--raised" style="max-width:28rem">
+    <div class="kd-modal__panel kd-modal__panel--sm kd-glass kd-glass--raised">
 
         <div class="flex items-center justify-between gap-3 pb-3 mb-4" style="border-bottom:1px solid var(--border)">
             <div class="flex items-center gap-3">

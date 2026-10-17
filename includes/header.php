@@ -16,6 +16,14 @@ $pageTitle = $pageTitle ?? APP_NAME;
     <meta name="color-scheme" content="dark light">
     <title><?= e($pageTitle) ?> &bull; <?= APP_NAME ?></title>
 
+    <!-- Favicon do KanbanDoo -->
+    <link rel="icon" type="image/svg+xml" href="<?= asset('assets/img/favicon.svg') ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= asset('assets/img/favicon-32x32.png') ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= asset('assets/img/favicon-16x16.png') ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= asset('assets/img/apple-touch-icon.png') ?>">
+    <link rel="shortcut icon" href="<?= asset('assets/img/favicon.ico') ?>">
+
+
     <!-- Tema aplicado antes da pintura, para não piscar na troca de página -->
     <script>
         (function () {

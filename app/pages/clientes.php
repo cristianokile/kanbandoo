@@ -141,8 +141,10 @@ if ($search !== '') {
             $sql .= " AND (" . implode(" AND ", $clauses) . ")";
         }
     } else {
-        $sql .= " AND (c.company_name LIKE :s OR c.contact_name LIKE :s OR c.email LIKE :s)";
-        $params[':s'] = "%{$search}%";
+        $sql .= " AND (c.company_name LIKE :s_comp OR c.contact_name LIKE :s_cont OR c.email LIKE :s_mail)";
+        $params[':s_comp'] = "%{$search}%";
+        $params[':s_cont'] = "%{$search}%";
+        $params[':s_mail'] = "%{$search}%";
     }
 }
 if ($statusFilter !== '') {
@@ -292,11 +294,11 @@ view_header('Clientes & Empresas');
 </main>
 
 <!-- Modal Novo / Editar Cliente -->
-<div id="clientModal" class="fixed inset-0 z-50 hidden bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-fade-in my-8">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+<div id="clientModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="clientModalTitle" hidden>
+    <div class="kd-modal__panel kd-modal__panel--md kd-glass kd-glass--raised">
+        <div class="flex items-center justify-between pb-4 mb-5" style="border-bottom: 1px solid var(--border)">
             <h3 id="clientModalTitle" class="text-lg font-bold text-white">Cadastrar Novo Cliente</h3>
-            <button type="button" onclick="closeClientModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+            <button type="button" onclick="closeClientModal()" class="kd-icon-btn" aria-label="Fechar">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
@@ -380,11 +382,11 @@ view_header('Clientes & Empresas');
                 <div id="clientLinksList" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
             </div>
 
-            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-                <button type="button" onclick="closeClientModal()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition">
+            <div class="flex items-center justify-end gap-3 pt-4" style="border-top: 1px solid var(--border)">
+                <button type="button" onclick="closeClientModal()" class="kd-btn">
                     Cancelar
                 </button>
-                <button type="submit" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl transition shadow-lg shadow-indigo-600/25 flex items-center gap-2">
+                <button type="submit" class="kd-btn kd-btn--primary">
                     <i data-lucide="check" class="w-4 h-4"></i>
                     Salvar Cliente
                 </button>
@@ -404,7 +406,7 @@ function openClientModal() {
     document.getElementById('modal_notes').value = '';
     document.getElementById('clientLinksList').innerHTML = '';
     document.getElementById('clientModalTitle').textContent = 'Cadastrar Novo Cliente';
-    document.getElementById('clientModal').classList.remove('hidden');
+    KD.openModal('clientModal');
     if (window.lucide) lucide.createIcons();
 }
 
@@ -432,12 +434,12 @@ function editClient(client) {
         });
     }
 
-    document.getElementById('clientModal').classList.remove('hidden');
+    KD.openModal('clientModal');
     if (window.lucide) lucide.createIcons();
 }
 
 function closeClientModal() {
-    document.getElementById('clientModal').classList.add('hidden');
+    KD.closeModal('clientModal');
 }
 
 function addClientLinkPreset(title, url, type) {

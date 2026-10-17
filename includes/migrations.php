@@ -8,6 +8,16 @@
 
 function run_migrations(PDO $pdo): void
 {
+    static $alreadyRun = false;
+    if ($alreadyRun) {
+        return;
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['kd_schema_checked'])) {
+        $alreadyRun = true;
+        return;
+    }
+
     $driver = defined('DB_DRIVER') ? DB_DRIVER : 'sqlite';
 
     // Tabela de controle
@@ -37,6 +47,11 @@ function run_migrations(PDO $pdo): void
 
         $stmt = $pdo->prepare("INSERT INTO schema_migrations (name, applied_at) VALUES (:n, :d)");
         $stmt->execute([':n' => $name, ':d' => date('Y-m-d H:i:s')]);
+    }
+
+    $alreadyRun = true;
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['kd_schema_checked'] = true;
     }
 }
 
@@ -112,6 +127,12 @@ function kanbandoo_migrations(string $driver): array
         ],
 
         // Horário de expediente, capacidade e preferências de visão do quadro
+        // Links úteis e resumo do cliente
+        '008_client_links_and_summary' => [
+            "ALTER TABLE clients ADD COLUMN summary TEXT DEFAULT NULL",
+            "ALTER TABLE clients ADD COLUMN links_json TEXT DEFAULT NULL",
+        ],
+
         '007_work_hours_and_board_settings' => [
             "ALTER TABLE tasks ADD COLUMN estimated_minutes $int DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN work_start_time VARCHAR(10) DEFAULT '09:00'",
@@ -120,5 +141,19 @@ function kanbandoo_migrations(string $driver): array
             "ALTER TABLE users ADD COLUMN board_view_mode VARCHAR(20) DEFAULT 'status'",
             "ALTER TABLE users ADD COLUMN visible_columns_json TEXT DEFAULT NULL",
         ],
+
+        // Horário específico de agendamento da tarefa (ex: 09:30, 14:00)
+        '009_task_due_time_and_calendar' => [
+            "ALTER TABLE tasks ADD COLUMN due_time VARCHAR(10) DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN google_calendar_url TEXT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN outlook_calendar_url TEXT DEFAULT NULL",
+        ],
+
+        // Controle de eventos de calendário e visibilidade no Kanban
+        '010_calendar_event_flags' => [
+            "ALTER TABLE tasks ADD COLUMN is_calendar_event $int DEFAULT 0",
+            "ALTER TABLE tasks ADD COLUMN show_in_kanban $int DEFAULT 1",
+        ],
     ];
 }
+

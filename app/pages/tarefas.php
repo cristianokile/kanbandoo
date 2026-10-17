@@ -34,18 +34,18 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
 
         <!-- Métricas e controles de visão organizados sem espremer -->
         <div class="flex items-center gap-2 flex-wrap lg:flex-nowrap lg:justify-end">
-            <span class="kd-metric kd-glass">
+            <button type="button" class="kd-metric kd-glass cursor-pointer transition hover:opacity-80 text-left" onclick="KD.filterByMetric('total')" title="Ver todas as tarefas em aberto">
                 <span class="kd-col__dot" style="background:var(--brand)"></span>
                 Em aberto <span class="kd-metric__value" id="metricTotal">–</span>
-            </span>
-            <span class="kd-metric kd-glass">
+            </button>
+            <button type="button" class="kd-metric kd-glass cursor-pointer transition hover:opacity-80 text-left" onclick="KD.filterByMetric('today')" title="Ver tarefas de hoje">
                 <span class="kd-col__dot" style="background:var(--warning)"></span>
                 Hoje <span class="kd-metric__value" data-tone="warning" id="metricToday">–</span>
-            </span>
-            <span class="kd-metric kd-glass">
+            </button>
+            <button type="button" class="kd-metric kd-glass cursor-pointer transition hover:opacity-80 text-left" onclick="KD.filterByMetric('overdue')" title="Localizar tarefas atrasadas">
                 <span class="kd-col__dot" style="background:var(--danger)"></span>
                 Atrasadas <span class="kd-metric__value" data-tone="danger" id="metricOverdue">–</span>
-            </span>
+            </button>
             <span class="kd-metric kd-glass">
                 <span class="kd-col__dot" style="background:var(--success)"></span>
                 Concluídas hoje <span class="kd-metric__value" data-tone="success" id="metricDoneToday">–</span>
@@ -70,16 +70,50 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
             <!-- Seletor de Colunas Visíveis -->
             <div class="relative inline-block text-left kd-menu-wrap" id="columnsMenuWrap">
                 <button type="button" id="btnToggleColumnsMenu" class="kd-btn kd-btn--icon kd-glass" onclick="KD.toggleColumnsMenu(event)"
-                        aria-haspopup="menu" aria-expanded="false" title="Exibir ou ocultar colunas" aria-label="Exibir ou ocultar colunas">
+                        aria-haspopup="menu" aria-expanded="false" title="Opções de exibição" aria-label="Opções de exibição">
                     <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
                     <span id="columnsHiddenBadge" class="kd-col__count" style="background:var(--warning);color:#000" hidden></span>
                 </button>
-                <div id="columnsMenuDropdown" class="kd-menu kd-glass kd-glass--raised absolute right-0 mt-2 z-50 p-2 space-y-1" role="menu" hidden style="min-width:14rem">
-                    <div class="px-2 py-1 mb-1 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                        <span>Colunas Visíveis</span>
-                        <button type="button" onclick="KD.resetVisibleColumns()" class="text-[10px] text-indigo-400 hover:underline">Restaurar</button>
+                <div id="columnsMenuDropdown" class="kd-menu kd-glass kd-glass--raised absolute right-0 mt-2 z-50 p-2.5 space-y-2 rounded-xl shadow-2xl border border-slate-700/60" role="menu" hidden style="width: 17.5rem; max-height: calc(100vh - 5rem); overflow-y: auto; overflow-x: hidden;">
+                    <!-- Configurações específicas da Visão por Dias -->
+                    <div id="weekdayConfigSection" class="border-b border-slate-800/80 pb-2.5 mb-1" hidden>
+                        <!-- Quantidade de dias a exibir -->
+                        <div class="mb-2.5">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dias na visão por dias</span>
+                                <span id="weekdayDaysCountBadge" class="text-[11px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">5 dias</span>
+                            </div>
+                            <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-800">
+                                <button type="button" class="btn-days-count flex-1 py-1 rounded text-center font-medium transition text-xs" data-days="3" onclick="KD.setWeekdayDaysCount(3)">3d</button>
+                                <button type="button" class="btn-days-count flex-1 py-1 rounded text-center font-medium transition text-xs" data-days="5" onclick="KD.setWeekdayDaysCount(5)">5d</button>
+                                <button type="button" class="btn-days-count flex-1 py-1 rounded text-center font-medium transition text-xs" data-days="7" onclick="KD.setWeekdayDaysCount(7)">7d</button>
+                                <div class="flex items-center gap-0.5 pl-1 border-l border-slate-800">
+                                    <button type="button" title="Diminuir 1 dia" class="w-6 h-6 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition" onclick="KD.stepWeekdayDaysCount(-1)">−</button>
+                                    <input type="number" id="inputWeekdayDaysCount" min="1" max="14" class="w-8 h-6 text-center text-xs bg-slate-950 border border-slate-700 rounded text-slate-100 font-mono focus:border-indigo-500 focus:outline-none" onchange="KD.setWeekdayDaysCount(this.value)">
+                                    <button type="button" title="Aumentar 1 dia" class="w-6 h-6 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition" onclick="KD.stepWeekdayDaysCount(1)">+</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Alternar Início da Semana -->
+                        <div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Início da semana</span>
+                            <div class="grid grid-cols-2 gap-1 bg-slate-900/90 p-0.5 rounded-lg border border-slate-800">
+                                <button type="button" id="btnWeekStartToday" onclick="KD.setWeekStartMode('today')" class="px-2 py-1 rounded-md text-center font-medium transition text-xs">A partir de Hoje</button>
+                                <button type="button" id="btnWeekStartMonday" onclick="KD.setWeekStartMode('monday')" class="px-2 py-1 rounded-md text-center font-medium transition text-xs">Segunda-feira</button>
+                            </div>
+                        </div>
                     </div>
-                    <div id="columnsMenuList" class="space-y-1 max-h-60 overflow-y-auto"></div>
+
+                    <!-- Colunas Visíveis -->
+                    <div>
+                        <div class="px-1 py-1 mb-1 border-b border-slate-800/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                            <span>Colunas Visíveis</span>
+                            <button type="button" onclick="KD.resetVisibleColumns()" class="text-[10px] text-indigo-400 hover:underline">Restaurar</button>
+                        </div>
+                        
+                        <div id="columnsMenuList" class="space-y-0.5 max-h-44 overflow-y-auto pr-1"></div>
+                    </div>
                     <div class="border-t border-slate-800 pt-1.5 mt-1.5 px-2">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Etiquetas nos cards</span>
                         <div class="space-y-0.5">
@@ -110,6 +144,21 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                             </button>
                         </div>
                     </div>
+                    <div class="border-t border-slate-800 pt-1.5 mt-1.5 px-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Eventos do Calendário</span>
+                        <div class="space-y-0.5">
+                            <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between text-xs py-1" onclick="KD.toggleCalendarEventsInKanban()">
+                                <span class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-3.5 h-3.5 text-indigo-400"></i> Exibir eventos do calendário</span>
+                                <span id="calendarEventsInKanbanCheck"><i data-lucide="check" class="w-3.5 h-3.5 text-indigo-400"></i></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-800 pt-1.5 mt-1.5 px-2">
+                        <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between text-xs py-1 text-red-400 hover:text-red-300 transition" onclick="KD.openTrashModal()">
+                            <span class="flex items-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Lixeira de Tarefas</span>
+                            <span class="text-[10px] text-slate-500">30 dias</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -130,7 +179,7 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                     aria-pressed="false" title="Agrupar por cliente" aria-label="Agrupar por cliente">
                 <i data-lucide="layers" class="w-4 h-4"></i>
             </button>
-        </div>
+            </div>
     </div>
 
     <p id="groupDragHint" class="text-[11px] text-slate-400 mb-4 px-4 lg:px-8" hidden>

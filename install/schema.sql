@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS clients (
     phone VARCHAR(50) DEFAULT NULL,
     status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
     notes TEXT DEFAULT NULL,
+    summary TEXT DEFAULT NULL,
+    links_json TEXT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_clients_status (status),
@@ -59,6 +61,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     description LONGTEXT DEFAULT NULL,
     priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
     due_date DATE DEFAULT NULL,
+    due_time VARCHAR(10) DEFAULT NULL,
+    is_calendar_event TINYINT(1) NOT NULL DEFAULT 0,
+    show_in_kanban TINYINT(1) NOT NULL DEFAULT 1,
     estimated_minutes INT UNSIGNED DEFAULT NULL,
     sort_order INT NOT NULL DEFAULT 0,
     status ENUM('open', 'completed', 'archived') NOT NULL DEFAULT 'open',
@@ -173,4 +178,20 @@ INSERT INTO users (id, username, password_hash, full_name, email, role) VALUES
 (1, 'admin', '$2y$10$L23nO5KTlHJMvAckU4iRpuj1EbCqd0CurUgU1kzSUk0otYmSFSw4G', 'Administrador', 'admin@kanbando.local', 'admin')
 ON DUPLICATE KEY UPDATE username = VALUES(username);
 
+
+-- 11. Modelos de Tarefas (Templates)
+CREATE TABLE IF NOT EXISTS task_templates (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    estimated_minutes INT DEFAULT NULL,
+    tags TEXT DEFAULT NULL,
+    description TEXT DEFAULT NULL,
+    checklist TEXT DEFAULT NULL,
+    created_by INT UNSIGNED DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
+
+

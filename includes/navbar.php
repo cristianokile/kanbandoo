@@ -16,7 +16,8 @@ $navClass = function (bool $active): string {
 };
 
 $navItems = [
-    ['href' => url('/tarefas'),  'icon' => 'layout-grid', 'label' => 'Quadro',   'active' => in_array(current_path(), ['/', '/tarefas'], true) || str_starts_with(current_path(), '/tarefas/'), 'admin' => false],
+    ['href' => url('/tarefas'),    'icon' => 'layout-grid', 'label' => 'Quadro',     'active' => in_array(current_path(), ['/', '/tarefas'], true) || str_starts_with(current_path(), '/tarefas/'), 'admin' => false],
+    ['href' => url('/calendario'), 'icon' => 'calendar',    'label' => 'Calendário', 'active' => current_path() === '/calendario', 'admin' => false],
     ['href' => url('/clientes'), 'icon' => 'building-2',  'label' => 'Clientes', 'active' => current_path() === '/clientes', 'admin' => false],
     ['href' => url('/modelos'),  'icon' => 'copy-check',  'label' => 'Modelos',  'active' => current_path() === '/modelos', 'admin' => false],
     ['href' => url('/equipe'),   'icon' => 'users',       'label' => 'Equipe',   'active' => current_path() === '/equipe', 'admin' => true],
@@ -47,12 +48,53 @@ $navItems = [
             </nav>
         </div>
 
+        <!-- Campo de Busca Rápida no Header -->
+        <div class="flex-1 max-w-sm mx-2 lg:mx-4 hidden sm:block">
+            <div class="relative flex items-center">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none"></i>
+                <input type="search" id="kdHeaderSearch"
+                       placeholder="Buscar tarefas, clientes, tags... ( / )"
+                       autocomplete="off"
+                       style="padding-top: 0.475rem; padding-bottom: 0.475rem;"
+                       class="w-full pl-9 pr-8 bg-slate-900/80 border border-slate-700/60 rounded-xl text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition shadow-inner">
+                <button type="button" id="kdHeaderSearchClear" onclick="KD.clearHeaderSearch()" class="absolute right-2.5 text-slate-400 hover:text-white" hidden aria-label="Limpar busca">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </div>
+
         <div class="flex items-center gap-2">
-            <button type="button" onclick="KD.openTaskForm()" class="kd-btn kd-btn--primary">
-                <i data-lucide="plus" class="w-4 h-4"></i>
-                <span class="hidden sm:inline">Nova tarefa</span>
-                <kbd class="hidden lg:inline kd-menu__hint" style="color:rgba(255,255,255,.75)">N</kbd>
-            </button>
+            <!-- Botão Unificado: Nova Tarefa + Dropdown -->
+            <div class="relative inline-flex items-stretch rounded-xl shadow-lg shadow-indigo-600/20 kd-menu-wrap" id="newTaskDropdownWrap">
+                <button type="button" onclick="KD.openTaskForm()" class="kd-btn kd-btn--primary rounded-r-none border-r border-indigo-400/30 pr-2.5">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Nova tarefa</span>
+                    <kbd class="hidden lg:inline kd-menu__hint" style="color:rgba(255,255,255,.75)">N</kbd>
+                </button>
+                <button type="button" id="newTaskDropdownTrigger" onclick="KD.toggleNewTaskDropdown(event)"
+                        class="kd-btn kd-btn--primary rounded-l-none px-2 hover:bg-indigo-500 transition"
+                        aria-haspopup="menu" aria-expanded="false" title="Mais opções de criação">
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                </button>
+
+                <div id="newTaskDropdownMenu" class="kd-menu kd-glass kd-glass--raised" role="menu" hidden style="min-width:14rem">
+                    <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between" role="menuitem" onclick="KD.openTaskForm(); KD.closeMenus();">
+                        <span class="flex items-center gap-2">
+                            <i data-lucide="plus" class="w-4 h-4 text-indigo-400"></i>
+                            <span>Nova tarefa</span>
+                        </span>
+                        <kbd class="text-[10px] text-slate-400 font-mono">N</kbd>
+                    </button>
+                    <div class="kd-menu__sep"></div>
+                    <button type="button" class="kd-menu__item w-full text-left flex items-center gap-2.5" role="menuitem" onclick="KD.openImportModal(); KD.closeMenus();">
+                        <i data-lucide="list-plus" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+                        <span class="min-w-0">
+                            <span class="block text-xs font-semibold text-white">Importar em lote</span>
+                            <span class="block text-[10px] text-slate-400">Subir lista em texto (.txt)</span>
+                        </span>
+                    </button>
+                </div>
+            </div>
 
             <button type="button" id="themeToggleBtn" onclick="KD.toggleTheme()" class="kd-icon-btn" aria-label="Alternar tema">
                 <i data-lucide="sun" class="w-5 h-5" id="themeToggleIcon"></i>
@@ -88,6 +130,9 @@ $navItems = [
                     <button type="button" class="kd-menu__item w-full text-left" role="menuitem" onclick="KD.openWorkHoursModal(); KD.toggleUserMenu();">
                         <i data-lucide="clock" class="w-4 h-4"></i> Horário de expediente
                     </button>
+                    <a href="<?= url('/calendario') ?>" class="kd-menu__item md:hidden" role="menuitem">
+                        <i data-lucide="calendar" class="w-4 h-4"></i> Calendário
+                    </a>
                     <a href="<?= url('/clientes') ?>" class="kd-menu__item md:hidden" role="menuitem">
                         <i data-lucide="building-2" class="w-4 h-4"></i> Clientes
                     </a>
@@ -154,3 +199,4 @@ $navItems = [
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
+

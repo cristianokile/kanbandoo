@@ -5,13 +5,20 @@
  */
 ?>
 <div id="taskDetailModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="detailTitle" hidden>
-    <div class="kd-modal__panel kd-glass kd-glass--raised" style="max-width:58rem">
+    <div class="kd-modal__panel kd-modal__panel--xl kd-glass kd-glass--raised p-0 overflow-hidden flex flex-col">
+
+        <!-- Cabecalho Fixo com Meta e Menu de Abas (permanece sempre visivel) -->
+        <div class="kd-detail-header-wrap flex-shrink-0 px-6 pt-5 pb-0" style="border-bottom:1px solid var(--border)">
 
         <!-- Cabeçalho -->
         <div class="flex items-start justify-between gap-4 mb-3">
             <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2 flex-wrap mb-1.5">
                     <span id="detailPriority" class="kd-due" data-tone="medium">Média</span>
+                    <span id="detailRecurringBadge" class="kd-flag kd-flag--recurring" hidden title="Tarefa Recorrente">
+                        <i data-lucide="repeat" class="w-3 h-3"></i>
+                        <span id="detailRecurringText">Recorrente</span>
+                    </span>
                     <span id="detailClientChip" class="kd-client" hidden></span>
                     <span id="detailIdBadge" class="text-xs font-mono text-slate-500">#0</span>
                 </div>
@@ -32,6 +39,9 @@
                 </button>
                 <button type="button" id="detailDuplicateBtn" class="kd-icon-btn" data-detail-action="duplicate" aria-label="Duplicar tarefa" title="Duplicar">
                     <i data-lucide="copy" class="w-4 h-4"></i>
+                </button>
+                <button type="button" id="detailDeleteBtn" class="kd-icon-btn text-red-400 hover:text-red-300 hover:bg-red-500/10" data-detail-action="delete" aria-label="Excluir tarefa (mover para a lixeira)" title="Excluir tarefa">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
                 <button type="button" class="kd-icon-btn" data-detail-action="close" aria-label="Fechar (Esc)" title="Fechar">
                     <i data-lucide="x" class="w-5 h-5"></i>
@@ -75,12 +85,27 @@
             </div>
             <div class="col-span-1">
                 <dt class="text-slate-400 font-medium mb-1">Tempo dedicado</dt>
-                <dd class="flex items-center gap-2">
-                    <span id="detailTimer" class="kd-timer" style="font-size:0.8125rem">00:00:00</span>
+                <dd class="flex items-center gap-1.5 flex-wrap">
+                    <span id="detailTimer" class="kd-timer font-mono text-xs font-bold" style="font-size:0.8125rem">00:00:00</span>
                     <button type="button" id="detailPlayBtn" class="kd-play" data-detail-action="timer" data-running="0"
-                            aria-label="Iniciar cronômetro">
+                            aria-label="Iniciar cronômetro" title="Iniciar / Pausar cronômetro">
                         <i data-lucide="play" class="w-3.5 h-3.5"></i>
                     </button>
+                    <!-- Ajustes rápidos de tempo: adicionar ou remover minutos -->
+                    <div class="inline-flex items-center gap-1 ml-0.5" id="detailTimerAdjustWrap">
+                        <button type="button" onclick="KD.adjustTaskTime(-15)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-rose-200 text-[11px] font-mono border border-slate-700 transition" title="Remover 15 minutos do contador">
+                            -15m
+                        </button>
+                        <button type="button" onclick="KD.adjustTaskTime(15)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 text-[11px] font-mono border border-slate-700 transition" title="Adicionar 15 minutos ao contador">
+                            +15m
+                        </button>
+                        <button type="button" onclick="KD.adjustTaskTime(30)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 text-[11px] font-mono border border-slate-700 transition" title="Adicionar 30 minutos ao contador">
+                            +30m
+                        </button>
+                        <button type="button" onclick="KD.openAdjustTimeModal()" class="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700 transition" title="Ajuste personalizado (+ / - ou definir)">
+                            <i data-lucide="sliders" class="w-3 h-3"></i>
+                        </button>
+                    </div>
                 </dd>
             </div>
         </dl>
@@ -102,30 +127,34 @@
             </a>
         </div>
 
-        <!-- Barra de Abas Especializadas -->
-        <div class="flex items-center gap-1 mb-4 overflow-x-auto" style="border-bottom:1px solid var(--border)" role="tablist" aria-label="Seções da tarefa">
-            <button type="button" id="tabBtn-details" class="modal-tab-btn" role="tab" aria-selected="true"
-                    aria-controls="tabPanel-details" data-detail-action="tab" data-tab="details">
-                <i data-lucide="align-left" class="w-4 h-4 inline"></i> Descrição
-            </button>
-            <button type="button" id="tabBtn-comments" class="modal-tab-btn" role="tab" aria-selected="false"
-                    aria-controls="tabPanel-comments" data-detail-action="tab" data-tab="comments">
-                <i data-lucide="message-square" class="w-4 h-4 inline"></i> Comentários
-                <span id="detailCommentsTabBadge" class="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 ml-1">0</span>
-            </button>
-            <button type="button" id="tabBtn-links" class="modal-tab-btn" role="tab" aria-selected="false"
-                    aria-controls="tabPanel-links" data-detail-action="tab" data-tab="links">
-                <i data-lucide="link-2" class="w-4 h-4 inline"></i> Links úteis
-            </button>
-            <button type="button" id="tabBtn-client" class="modal-tab-btn" role="tab" aria-selected="false"
-                    aria-controls="tabPanel-client" data-detail-action="tab" data-tab="client">
-                <i data-lucide="building-2" class="w-4 h-4 inline"></i> Cliente
-            </button>
-            <button type="button" id="tabBtn-history" class="modal-tab-btn" role="tab" aria-selected="false"
-                    aria-controls="tabPanel-history" data-detail-action="tab" data-tab="history">
-                <i data-lucide="history" class="w-4 h-4 inline"></i> Histórico
-            </button>
+                <!-- Barra de Abas Especializadas Fixas -->
+            <div class="flex items-center gap-1 overflow-x-auto scrollbar-none -mb-px" role="tablist" aria-label="Seções da tarefa">
+                <button type="button" id="tabBtn-details" class="modal-tab-btn" role="tab" aria-selected="true"
+                        aria-controls="tabPanel-details" data-detail-action="tab" data-tab="details">
+                    <i data-lucide="align-left" class="w-4 h-4 inline"></i> Descrição
+                </button>
+                <button type="button" id="tabBtn-comments" class="modal-tab-btn" role="tab" aria-selected="false"
+                        aria-controls="tabPanel-comments" data-detail-action="tab" data-tab="comments">
+                    <i data-lucide="message-square" class="w-4 h-4 inline"></i> Comentários
+                    <span id="detailCommentsTabBadge" class="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 ml-1">0</span>
+                </button>
+                <button type="button" id="tabBtn-links" class="modal-tab-btn" role="tab" aria-selected="false"
+                        aria-controls="tabPanel-links" data-detail-action="tab" data-tab="links">
+                    <i data-lucide="link-2" class="w-4 h-4 inline"></i> Links Úteis
+                </button>
+                <button type="button" id="tabBtn-client" class="modal-tab-btn" role="tab" aria-selected="false"
+                        aria-controls="tabPanel-client" data-detail-action="tab" data-tab="client">
+                    <i data-lucide="building-2" class="w-4 h-4 inline"></i> Cliente
+                </button>
+                <button type="button" id="tabBtn-history" class="modal-tab-btn" role="tab" aria-selected="false"
+                        aria-controls="tabPanel-history" data-detail-action="tab" data-tab="history">
+                    <i data-lucide="history" class="w-4 h-4 inline"></i> Histórico
+                </button>
+            </div>
         </div>
+
+        <!-- Conteúdo Ricamente Rolável das Abas -->
+        <div class="kd-detail-body flex-1 overflow-y-auto px-6 py-5">
 
         <!-- Aba 1: Descrição e Subtarefas -->
         <div id="tabPanel-details" class="space-y-5" role="tabpanel" aria-labelledby="tabBtn-details">
@@ -158,6 +187,17 @@
 
                 <!-- Lista de subtarefas em modo de visualização interativa -->
                 <div id="detailChecklist" class="space-y-2"></div>
+
+                <!-- Input inline para adição rápida de subtarefa -->
+                <div class="pt-2 flex items-center gap-2">
+                    <input type="text" id="detailQuickSubtaskInput"
+                           placeholder="Adicionar nova subtarefa (Enter para salvar)..."
+                           class="kd-field text-xs flex-1" style="min-height:34px;padding:0.4rem 0.75rem">
+                    <button type="button" id="detailQuickSubtaskBtn" class="kd-btn kd-btn--primary text-xs" style="padding:0.4rem 0.8rem">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>Adicionar</span>
+                    </button>
+                </div>
             </section>
         </div>
 
@@ -270,5 +310,6 @@
             </section>
         </div>
 
-    </div>
+        </div> <!-- fecha kd-detail-body -->
+    </div> <!-- fecha kd-modal__panel -->
 </div>

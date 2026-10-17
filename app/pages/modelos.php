@@ -74,7 +74,7 @@ require_once dirname(__DIR__, 2) . '/includes/navbar.php';
 
 <!-- Modal de Criação / Edição de Modelo -->
 <div id="templateModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="templateModalTitle" hidden>
-    <div class="kd-modal__panel kd-glass kd-glass--raised" style="max-width:42rem">
+    <div class="kd-modal__panel kd-modal__panel--lg kd-glass kd-glass--raised">
 
         <div class="flex items-center justify-between gap-3 pb-4 mb-5" style="border-bottom:1px solid var(--border)">
             <div class="flex items-center gap-3">
@@ -255,7 +255,7 @@ function renderTemplates(filtered = null) {
                     <button type="button" onclick="editTemplate(${tpl.id})" class="kd-icon-btn" title="Editar modelo">
                         <i data-lucide="edit-2" class="w-4 h-4"></i>
                     </button>
-                    <button type="button" onclick="deleteTemplateDirect(${tpl.id}, '${escapeHtml(tpl.title)}')" class="kd-icon-btn text-rose-400 hover:text-rose-300" title="Excluir modelo">
+                    <button type="button" onclick="deleteTemplateDirect(${tpl.id})" class="kd-icon-btn text-rose-400 hover:text-rose-300" title="Excluir modelo">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -342,7 +342,9 @@ async function deleteActiveTemplate() {
     }
 }
 
-async function deleteTemplateDirect(id, title) {
+async function deleteTemplateDirect(id) {
+    const tpl = allTemplates.find(t => Number(t.id) === Number(id));
+    const title = tpl ? tpl.title : 'este modelo';
     if (!confirm(`Deseja realmente excluir o modelo "${title}"?`)) return;
 
     try {

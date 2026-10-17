@@ -18,10 +18,13 @@ window.KD = window.KD || {};
         collapsed: new Set(),
         groupByClient: false,
         onlyMine: false,
+        showCalendarEvents: (localStorage.getItem('kanbandoo_show_calendar_events') !== '0'),
         mobileStageId: null,
         showArchived: false,
         allTags: [],
         viewMode: 'status', // 'status' ou 'weekdays'
+        weekStartMode: localStorage.getItem('kanbandoo_week_start') || 'today', // 'today' (começa em hoje) ou 'monday'
+        weekdayDaysCount: parseInt(localStorage.getItem('kanbandoo_weekday_days_count') || '5', 10),
         tagVisibility: 'hover', // 'hover', 'always', 'hidden'
         showCardAvatar: true,
         showCardStatusBar: true,
@@ -42,8 +45,11 @@ window.KD = window.KD || {};
     const TAG_VISIBILITY_KEY = 'kanbandoo_tag_visibility';
     const SHOW_CARD_AVATAR_KEY = 'kanbandoo_show_card_avatar';
     const SHOW_CARD_STATUS_BAR_KEY = 'kanbandoo_show_card_status_bar';
+    const SHOW_CALENDAR_EVENTS_KEY = 'kanbandoo_show_calendar_events';
+    const WEEKDAY_DAYS_COUNT_KEY = 'kanbandoo_weekday_days_count';
 
     KD.board = board;
+    KD.sortTasksForColumn = sortTasksForColumn;
 
     // ---------------------------------------------------------------
     // Preferências locais de visualização
@@ -56,6 +62,9 @@ window.KD = window.KD || {};
 
             const view = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
             board.groupByClient = Boolean(view.groupByClient);
+
+            const savedCalEvents = localStorage.getItem(SHOW_CALENDAR_EVENTS_KEY);
+            if (savedCalEvents !== null) board.showCalendarEvents = (savedCalEvents !== '0');
 
             const savedMode = localStorage.getItem(VIEW_MODE_KEY);
             if (savedMode === 'status' || savedMode === 'weekdays') {
@@ -86,6 +95,14 @@ window.KD = window.KD || {};
             if (savedStatusBar !== null) {
                 board.showCardStatusBar = savedStatusBar === 'true';
             }
+
+            const savedDaysCount = localStorage.getItem(WEEKDAY_DAYS_COUNT_KEY);
+            if (savedDaysCount !== null) {
+                const parsed = parseInt(savedDaysCount, 10);
+                if (!isNaN(parsed) && parsed >= 1 && parsed <= 14) {
+                    board.weekdayDaysCount = parsed;
+                }
+            }
         } catch (e) { /* localStorage indisponível */ }
     }
 
@@ -97,6 +114,7 @@ window.KD = window.KD || {};
             localStorage.setItem(TAG_VISIBILITY_KEY, board.tagVisibility);
             localStorage.setItem(SHOW_CARD_AVATAR_KEY, String(board.showCardAvatar));
             localStorage.setItem(SHOW_CARD_STATUS_BAR_KEY, String(board.showCardStatusBar));
+            localStorage.setItem(WEEKDAY_DAYS_COUNT_KEY, String(board.weekdayDaysCount || 5));
             localStorage.setItem(HIDDEN_COLS_KEY, JSON.stringify({
                 status: Array.from(board.hiddenColumns.status),
                 weekdays: Array.from(board.hiddenColumns.weekdays),
@@ -174,7 +192,7 @@ window.KD = window.KD || {};
 
     function readFilters() {
         return {
-            q: (el('filterSearch')?.value || '').trim(),
+            q: (el('kdHeaderSearch')?.value || el('filterSearch')?.value || '').trim(),
             client_id: el('filterClient')?.value || '',
             priority: el('filterPriority')?.value || '',
             assignee_id: el('filterAssignee')?.value || '',
@@ -205,7 +223,14 @@ window.KD = window.KD || {};
 
     function restoreFiltersFromUrl() {
         const params = new URLSearchParams(window.location.search);
-        if (el('filterSearch')) el('filterSearch').value = params.get('q') || '';
+        const qVal = params.get('q') || '';
+        if (el('filterSearch')) el('filterSearch').value = qVal;
+        const hSearch = el('kdHeaderSearch');
+        if (hSearch) {
+            hSearch.value = qVal;
+            const cBtn = el('kdHeaderSearchClear');
+            if (cBtn) cBtn.hidden = !qVal;
+        }
         if (el('filterClient')) el('filterClient').value = params.get('client') || '';
         if (el('filterPriority')) el('filterPriority').value = params.get('priority') || '';
         if (el('filterAssignee')) el('filterAssignee').value = params.get('assignee') || '';
@@ -230,6 +255,18 @@ window.KD = window.KD || {};
         if (mineBtn) {
             mineBtn.setAttribute('aria-pressed', String(board.onlyMine));
             mineBtn.classList.toggle('kd-btn--active', board.onlyMine);
+        }
+
+        const calBtn = el('btnToggleCalendarEvents');
+        if (calBtn) {
+            calBtn.setAttribute('aria-pressed', String(board.showCalendarEvents));
+            calBtn.classList.toggle('kd-btn--active', board.showCalendarEvents);
+            calBtn.title = board.showCalendarEvents ? 'Ocultar eventos do calendário no quadro' : 'Exibir eventos do calendário no quadro';
+        }
+        const calCheck = el('calendarEventsInKanbanCheck');
+        if (calCheck) {
+            calCheck.hidden = !board.showCalendarEvents;
+            calCheck.style.display = board.showCalendarEvents ? 'inline-flex' : 'none';
         }
 
         const groupBtn = el('btnGroupClient');
@@ -312,10 +349,36 @@ window.KD = window.KD || {};
         KD.loadBoard();
     };
 
+    KD.filterByMetric = function (type) {
+        if (type === 'today') {
+            if (board.viewMode !== 'weekdays') {
+                KD.setViewMode('weekdays');
+            }
+            KD.toast('Focado na visão de dias da semana (Hoje).', { tone: 'info' });
+        } else if (type === 'overdue') {
+            showFilterBar(true);
+            const searchInput = el('filterSearch');
+            if (searchInput) searchInput.focus();
+            KD.toast('Localize tarefas em atraso.', { tone: 'info' });
+        } else if (type === 'total') {
+            KD.clearFilters();
+            KD.toast('Filtros limpos. Exibindo todas as tarefas.', { tone: 'info' });
+        }
+    };
+
     KD.toggleOnlyMine = function () {
         board.onlyMine = !board.onlyMine;
         updateToolbarState();
         KD.loadBoard();
+    };
+
+    KD.toggleCalendarEventsInKanban = function () {
+        board.showCalendarEvents = !board.showCalendarEvents;
+        localStorage.setItem(SHOW_CALENDAR_EVENTS_KEY, board.showCalendarEvents ? '1' : '0');
+        updateToolbarState();
+        render();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        KD.toast(board.showCalendarEvents ? 'Eventos do calendário visíveis no quadro.' : 'Eventos do calendário ocultados do quadro.');
     };
 
     KD.toggleGroupByClient = function () {
@@ -347,6 +410,8 @@ window.KD = window.KD || {};
 
             board.stages = data.stages || [];
             board.tasks = data.tasks || [];
+            const todayStr = getTodayString();
+            board.tasks.forEach((t) => applyOverdueEscalationToTask(t, todayStr));
             board.metrics = data.metrics || null;
             board.doneHidden = data.done_hidden_count || 0;
             board.doneVisibleDays = data.done_visible_days || 14;
@@ -472,8 +537,29 @@ window.KD = window.KD || {};
         });
     }
 
+        function isCalendarTask(task) {
+        if (!task) return false;
+        if (Number(task.is_calendar_event) === 1) return true;
+        if (task.source && /^(google|outlook|microsoft|calendar|ical)$/i.test(task.source)) return true;
+        if (Array.isArray(task.tags)) {
+            return task.tags.some(function (t) {
+                var name = (typeof t === 'string') ? t : (t && t.name ? t.name : '');
+                return /google calendar|outlook|calendário|calendario|ical/i.test(name);
+            });
+        }
+        if (typeof task.tags === 'string' && /google calendar|outlook|calendário|calendario|ical/i.test(task.tags)) {
+            return true;
+        }
+        return false;
+    }
+
     function tasksOfStage(stageId) {
-        return board.tasks.filter((task) => Number(task.stage_id) === Number(stageId));
+        const list = board.tasks.filter((task) => {
+            if (Number(task.stage_id) !== Number(stageId)) return false;
+            if (!board.showCalendarEvents && isCalendarTask(task)) return false;
+            return true;
+        });
+        return sortTasksForColumn(list, false, getTodayString());
     }
 
     function getColumnTimeInfo(tasks) {
@@ -502,63 +588,315 @@ window.KD = window.KD || {};
         };
     }
 
+    const WEEKDAY_DEFS = [
+        { dayIndex: 0, id: 'sun', name: 'Domingo', short: 'Dom', color: '#ec4899' },
+        { dayIndex: 1, id: 'mon', name: 'Segunda', short: 'Seg', color: '#6366f1' },
+        { dayIndex: 2, id: 'tue', name: 'Terça', short: 'Ter', color: '#3b82f6' },
+        { dayIndex: 3, id: 'wed', name: 'Quarta', short: 'Qua', color: '#06b6d4' },
+        { dayIndex: 4, id: 'thu', name: 'Quinta', short: 'Qui', color: '#10b981' },
+        { dayIndex: 5, id: 'fri', name: 'Sexta', short: 'Sex', color: '#f59e0b' },
+        { dayIndex: 6, id: 'sat', name: 'Sábado', short: 'Sáb', color: '#8b5cf6' },
+    ];
+
     function getWeekDays() {
         const now = new Date();
-        const currentDay = now.getDay(); // 0 = Domingo, 1 = Segunda, ...
-        const sunday = new Date(now);
-        sunday.setDate(now.getDate() - currentDay);
-        sunday.setHours(0, 0, 0, 0);
-
-        const days = [
-            { id: 'sun', dayIndex: 0, name: 'Domingo', short: 'Dom', color: '#ec4899' },
-            { id: 'mon', dayIndex: 1, name: 'Segunda-feira', short: 'Seg', color: '#6366f1' },
-            { id: 'tue', dayIndex: 2, name: 'Terça-feira', short: 'Ter', color: '#3b82f6' },
-            { id: 'wed', dayIndex: 3, name: 'Quarta-feira', short: 'Qua', color: '#06b6d4' },
-            { id: 'thu', dayIndex: 4, name: 'Quinta-feira', short: 'Qui', color: '#10b981' },
-            { id: 'fri', dayIndex: 5, name: 'Sexta-feira', short: 'Sex', color: '#f59e0b' },
-            { id: 'sat', dayIndex: 6, name: 'Sábado', short: 'Sáb', color: '#8b5cf6' },
-            { id: 'nodate', dayIndex: -1, name: 'Sem prazo', short: 'S/P', color: '#64748b' },
-        ];
+        now.setHours(0, 0, 0, 0);
 
         const todayY = now.getFullYear();
         const todayM = String(now.getMonth() + 1).padStart(2, '0');
         const todayD = String(now.getDate()).padStart(2, '0');
         const todayStr = `${todayY}-${todayM}-${todayD}`;
 
-        days.forEach((d) => {
-            if (d.dayIndex >= 0) {
-                const date = new Date(sunday);
-                date.setDate(sunday.getDate() + d.dayIndex);
-                const y = date.getFullYear();
-                const m = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                d.dateString = `${y}-${m}-${day}`;
-                d.formattedDate = `${day}/${m}`;
-                d.isToday = (d.dateString === todayStr);
-            } else {
-                d.dateString = '';
-                d.formattedDate = '';
-                d.isToday = false;
-            }
+        const days = [];
+
+        // Início da semana: 'monday' (começa na Segunda-feira) ou 'today' (começa no dia de Hoje)
+        const isMondayStart = (board.weekStartMode === 'monday');
+        let cursor;
+        if (isMondayStart) {
+            const dayOfWeek = now.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+            const diffToMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
+            cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday);
+        } else {
+            cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        }
+
+        // Quantidade de dias a exibir na visão (padrão 5, configurável pelo usuário)
+        const daysCount = Math.max(1, Math.min(14, Number(board.weekdayDaysCount) || 5));
+
+        // Gera os dias consecutivos a partir do cursor
+        for (let i = 0; i < daysCount; i++) {
+            const dayIdx = cursor.getDay();
+            const base = WEEKDAY_DEFS[dayIdx];
+            const y = cursor.getFullYear();
+            const m = String(cursor.getMonth() + 1).padStart(2, '0');
+            const d = String(cursor.getDate()).padStart(2, '0');
+            const dateString = `${y}-${m}-${d}`;
+
+            days.push({
+                id: base.id,
+                dayIndex: dayIdx,
+                name: base.name,
+                short: base.short,
+                color: base.color,
+                dateString: dateString,
+                formattedDate: `${d}/${m}`,
+                isToday: (dateString === todayStr),
+            });
+
+            cursor.setDate(cursor.getDate() + 1);
+        }
+
+        // Coluna fixa para tarefas sem prazo
+        days.push({
+            id: 'nodate',
+            dayIndex: -1,
+            name: 'Sem prazo',
+            short: 'S/P',
+            color: '#64748b',
+            dateString: '',
+            formattedDate: '',
+            isToday: false,
+        });
+
+        // Coluna para tarefas concluídos no modo semana
+        days.push({
+            id: 'done',
+            dayIndex: 99,
+            name: 'Concluídos',
+            short: 'Concl',
+            color: '#10b981',
+            dateString: '',
+            formattedDate: '',
+            isToday: false,
+            isDoneColumn: true,
         });
 
         return days;
     }
 
-    function tasksOfWeekday(day) {
-        if (day.id === 'nodate') {
-            return board.tasks.filter((t) => !t.due_date);
+    function getTodayString() {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    /**
+     * Escalação automática de prioridade para tarefas atrasadas:
+     * - Tarefas de ontem sobem de grau (baixa -> média, média -> alta, alta -> urgente)
+     * - Tarefas com 2+ dias de atraso sobem proporcionalmente até urgente
+     */
+    function applyOverdueEscalationToTask(t, todayStr) {
+        if (!t.due_date || t.completed_at || t.due_date >= todayStr) {
+            t.is_overdue = false;
+            return;
         }
-        return board.tasks.filter((t) => {
-            if (!t.due_date) return false;
-            if (t.due_date === day.dateString) return true;
-            const parts = t.due_date.split('-');
-            if (parts.length === 3) {
-                const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-                if (dt.getDay() === day.dayIndex) return true;
+
+        const PRIORITY_LEVELS = ['low', 'medium', 'high', 'urgent'];
+        const currentPrio = t.original_priority || t.priority || 'medium';
+        let idx = PRIORITY_LEVELS.indexOf(currentPrio);
+        if (idx === -1) idx = 1;
+
+        const pToday = todayStr.split('-').map(Number);
+        const pDue = t.due_date.split('-').map(Number);
+        const dtToday = new Date(pToday[0], pToday[1] - 1, pToday[2]);
+        const dtDue = new Date(pDue[0], pDue[1] - 1, pDue[2]);
+        const diffDays = Math.max(1, Math.round((dtToday.getTime() - dtDue.getTime()) / (1000 * 60 * 60 * 24)));
+
+        const newIdx = Math.min(3, idx + diffDays);
+        t.original_priority = currentPrio;
+        t.priority = PRIORITY_LEVELS[newIdx];
+        t.is_overdue = true;
+        t.days_overdue = diffDays;
+        t.priority_escalated = (newIdx > idx);
+    }
+
+            /**
+     * Ordenação de tarefas para cada coluna:
+     * 1. Concluídas sempre no final da coluna.
+     * 2. Tarefa bomba sempre no topo absoluto.
+     * 3. Se houver ordenação manual ativa entre as tarefas (sort_order > 0), a ordem manual sobrepõe!
+     * 4. Por padrão (sem ordenação manual / sort_order == 0) ou ao reordenar:
+     *    - 1º: Tarefa bomba
+     *    - 2º: Tarefa atrasada por ordem de mais atrasadas primeiro (due_date ASC)
+     *    - 3º: Tarefa de prioridade urgente
+     *    - 4º: Tarefa de prioridade alta
+     *    - 5º: Tarefa de prioridade média
+     *    - 6º: Tarefa de prioridade baixa
+     */
+    function getTaskDefaultRank(t, todayStr) {
+        if (Number(t.is_bomb) === 1) return 1;
+
+        const dueDate = t.due_date || '';
+        const priority = t.priority || 'medium';
+
+        // 2. Tarefa atrasada por ordem de mais atrasadas primeiro (due_date < todayStr)
+        if (dueDate && dueDate < todayStr) {
+            return 2;
+        }
+
+        // 3. Tarefa de prioridade urgente
+        if (priority === 'urgent') {
+            return 3;
+        }
+
+        // 4. Tarefa de prioridade alta
+        if (priority === 'high') {
+            return 4;
+        }
+
+        // 5. Tarefa de prioridade média
+        if (priority === 'medium') {
+            return 5;
+        }
+
+        // 6. Tarefa de prioridade baixa
+        return 6;
+    }
+
+    function sortTasksForColumn(tasks, isTodayColumn, todayStr) {
+        todayStr = todayStr || getTodayString();
+
+        return [...tasks].sort((a, b) => {
+            // 1. Concluídas sempre no final da coluna
+            const aDone = Boolean(a.completed_at);
+            const bDone = Boolean(b.completed_at);
+            if (aDone !== bDone) return aDone ? 1 : -1;
+
+            // 2. TAREFA BOMBA SEMPRE NO TOPO ABSOLUTO (regra primordial do sistema)
+            const aBomb = Number(a.is_bomb) === 1;
+            const bBomb = Number(b.is_bomb) === 1;
+            if (aBomb !== bBomb) return aBomb ? -1 : 1;
+
+            // Se ambas forem bombas, respeita ordem manual se houver, ou criação
+            if (aBomb && bBomb) {
+                const aOrder = Number(a.sort_order || 0);
+                const bOrder = Number(b.sort_order || 0);
+                if (aOrder > 0 && bOrder > 0 && aOrder !== bOrder) return aOrder - bOrder;
+                return (a.created_at || '').localeCompare(b.created_at || '') || ((Number(a.id) || 0) - (Number(b.id) || 0));
             }
-            return false;
+
+            // 3. ORDENAÇÃO MANUAL: se as tarefas possuem ordens manuais definidas (sort_order > 0), a ordem manual sobrepõe todas as outras!
+            const aOrder = Number(a.sort_order || 0);
+            const bOrder = Number(b.sort_order || 0);
+            if (aOrder > 0 && bOrder > 0 && aOrder !== bOrder) {
+                return aOrder - bOrder;
+            }
+            if (aOrder > 0 && bOrder === 0) return -1;
+            if (aOrder === 0 && bOrder > 0) return 1;
+
+            // 4. ORDENAÇÃO PADRÃO POR PRIORIDADE (quando não há ordenação manual):
+            const aRank = getTaskDefaultRank(a, todayStr);
+            const bRank = getTaskDefaultRank(b, todayStr);
+
+            if (aRank !== bRank) {
+                return aRank - bRank;
+            }
+
+            // Desempates específicos dentro do mesmo Rank:
+            // 4.1 No Rank 2 (Atrasadas): as tarefas mais atrasadas vêm em primeiro (menor due_date primeiro)
+            if (aRank === 2) {
+                if (a.due_date && b.due_date && a.due_date !== b.due_date) {
+                    return a.due_date.localeCompare(b.due_date);
+                }
+            }
+
+            // 4.2 Tarefas de hoje têm preferência leve dentro do seu nível de prioridade
+            const aIsToday = a.due_date === todayStr;
+            const bIsToday = b.due_date === todayStr;
+            if (aIsToday !== bIsToday) {
+                return aIsToday ? -1 : 1;
+            }
+            if (aIsToday && bIsToday && (a.due_time || b.due_time)) {
+                if (a.due_time && b.due_time && a.due_time !== b.due_time) {
+                    return a.due_time.localeCompare(b.due_time);
+                }
+                if (a.due_time && !b.due_time) return -1;
+                if (!a.due_time && b.due_time) return 1;
+            }
+
+            // 4.3 Prazos mais próximos vêm primeiro
+            if (a.due_date && b.due_date && a.due_date !== b.due_date) {
+                return a.due_date.localeCompare(b.due_date);
+            }
+            if (a.due_date && !b.due_date) return -1;
+            if (!a.due_date && b.due_date) return 1;
+
+            // 4.4 Tarefas em foco têm preferência leve
+            const aFocus = Number(a.in_focus) === 1;
+            const bFocus = Number(b.in_focus) === 1;
+            if (aFocus !== bFocus) return aFocus ? -1 : 1;
+
+            // 4.5 Desempate final por data de criação (mais antigas primeiro)
+            const aCreated = a.created_at || '';
+            const bCreated = b.created_at || '';
+            if (aCreated && bCreated && aCreated !== bCreated) {
+                return aCreated.localeCompare(bCreated);
+            }
+
+            return (Number(a.id) || 0) - (Number(b.id) || 0);
         });
+    }
+
+    function isDoneTask(t) {
+        if (!t) return false;
+        if (Boolean(t.completed_at)) return true;
+        const stg = board.stages.find((s) => Number(s.id) === Number(t.stage_id));
+        return Boolean(stg && stg.is_done);
+    }
+
+    function tasksOfWeekday(day) {
+        const todayStr = getTodayString();
+
+        // 1. Coluna de Tarefas Concluídas no modo semana
+        if (day.id === 'done') {
+            const list = board.tasks.filter((t) => {
+                if (!board.showCalendarEvents && isCalendarTask(t)) return false;
+                return isDoneTask(t);
+            });
+            return list.sort((a, b) => {
+                const ta = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+                const tb = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+                return tb - ta;
+            });
+        }
+
+        // 2. Coluna Sem Prazo (apenas tarefas abertas/pendentes)
+        if (day.id === 'nodate') {
+            const list = board.tasks.filter((t) => {
+                if (isDoneTask(t)) return false;
+                if (t.due_date) return false;
+                if (!board.showCalendarEvents && isCalendarTask(t)) return false;
+                return true;
+            });
+            return sortTasksForColumn(list, false, todayStr);
+        }
+
+        let tasks = [];
+        if (day.isToday) {
+            // Coluna do dia de HOJE (apenas tarefas abertas/pendentes):
+            // 1. Tarefas com data de hoje (due_date === day.dateString)
+            // 2. TODAS as tarefas atrasadas pendentes (due_date < day.dateString)
+            tasks = board.tasks.filter((t) => {
+                if (isDoneTask(t)) return false;
+                if (!t.due_date) return false;
+                if (!board.showCalendarEvents && isCalendarTask(t)) return false;
+                if (t.due_date === day.dateString) return true;
+                if (t.due_date < day.dateString) return true;
+                return false;
+            });
+        } else {
+            // Colunas dos outros dias da semana (apenas tarefas abertas/pendentes agendadas para aquele dia)
+            tasks = board.tasks.filter((t) => {
+                if (isDoneTask(t)) return false;
+                if (!t.due_date) return false;
+                if (!board.showCalendarEvents && isCalendarTask(t)) return false;
+                return t.due_date === day.dateString;
+            });
+        }
+
+        return sortTasksForColumn(tasks, Boolean(day.isToday), todayStr);
     }
 
     function destroySortables() {
@@ -811,6 +1149,35 @@ window.KD = window.KD || {};
                         </h3>
 
                         <div class="flex items-center gap-1 flex-shrink-0">
+                            <div class="kd-menu-wrap kd-col__menu-wrap">
+                                <button type="button" class="kd-icon-btn" data-action="toggle-column-menu"
+                                        aria-haspopup="menu" aria-expanded="false" aria-label="Opções do dia ${KD.escapeHtml(day.name)}">
+                                    <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                                </button>
+                                <div class="kd-menu kd-glass kd-glass--raised" role="menu" hidden>
+                                    ${day.id !== 'done' ? `
+                                        <button type="button" class="kd-menu__item" role="menuitem" data-action="new-task-weekday" data-due-date="${day.dateString || ''}">
+                                            <i data-lucide="plus" class="w-4 h-4"></i> Adicionar tarefa
+                                        </button>
+                                    ` : ''}
+                                    <button type="button" class="kd-menu__item text-indigo-400 font-medium" role="menuitem" data-action="reset-weekday-order" data-weekday-id="${day.id}" data-due-date="${day.dateString || ''}">
+                                        <i data-lucide="arrow-down-up" class="w-4 h-4"></i> Reordenar por prioridade
+                                    </button>
+                                    <button type="button" class="kd-menu__item" role="menuitem" data-action="toggle-collapse-weekday" data-weekday-id="${day.id}">
+                                        <i data-lucide="columns" class="w-4 h-4"></i>
+                                        ${board.collapsed.has(String(day.id)) ? 'Expandir coluna' : 'Recolher coluna'}
+                                    </button>
+                                    <div class="kd-menu__sep"></div>
+                                    <button type="button" class="kd-menu__item" role="menuitem" onclick="KD.toggleCardAvatar()">
+                                        <i data-lucide="user" class="w-4 h-4"></i>
+                                        ${board.showCardAvatar ? 'Ocultar avatares' : 'Exibir avatares'}
+                                    </button>
+                                    <button type="button" class="kd-menu__item" role="menuitem" onclick="KD.toggleCardStatusBar()">
+                                        <i data-lucide="minus" class="w-4 h-4"></i>
+                                        ${board.showCardStatusBar ? 'Ocultar barra de status' : 'Exibir barra de status'}
+                                    </button>
+                                </div>
+                            </div>
                             <button type="button" class="kd-icon-btn" data-action="toggle-collapse-weekday" data-weekday-id="${day.id}"
                                     aria-label="${isCollapsed ? 'Expandir' : 'Recolher'} coluna ${KD.escapeHtml(day.name)}">
                                 <i data-lucide="${isCollapsed ? 'chevrons-right' : 'chevrons-left'}" class="w-4 h-4"></i>
@@ -846,10 +1213,12 @@ window.KD = window.KD || {};
                     ${tasks.length === 0 ? emptyStateWeekdayHtml(day) : cardsHtml(tasks, { id: 0, name: day.name })}
                 </div>
 
-                <button type="button" class="kd-col__add" data-action="new-task-weekday" data-due-date="${day.dateString || ''}">
-                    <i data-lucide="plus" class="w-4 h-4"></i>
-                    Adicionar tarefa
-                </button>
+                ${day.id !== 'done' ? `
+                    <button type="button" class="kd-col__add" data-action="new-task-weekday" data-due-date="${day.dateString || ''}">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Adicionar tarefa
+                    </button>
+                ` : ''}
             </section>
         `;
     }
@@ -870,6 +1239,9 @@ window.KD = window.KD || {};
                 <button type="button" class="kd-menu__item" role="menuitem" data-action="new-task" data-stage-id="${stage.id}">
                     <i data-lucide="plus" class="w-4 h-4"></i> Adicionar tarefa
                 </button>
+                <button type="button" class="kd-menu__item text-indigo-400 font-medium" role="menuitem" data-action="reset-stage-order" data-stage-id="${stage.id}">
+                    <i data-lucide="arrow-down-up" class="w-4 h-4"></i> Reordenar por prioridade
+                </button>
                 <button type="button" class="kd-menu__item" role="menuitem" data-action="pick-stage-color" data-stage-id="${stage.id}">
                     <i data-lucide="palette" class="w-4 h-4"></i> Alterar cor
                 </button>
@@ -879,7 +1251,7 @@ window.KD = window.KD || {};
                 </button>
                 <button type="button" class="kd-menu__item" role="menuitem" data-action="toggle-collapse" data-stage-id="${stage.id}">
                     <i data-lucide="columns" class="w-4 h-4"></i>
-                    ${board.collapsed.has(Number(stage.id)) ? 'Expandir coluna' : 'Recolher coluna'}
+                    ${board.collapsed.has(String(stage.id)) ? 'Expandir coluna' : 'Recolher coluna'}
                 </button>
                 ${stage.is_done && count > 0 ? `
                     <div class="kd-menu__sep"></div>
@@ -937,6 +1309,16 @@ window.KD = window.KD || {};
         const isBomb = Number(task.is_bomb) === 1;
         const isDone = Boolean(task.completed_at);
         const isMention = task.source === 'whatsapp_mention' || Boolean(task.group_name || task.mentioned_by);
+        const isRecurring = Number(task.is_recurring) === 1;
+        const recLabels = {
+            daily: 'Diária',
+            weekly: 'Semanal',
+            biweekly: 'Quinzenal',
+            monthly: 'Mensal',
+            yearly: 'Anual',
+            custom: 'Personalizada'
+        };
+        const recLabel = recLabels[task.recurrence_type] || 'Recorrente';
 
         const checklistTotal = Number(task.checklist_total || 0);
         const checklistDone = Number(task.checklist_done || 0);
@@ -997,10 +1379,11 @@ window.KD = window.KD || {};
 
         // 3. Prazo no rodapé à esquerda (texto do tracking-wide na mesma cor do status)
         let dueHtml = '';
+        const timeBadge = task.due_time ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-xs"><i data-lucide="clock" class="w-3 h-3"></i>${KD.escapeHtml(task.due_time.substring(0, 5))}</span>` : '';
         if (due.text) {
-            dueHtml = `<span class="text-xs font-bold tracking-wide leading-tight" style="color: var(--card-status-color);">${KD.escapeHtml(due.text)}</span>`;
+            dueHtml = `<span class="text-xs font-bold tracking-wide leading-tight flex items-center gap-1.5" style="color: var(--card-status-color);">${KD.escapeHtml(due.text)} ${timeBadge}</span>`;
         } else {
-            dueHtml = `<span class="text-xs font-mono font-bold tracking-wide leading-tight" style="color: var(--card-status-color);">#${task.id}</span>`;
+            dueHtml = `<span class="text-xs font-mono font-bold tracking-wide leading-tight flex items-center gap-1.5" style="color: var(--card-status-color);">#${task.id} ${timeBadge}</span>`;
         }
 
         // 4. Botão Play / Timer Expandido (toggle suave)
@@ -1037,23 +1420,43 @@ window.KD = window.KD || {};
                      data-bomb="${isBomb ? 1 : 0}"
                      data-done="${isDone ? 1 : 0}"
                      data-seconds="${Number(task.effective_seconds || 0)}"
+                     data-recurring="${isRecurring ? 1 : 0}"
                      style="--card-status-color: ${statusColor};"
                      aria-label="${KD.escapeHtml(task.title)}">
 
-                <!-- Topo: Avatar do responsável à esquerda e menu ⋮ à direita -->
+                <!-- Topo: Avatar do responsável (com hover que revela botão de Concluir) e menu ⋮ à direita -->
                 <div class="kd-card__top flex items-center justify-between gap-3 w-full">
                     <div class="kd-card__avatar-wrap flex items-center gap-2 min-w-0">
-                        ${avatarHtml}
+                        <button type="button"
+                                class="kd-card__check-trigger"
+                                data-action="${isDone ? 'reopen' : 'complete'}"
+                                data-task-id="${task.id}"
+                                title="${isDone ? 'Concluída (clique para reabrir)' : 'Concluir tarefa'}"
+                                aria-label="${isDone ? 'Concluída (clique para reabrir)' : 'Concluir tarefa'}">
+                            <span class="kd-card__thumb-view">
+                                ${avatarHtml}
+                            </span>
+                            <span class="kd-card__check-view">
+                                <i data-lucide="${isDone ? 'check-circle-2' : 'check'}" class="w-3.5 h-3.5"></i>
+                            </span>
+                        </button>
                     </div>
 
-                    <div class="kd-menu-wrap flex items-center gap-1 ml-auto">
-                        <button type="button" class="w-7 h-7 rounded-lg text-slate-400 hover:text-white flex items-center justify-center transition"
-                                data-action="toggle-card-menu" data-task-id="${task.id}"
-                                aria-haspopup="menu" aria-expanded="false"
-                                aria-label="Ações da tarefa ${KD.escapeHtml(task.title)}">
-                            <i data-lucide="more-vertical" class="w-4 h-4"></i>
-                        </button>
-                        ${cardMenuHtml(task, inFocus, isBomb, isDone)}
+                    <div class="flex items-center gap-1 ml-auto">
+                        ${isRecurring ? `
+                            <span class="kd-card__recurring-icon" title="Tarefa Recorrente (${recLabel})" aria-label="Tarefa Recorrente">
+                                <i data-lucide="repeat" class="w-3.5 h-3.5"></i>
+                            </span>
+                        ` : ''}
+                        <div class="kd-menu-wrap relative flex items-center">
+                            <button type="button" class="w-7 h-7 rounded-lg text-slate-400 hover:text-white flex items-center justify-center transition"
+                                    data-action="toggle-card-menu" data-task-id="${task.id}"
+                                    aria-haspopup="menu" aria-expanded="false"
+                                    aria-label="Ações da tarefa ${KD.escapeHtml(task.title)}">
+                                <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                            </button>
+                            ${cardMenuHtml(task, inFocus, isBomb, isDone)}
+                        </div>
                     </div>
                 </div>
 
@@ -1063,9 +1466,9 @@ window.KD = window.KD || {};
                 </div>
 
                 <!-- Título da tarefa (18px, branco) -->
-                <button type="button" class="kd-card__title" data-action="open" data-task-id="${task.id}">
+                <div class="kd-card__title" data-action="open" data-task-id="${task.id}" role="button" tabindex="0">
                     ${KD.escapeHtml(task.title)}
-                </button>
+                </div>
 
                 <!-- Etapas / Subtarefas -->
                 ${stepsHtml}
@@ -1082,10 +1485,13 @@ window.KD = window.KD || {};
                     </div>
                 ` : ''}
 
-                ${(inFocus || isBomb || isMention) ? `
+                ${(inFocus || isBomb || isMention || isRecurring || (task.is_overdue && !isDone)) ? `
                     <div class="flex items-center gap-1.5 flex-wrap">
-                        ${inFocus ? '<span class="kd-flag kd-flag--focus"><i data-lucide="target" class="w-3 h-3"></i>Foco</span>' : ''}
+                        ${isCalendarTask(task) ? '<span class="kd-flag kd-flag--calendar" style="background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);font-weight:600" title="Evento sincronizado do calendário"><i data-lucide="calendar" class="w-3 h-3"></i>Calendário</span>' : ''}
+                        ${isRecurring ? `<span class="kd-flag kd-flag--recurring" title="Tarefa Recorrente (${recLabel})"><i data-lucide="repeat" class="w-3 h-3"></i><span>${recLabel}</span></span>` : ''}
                         ${isBomb ? '<span class="kd-flag kd-flag--bomb" title="Precisa ser resolvida antes de estourar."><i data-lucide="flame" class="w-3 h-3"></i>Bomba</span>' : ''}
+                        ${(task.is_overdue && !isDone) ? `<span class="kd-flag kd-flag--overdue" style="background:rgba(239,68,68,0.22);color:#ef4444;border:1px solid rgba(239,68,68,0.45);font-weight:700" title="Atrasada em ${task.days_overdue || 1} dia(s). Prioridade escalada para ${KD.escapeHtml(task.priority || 'urgente')}."><i data-lucide="alert-triangle" class="w-3 h-3"></i>Atrasada${task.priority_escalated ? ' · ' + (task.priority === 'urgent' ? 'Urgente' : 'Alta') : ''}</span>` : ''}
+                        ${inFocus ? '<span class="kd-flag kd-flag--focus"><i data-lucide="target" class="w-3 h-3"></i>Foco</span>' : ''}
                         ${isMention ? `<span class="kd-flag kd-flag--mention"><i data-lucide="message-circle" class="w-3 h-3"></i>${KD.escapeHtml(task.mentioned_by ? '@' + task.mentioned_by : 'WhatsApp')}</span>` : ''}
                     </div>
                 ` : ''}
@@ -1141,6 +1547,9 @@ window.KD = window.KD || {};
                     ? `<p class="kd-group-label" style="padding:0.25rem 0.6rem">Mover para</p>${moveOptions}<div class="kd-menu__sep"></div>`
                     : `<p class="kd-group-label" style="padding:0.25rem 0.6rem;color:var(--danger)">Presa até ser resolvida</p><div class="kd-menu__sep"></div>`}
 
+                <button type="button" class="kd-menu__item" role="menuitem" data-action="adjust-card-time" data-task-id="${task.id}">
+                    <i data-lucide="clock" class="w-4 h-4 text-indigo-400"></i> Ajustar tempo (+ / -)
+                </button>
                 <button type="button" class="kd-menu__item" role="menuitem" data-action="duplicate" data-task-id="${task.id}">
                     <i data-lucide="copy" class="w-4 h-4"></i> Duplicar
                 </button>
@@ -1162,7 +1571,33 @@ window.KD = window.KD || {};
         const tabs = el('kanbanStageTabs');
         if (!tabs) return;
 
-        tabs.innerHTML = board.stages.map((stage) => {
+        if (board.viewMode === 'weekdays') {
+            const days = getWeekDays().filter((d) => !board.hiddenColumns.weekdays.has(d.id));
+            if (!board.mobileStageId || !days.some((d) => String(d.id) === String(board.mobileStageId))) {
+                const todayCol = days.find((d) => d.isToday);
+                board.mobileStageId = todayCol ? todayCol.id : (days[0]?.id || null);
+            }
+            tabs.innerHTML = days.map((day) => {
+                const count = tasksOfWeekday(day).length;
+                const selected = String(board.mobileStageId) === String(day.id);
+                return `
+                    <button type="button" class="kd-segmented__item" role="tab"
+                            aria-selected="${selected}" data-action="mobile-stage" data-weekday-id="${day.id}">
+                        <span class="kd-col__dot" style="background-color:${KD.escapeHtml(day.color || '#6366f1')}"></span>
+                        ${KD.escapeHtml(day.name)}
+                        <span class="kd-col__count">${count}</span>
+                    </button>
+                `;
+            }).join('');
+            return;
+        }
+
+        const visibleStages = board.stages.filter((s) => !board.hiddenColumns.status.has(String(s.id)));
+        if (!board.mobileStageId || !visibleStages.some((s) => Number(s.id) === Number(board.mobileStageId))) {
+            board.mobileStageId = visibleStages[0]?.id || null;
+        }
+
+        tabs.innerHTML = visibleStages.map((stage) => {
             const count = tasksOfStage(stage.id).length;
             const selected = Number(board.mobileStageId) === Number(stage.id);
             return `
@@ -1177,6 +1612,12 @@ window.KD = window.KD || {};
     }
 
     function applyMobileStage() {
+        if (board.viewMode === 'weekdays') {
+            document.querySelectorAll('.kd-col[data-weekday-id]').forEach((column) => {
+                column.classList.toggle('is-active-mobile', String(column.dataset.weekdayId) === String(board.mobileStageId));
+            });
+            return;
+        }
         document.querySelectorAll('.kd-col[data-stage-id]').forEach((column) => {
             column.classList.toggle('is-active-mobile', Number(column.dataset.stageId) === Number(board.mobileStageId));
         });
@@ -1198,27 +1639,48 @@ window.KD = window.KD || {};
             animation: 160,
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
             draggable: '.kd-card',
-            // Tarefa bomba não é arrastável de forma alguma
-            filter: '.kd-card[data-bomb="1"]',
+            // Tarefas bomba e controles interativos não iniciam arrasto
+            filter: '.kd-card[data-bomb="1"], .kd-card__check-trigger, .kd-menu-wrap, .kd-timer-toggle, .kd-play-btn, .kd-tag, input, select, textarea',
             preventOnFilter: false,
-            delay: 120,
-            delayOnTouchOnly: true,
-            touchStartThreshold: 5,
+            delay: 0,
+            touchStartThreshold: 3,
+            forceFallback: true,
+            fallbackClass: 'sortable-fallback',
+            fallbackOnBody: true,
+            fallbackTolerance: 3,
+            onChoose: () => {
+                if (window.getSelection) {
+                    window.getSelection().removeAllRanges();
+                }
+            },
             onStart: () => {
                 board.dragging = true;
                 document.documentElement.classList.add('kd-dragging');
+                if (window.getSelection) {
+                    window.getSelection().removeAllRanges();
+                }
                 KD.closeMenus();
             },
-            // Rede de segurança: nem arrastar para cima de/para fora de uma bomba
-            onMove: (event) => event.dragged.dataset.bomb !== '1',
+            
+            // Rede de segurança: nem arrastar bomba nem soltar card acima de uma bomba
+            onMove: (event) => {
+                if (event.dragged && event.dragged.dataset && event.dragged.dataset.bomb === '1') return false;
+                if (event.related && event.related.dataset && event.related.dataset.bomb === '1' && event.willInsertAfter === false) return false;
+                return true;
+            },
             onEnd: handleDragEnd,
         }));
     }
 
     async function handleDragEnd(event) {
+        console.log('[DEBUG SORTABLE] handleDragEnd fired! oldIndex:', event.oldIndex, 'newIndex:', event.newIndex, 'to:', event.to, 'from:', event.from);
         board.dragging = false;
         document.documentElement.classList.remove('kd-dragging');
+        if (window.getSelection) {
+            window.getSelection().removeAllRanges();
+        }
 
         const card = event.item;
         const taskId = Number(card.dataset.taskId);
@@ -1231,24 +1693,65 @@ window.KD = window.KD || {};
 
         try {
             if (board.viewMode === 'weekdays') {
+                const targetWeekdayId = targetBody.dataset.weekdayId;
+                const fromWeekdayId = fromBody.dataset.weekdayId;
                 const newDueDate = targetBody.dataset.dueDate || null;
                 const oldDueDate = fromBody.dataset.dueDate || null;
 
-                if (newDueDate === oldDueDate && event.oldIndex === event.newIndex) {
+                if (targetWeekdayId === fromWeekdayId && event.oldIndex === event.newIndex) {
                     card.classList.remove('is-busy');
                     return;
                 }
 
-                const orderedIds = Array.from(targetBody.querySelectorAll('.kd-card')).map((node) => Number(node.dataset.taskId));
+                // 1. Arrastou PARA a coluna "Concluídos"
+                if (targetWeekdayId === 'done') {
+                    const result = await KD.api.tasks({ action: 'complete_task', task_id: taskId });
+                    await KD.loadBoard({ silent: true });
+                    KD.toast('Tarefa concluída.', { undo: () => undoMove(result.undo) });
+                    return;
+                }
 
-                await KD.api.tasks({
-                    action: 'move',
-                    task_id: taskId,
-                    due_date: newDueDate,
-                    ordered_ids: orderedIds,
+                // 2. Arrastou DE "Concluídos" para outra coluna da semana
+                if (fromWeekdayId === 'done') {
+                    await KD.api.tasks({ action: 'uncomplete_task', task_id: taskId });
+                    if (newDueDate) {
+                        await KD.api.tasks({ action: 'move', task_id: taskId, due_date: newDueDate });
+                    }
+                    await KD.loadBoard({ silent: true });
+                    KD.toast(newDueDate ? `Tarefa reaberta e agendada para ${KD.formatDate(newDueDate)}.` : 'Tarefa reaberta sem prazo.');
+                    return;
+                }
+
+                // 3. Arrastou entre colunas normais de dias ou na mesma coluna
+                const orderedIds = Array.from(targetBody.querySelectorAll('.kd-card:not(.sortable-ghost):not(.sortable-fallback)')).map((node) => Number(node.dataset.taskId)).filter((id) => id > 0);
+
+                // Atualização otimista imediata no cache local para evitar qualquer "pulo"
+                orderedIds.forEach((id, idx) => {
+                    const t = board.tasks.find((task) => Number(task.id) === id);
+                    if (t) {
+                        t.sort_order = (idx + 1) * 10;
+                        if (targetWeekdayId !== fromWeekdayId) {
+                            t.due_date = newDueDate;
+                        }
+                    }
                 });
 
-                KD.toast(newDueDate ? `Reagendada para ${KD.formatDate(newDueDate)}.` : 'Prazo removido.');
+                const payload = {
+                    action: 'move',
+                    task_id: taskId,
+                    ordered_ids: orderedIds,
+                };
+                if (targetWeekdayId !== fromWeekdayId) {
+                    payload.due_date = newDueDate;
+                }
+
+                await KD.api.tasks(payload);
+
+                if (targetWeekdayId === fromWeekdayId) {
+                    KD.toast('Ordem das tarefas atualizada.');
+                } else {
+                    KD.toast(newDueDate ? `Reagendada para ${KD.formatDate(newDueDate)}.` : 'Prazo removido.');
+                }
                 await KD.loadBoard({ silent: true });
             } else {
                 const stageId = Number(targetBody.dataset.stageId);
@@ -1263,7 +1766,18 @@ window.KD = window.KD || {};
                     return;
                 }
 
-                const orderedIds = Array.from(targetBody.querySelectorAll('.kd-card')).map((node) => Number(node.dataset.taskId));
+                const orderedIds = Array.from(targetBody.querySelectorAll('.kd-card:not(.sortable-ghost):not(.sortable-fallback)')).map((node) => Number(node.dataset.taskId)).filter((id) => id > 0);
+
+                // Atualização otimista imediata no cache local
+                orderedIds.forEach((id, idx) => {
+                    const t = board.tasks.find((task) => Number(task.id) === id);
+                    if (t) {
+                        t.sort_order = (idx + 1) * 10;
+                        if (stageId !== fromStageId) {
+                            t.stage_id = stageId;
+                        }
+                    }
+                });
 
                 const result = await KD.api.tasks({
                     action: 'move',
@@ -1277,6 +1791,8 @@ window.KD = window.KD || {};
                     KD.toast('Tarefa concluída.', {
                         undo: () => undoMove(result.undo),
                     });
+                } else if (stageId === fromStageId) {
+                    KD.toast('Ordem das tarefas atualizada.');
                 }
 
                 await KD.loadBoard({ silent: true });
@@ -1312,10 +1828,13 @@ window.KD = window.KD || {};
                 KD.openTaskDetail(taskId);
                 break;
 
-            case 'edit':
+            case 'edit': {
                 KD.closeMenus();
-                KD.openTaskForm(taskId);
+                const t = board.tasks.find((task) => Number(task.id) === taskId);
+                const isCal = t ? Number(t.is_calendar_event || 0) === 1 : null;
+                KD.openTaskForm(taskId, null, null, null, isCal);
                 break;
+            }
 
             case 'new-task':
                 KD.closeMenus();
@@ -1333,6 +1852,41 @@ window.KD = window.KD || {};
             case 'toggle-column-menu': {
                 const menu = node.parentElement.querySelector('.kd-menu');
                 if (menu) KD.toggleMenu(menu, node);
+                break;
+            }
+
+            case 'reset-weekday-order': {
+                KD.closeMenus();
+                const dStr = node.dataset.dueDate || null;
+                const wId = node.dataset.weekdayId;
+                board.tasks.forEach((t) => {
+                    if (dStr && t.due_date === dStr && Number(t.is_bomb) !== 1) {
+                        t.sort_order = 0;
+                    } else if (!dStr && wId === 'nodate' && !t.due_date && Number(t.is_bomb) !== 1) {
+                        t.sort_order = 0;
+                    }
+                });
+                render();
+                if (dStr) {
+                    await KD.api.tasks({ action: 'reset_stage_order', due_date: dStr });
+                }
+                KD.toast('Coluna reordenada por prioridade com sucesso.');
+                await KD.loadBoard({ silent: true });
+                break;
+            }
+
+            case 'reset-stage-order': {
+                KD.closeMenus();
+                const stgId = Number(node.dataset.stageId);
+                board.tasks.forEach((t) => {
+                    if (Number(t.stage_id) === stgId && Number(t.is_bomb) !== 1) {
+                        t.sort_order = 0;
+                    }
+                });
+                render();
+                await KD.api.tasks({ action: 'reset_stage_order', stage_id: stgId });
+                KD.toast('Coluna reordenada pelo padrão de prioridades.');
+                await KD.loadBoard({ silent: true });
                 break;
             }
 
@@ -1359,7 +1913,7 @@ window.KD = window.KD || {};
                 break;
 
             case 'mobile-stage':
-                board.mobileStageId = stageId;
+                board.mobileStageId = node.dataset.weekdayId || node.dataset.stageId || stageId;
                 renderStageTabs();
                 applyMobileStage();
                 break;
@@ -1406,6 +1960,13 @@ window.KD = window.KD || {};
                 KD.toast('Tarefa reaberta.', { tone: 'info' });
                 break;
 
+            case 'adjust-card-time':
+                KD.closeMenus();
+                if (KD.openAdjustTimeModal) {
+                    KD.openAdjustTimeModal(taskId);
+                }
+                break;
+
             case 'move-to': {
                 KD.closeMenus();
                 const result = await KD.api.tasks({ action: 'move', task_id: taskId, stage_id: stageId });
@@ -1437,14 +1998,15 @@ window.KD = window.KD || {};
 
             case 'delete': {
                 KD.closeMenus();
-                // Sem confirm(): exclui e oferece Desfazer por alguns segundos.
                 const result = await KD.api.tasks({ action: 'delete', task_id: taskId });
                 await KD.loadBoard({ silent: true });
-                KD.toast(`"${result.title || 'Tarefa'}" excluída.`, {
+                if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                KD.toast(`"${result.title || 'Tarefa'}" movida para a lixeira.`, {
                     undo: async () => {
-                        await KD.api.tasks({ action: 'undelete', task_id: taskId });
+                        await KD.api.tasks({ action: 'restore_task', task_id: taskId });
                         await KD.loadBoard({ silent: true });
-                        KD.toast('Exclusão desfeita.', { tone: 'info' });
+                        if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                        KD.toast('Tarefa restaurada da lixeira.', { tone: 'info' });
                     },
                 });
                 break;
@@ -1605,12 +2167,7 @@ window.KD = window.KD || {};
             if (triggerNode) triggerNode.blur();
 
             const p = KD.api.tasks({ action: 'toggle_timer', task_id: numId });
-
-            // Aguarda a transição suave de abertura (240ms) antes de re-renderizar o quadro
-            const [result] = await Promise.all([
-                p,
-                new Promise((resolve) => setTimeout(resolve, 240))
-            ]);
+            const result = await p;
             
             if (result.is_running) {
                 board.pausedTimers.delete(numId);
@@ -1683,6 +2240,14 @@ window.KD = window.KD || {};
         // Atalhos globais do quadro
         const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable;
 
+        // Acessibilidade: Enter ou Espaço no título abre a tarefa
+        if ((event.key === 'Enter' || event.key === ' ') && event.target?.matches?.('.kd-card__title[data-action="open"]')) {
+            event.preventDefault();
+            const taskId = Number(event.target.dataset.taskId);
+            if (taskId) KD.openTaskDetail(taskId);
+            return;
+        }
+
         if (!typing && !KD.isModalOpen()) {
             if (event.key === '/') {
                 event.preventDefault();
@@ -1717,6 +2282,52 @@ window.KD = window.KD || {};
         }
 
         // Ctrl + setas move a tarefa entre colunas sem usar o mouse
+        // Ctrl + Setas para cima/baixo: reordenar o card dentro da coluna
+        if ((event.ctrlKey || event.metaKey) && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+            event.preventDefault();
+            const colBody = card.closest('.kd-col__body');
+            if (!colBody) return;
+
+            const cards = Array.from(colBody.querySelectorAll('.kd-card'));
+            const currentIndex = cards.indexOf(card);
+            if (currentIndex < 0) return;
+
+            const targetIndex = event.key === 'ArrowUp' ? currentIndex - 1 : currentIndex + 1;
+            if (targetIndex < 0 || targetIndex >= cards.length) return;
+
+            const targetCard = cards[targetIndex];
+            if (event.key === 'ArrowUp' && targetCard.dataset.bomb === '1') {
+                KD.toastError('Tarefas bomba permanecem no topo absoluto.');
+                return;
+            }
+
+            if (event.key === 'ArrowUp') {
+                colBody.insertBefore(card, targetCard);
+            } else {
+                colBody.insertBefore(card, targetCard.nextSibling);
+            }
+
+            const orderedIds = Array.from(colBody.querySelectorAll('.kd-card')).map((node) => Number(node.dataset.taskId));
+            const isWeekdays = board.viewMode === 'weekdays';
+            const payload = {
+                action: 'move',
+                task_id: taskId,
+                ordered_ids: orderedIds,
+            };
+            if (!isWeekdays) {
+                payload.stage_id = stageId;
+            }
+
+            KD.api.tasks(payload)
+                .then(() => KD.loadBoard({ silent: true }).then(() => {
+                    KD.toast('Ordem da tarefa atualizada.');
+                    const moved = document.querySelector(`.kd-card[data-task-id="${taskId}"]`);
+                    if (moved) moved.focus();
+                }))
+                .catch((err) => KD.toastError(err.message));
+            return;
+        }
+
         if ((event.ctrlKey || event.metaKey) && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
             event.preventDefault();
 
@@ -1770,6 +2381,10 @@ window.KD = window.KD || {};
     // Controle de Modo de Visão e Colunas Visíveis
     // ---------------------------------------------------------------
 
+    KD.getTaskById = function (taskId) {
+        return board.tasks.find((t) => Number(t.id) === Number(taskId)) || null;
+    };
+
     KD.renderBoard = function () {
         render();
     };
@@ -1807,9 +2422,69 @@ window.KD = window.KD || {};
         if (willOpen) KD.renderColumnsMenu();
     };
 
+    KD.setWeekStartMode = function (mode) {
+        board.weekStartMode = (mode === 'monday' ? 'monday' : 'today');
+        try { localStorage.setItem('kanbandoo_week_start', board.weekStartMode); } catch (e) {}
+        KD.renderColumnsMenu();
+        render();
+        KD.toast(board.weekStartMode === 'monday' ? 'Semana iniciando na Segunda-feira.' : 'Semana iniciando no dia de Hoje.');
+    };
+
+    KD.setWeekdayDaysCount = function (n) {
+        const parsed = parseInt(n, 10);
+        const val = Math.max(1, Math.min(14, isNaN(parsed) ? 5 : parsed));
+        board.weekdayDaysCount = val;
+        try { localStorage.setItem(WEEKDAY_DAYS_COUNT_KEY, String(val)); } catch (e) {}
+        KD.renderColumnsMenu();
+        render();
+        KD.toast(`Visão configurada para exibir ${val} dia(s).`);
+    };
+
+    KD.stepWeekdayDaysCount = function (step) {
+        const current = Number(board.weekdayDaysCount) || 5;
+        KD.setWeekdayDaysCount(current + step);
+    };
+
     KD.renderColumnsMenu = function () {
         const list = el('columnsMenuList');
         if (!list) return;
+
+        // Configurações específicas da Visão por Dias (Início da semana e Quantidade de dias)
+        const isWeekView = (board.viewMode === 'weekdays');
+        const weekdayConfig = el('weekdayConfigSection');
+        if (weekdayConfig) {
+            weekdayConfig.hidden = !isWeekView;
+            if (isWeekView) {
+                const daysCount = Math.max(1, Math.min(14, Number(board.weekdayDaysCount) || 5));
+                const badge = el('weekdayDaysCountBadge');
+                if (badge) badge.textContent = `${daysCount} dia${daysCount > 1 ? 's' : ''}`;
+
+                const inputCount = el('inputWeekdayDaysCount');
+                if (inputCount) inputCount.value = daysCount;
+
+                document.querySelectorAll('.btn-days-count').forEach((b) => {
+                    const d = Number(b.dataset.days);
+                    const isActive = (d === daysCount);
+                    b.className = isActive
+                        ? 'btn-days-count flex-1 py-1 rounded text-center font-medium transition text-xs bg-indigo-600 text-white shadow-sm'
+                        : 'btn-days-count flex-1 py-1 rounded text-center font-medium transition text-xs text-slate-400 hover:text-white';
+                });
+
+                const btnToday = el('btnWeekStartToday');
+                const btnMonday = el('btnWeekStartMonday');
+                const isTodayActive = (board.weekStartMode !== 'monday');
+                if (btnToday) {
+                    btnToday.className = isTodayActive
+                        ? 'px-2 py-1 rounded-md text-center font-medium transition text-xs bg-indigo-600 text-white shadow-sm'
+                        : 'px-2 py-1 rounded-md text-center font-medium transition text-xs text-slate-400 hover:text-white';
+                }
+                if (btnMonday) {
+                    btnMonday.className = !isTodayActive
+                        ? 'px-2 py-1 rounded-md text-center font-medium transition text-xs bg-indigo-600 text-white shadow-sm'
+                        : 'px-2 py-1 rounded-md text-center font-medium transition text-xs text-slate-400 hover:text-white';
+                }
+            }
+        }
 
         let columns = [];
         if (board.viewMode === 'weekdays') {
@@ -1993,9 +2668,37 @@ window.KD = window.KD || {};
         startAutoRefresh();
         initBoardPan();
 
-        el('filterSearch')?.addEventListener('input', KD.onFilterInput);
+        el('filterSearch')?.addEventListener('input', (e) => {
+            const hSearch = el('kdHeaderSearch');
+            if (hSearch && hSearch.value !== e.target.value) {
+                hSearch.value = e.target.value;
+                const cBtn = el('kdHeaderSearchClear');
+                if (cBtn) cBtn.hidden = !hSearch.value;
+            }
+            KD.onFilterInput(e);
+        });
+        el('kdHeaderSearch')?.addEventListener('input', (e) => {
+            const fSearch = el('filterSearch');
+            if (fSearch && fSearch.value !== e.target.value) {
+                fSearch.value = e.target.value;
+            }
+            KD.onFilterInput(e);
+        });
         ['filterClient', 'filterPriority', 'filterAssignee', 'filterTag'].forEach((id) => {
             el(id)?.addEventListener('change', KD.onFilterChange);
         });
     });
 })(window.KD);
+
+    // Evita selecao acidental de texto ao arrastar cards ou clicar nas colunas do quadro
+    document.addEventListener('selectstart', (e) => {
+        if (typeof board !== 'undefined' && board && board.dragging) {
+            e.preventDefault();
+            return;
+        }
+        if (e.target && (e.target.closest('.kd-card') || e.target.closest('.kd-col__body') || e.target.closest('.kd-col'))) {
+            if (!e.target.closest('input, textarea, [contenteditable="true"], .kd-search, select')) {
+                e.preventDefault();
+            }
+        }
+    });

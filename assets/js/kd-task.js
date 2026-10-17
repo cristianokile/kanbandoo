@@ -271,7 +271,7 @@ window.KD = window.KD || {};
     // Abrir Formulário de Tarefa
     // ---------------------------------------------------------------
 
-    KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initialDueDate = null) {
+    KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initialDueDate = null, isCalendarEvent = null) {
         try {
             const form = el('taskForm');
             if (!form) return;
@@ -288,6 +288,14 @@ window.KD = window.KD || {};
 
             el('task_id').value = '';
             if (el('task_estimated_minutes')) el('task_estimated_minutes').value = '';
+            if (el('task_has_time')) el('task_has_time').checked = false;
+            if (el('task_time_wrap')) el('task_time_wrap').hidden = true;
+            if (el('task_due_time')) el('task_due_time').value = '';
+
+            const isCalPage = (typeof isCalendarEvent !== 'undefined' && isCalendarEvent !== null) ? Boolean(isCalendarEvent) : window.location.pathname.includes('/calendario');
+            if (el('task_is_calendar_event')) el('task_is_calendar_event').value = isCalPage ? '1' : '0';
+            if (el('showInKanbanWrap')) el('showInKanbanWrap').hidden = !isCalPage;
+            if (el('task_show_in_kanban')) el('task_show_in_kanban').checked = true;
             KD.updateEstimatedPreview('');
             document.querySelectorAll('.task-assignee-checkbox').forEach((box) => { box.checked = false; });
             el('btnDeleteTask').hidden = true;
@@ -312,8 +320,29 @@ window.KD = window.KD || {};
             const templateSelect = el('task_template_id');
 
             if (!taskId) {
-                el('taskModalTitle').textContent = 'Nova tarefa';
-                if (stageId) el('task_stage_id').value = stageId;
+                el('taskModalTitle').textContent = isCalPage ? 'Novo evento no calendário' : 'Nova tarefa';
+                // Coluna padrão: A FAZER se não foi especificada outra
+                if (stageId) {
+                    el('task_stage_id').value = stageId;
+                } else {
+                    const stageSel = el('task_stage_id');
+                    if (stageSel) {
+                        for (let opt of stageSel.options) {
+                            if (/a\s*fazer|to\s*do/i.test(opt.text)) {
+                                stageSel.value = opt.value;
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Prioridade padrão: baixa
+                if (el('task_priority')) el('task_priority').value = 'low';
+                // Responsável padrão: usuário da conta logado
+                if (window.KD_CURRENT_USER_ID) {
+                    document.querySelectorAll('.task-assignee-checkbox').forEach((box) => {
+                        box.checked = (Number(box.value) === Number(window.KD_CURRENT_USER_ID));
+                    });
+                }
                 if (initialDueDate && el('task_due_date')) el('task_due_date').value = initialDueDate;
                 if (templateWrap) templateWrap.hidden = false;
                 if (templateSelect) templateSelect.value = '';
@@ -336,8 +365,21 @@ window.KD = window.KD || {};
             el('task_title').value = task.title || '';
             el('task_client_id').value = task.client_id || '';
             el('task_stage_id').value = task.stage_id || '';
+            const isExistingCal = Number(task.is_calendar_event) === 1;
+            if (el('task_is_calendar_event')) el('task_is_calendar_event').value = isExistingCal ? '1' : '0';
+            if (el('showInKanbanWrap')) el('showInKanbanWrap').hidden = !isExistingCal;
+            if (el('task_show_in_kanban')) el('task_show_in_kanban').checked = (Number(task.show_in_kanban ?? 1) === 1);
             el('task_priority').value = task.priority || 'medium';
             el('task_due_date').value = task.due_date || '';
+            if (task.due_time) {
+                if (el('task_has_time')) el('task_has_time').checked = true;
+                if (el('task_time_wrap')) el('task_time_wrap').hidden = false;
+                if (el('task_due_time')) el('task_due_time').value = task.due_time.substring(0, 5);
+            } else {
+                if (el('task_has_time')) el('task_has_time').checked = false;
+                if (el('task_time_wrap')) el('task_time_wrap').hidden = true;
+                if (el('task_due_time')) el('task_due_time').value = '';
+            }
             el('task_description').value = task.description || '';
             if (el('task_estimated_minutes')) el('task_estimated_minutes').value = task.estimated_minutes || '';
 
@@ -428,6 +470,9 @@ window.KD = window.KD || {};
             stage_id: el('task_stage_id').value,
             priority: el('task_priority').value,
             due_date: el('task_due_date').value || null,
+            due_time: (el('task_has_time')?.checked && el('task_due_time')?.value) ? el('task_due_time').value : null,
+            is_calendar_event: Number(el('task_is_calendar_event')?.value || 0),
+            show_in_kanban: el('task_show_in_kanban')?.checked ? 1 : 0,
             estimated_minutes: el('task_estimated_minutes')?.value || null,
             description: el('task_description').value,
             assignees,
@@ -447,6 +492,7 @@ window.KD = window.KD || {};
             const result = await KD.api.tasks(payload);
             KD.closeTaskForm();
             await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
             KD.toast(result.created ? 'Tarefa criada.' : 'Alterações salvas.');
         } catch (error) {
             if (error.field) showFormError(error.field, error.message);
@@ -465,10 +511,12 @@ window.KD = window.KD || {};
             const result = await KD.api.tasks({ action: 'delete', task_id: taskId });
             KD.closeTaskForm();
             await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
             KD.toast(`"${result.title || 'Tarefa'}" excluída.`, {
                 undo: async () => {
                     await KD.api.tasks({ action: 'undelete', task_id: taskId });
                     await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
                     KD.toast('Exclusão desfeita.', { tone: 'info' });
                 },
             });
@@ -483,11 +531,21 @@ window.KD = window.KD || {};
 
     KD.openTaskDetail = async function (taskId) {
         try {
+            const cached = KD.getTaskById ? KD.getTaskById(taskId) : null;
+            if (cached) {
+                activeTask = { ...cached };
+                renderDetail(activeTask);
+                KD.openModal('taskDetailModal');
+                startDetailTimer();
+            }
+
             const data = await KD.api.get(`${KD.url('/api/tarefas')}?id=${taskId}`);
             activeTask = data.task;
             renderDetail(activeTask);
-            KD.openModal('taskDetailModal');
-            startDetailTimer();
+            if (!cached) {
+                KD.openModal('taskDetailModal');
+                startDetailTimer();
+            }
         } catch (error) {
             KD.toastError(error.message);
         }
@@ -512,6 +570,26 @@ window.KD = window.KD || {};
         if (description) {
             description.textContent = task.description || 'Sem descrição.';
             description.classList.toggle('italic', !task.description);
+        }
+
+        // Recorrencia
+        const recBadge = el('detailRecurringBadge');
+        const isRec = Number(task.is_recurring) === 1;
+        if (recBadge) {
+            recBadge.hidden = !isRec;
+            if (isRec) {
+                const recText = el('detailRecurringText');
+                const recMap = {
+                    daily: 'Diária',
+                    weekly: 'Semanal',
+                    biweekly: 'Quinzenal',
+                    monthly: 'Mensal',
+                    yearly: 'Anual',
+                    custom: 'Personalizada'
+                };
+                const rLabel = recMap[task.recurrence_type] || 'Recorrente';
+                if (recText) recText.textContent = `Recorrente (${rLabel})`;
+            }
         }
 
         // Cliente
@@ -546,7 +624,7 @@ window.KD = window.KD || {};
         const dueEl = el('detailDue');
         if (dueEl) {
             const due = task.due_badge || {};
-            dueEl.textContent = task.due_date ? `${KD.formatDate(task.due_date)}${due.tone === 'overdue' ? ` · ${due.text}` : ''}` : 'Sem prazo definido';
+            dueEl.textContent = task.due_date ? `${KD.formatDate(task.due_date)}${task.due_time ? ' às ' + task.due_time.substring(0, 5) : ''}${due.tone === 'overdue' ? ` · ${due.text}` : ''}` : 'Sem prazo definido';
             dueEl.dataset.tone = due.tone || 'none';
         }
 
@@ -645,6 +723,8 @@ window.KD = window.KD || {};
             if (button) button.setAttribute('aria-selected', String(selected));
             if (panel) panel.hidden = !selected;
         });
+        const body = document.querySelector('.kd-detail-body');
+        if (body) body.scrollTop = 0;
         KD.icons();
     }
 
@@ -1005,8 +1085,9 @@ window.KD = window.KD || {};
 
             case 'edit': {
                 const id = activeTask.id;
+                const isCal = Number(activeTask.is_calendar_event || 0) === 1;
                 KD.closeTaskDetail();
-                KD.openTaskForm(id);
+                KD.openTaskForm(id, null, null, null, isCal);
                 break;
             }
 
@@ -1039,10 +1120,12 @@ window.KD = window.KD || {};
                 const undo = result.undo;
                 KD.closeTaskDetail();
                 await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
                 KD.toast('Tarefa concluída.', {
                     undo: async () => {
                         await KD.api.tasks(undo);
                         await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
                         KD.toast('Conclusão desfeita.', { tone: 'info' });
                     },
                 });
@@ -1059,11 +1142,31 @@ window.KD = window.KD || {};
                 const result = await KD.api.tasks({ action: 'duplicate_task', task_id: activeTask.id });
                 KD.closeTaskDetail();
                 await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
                 KD.toast('Tarefa duplicada.', {
                     undo: async () => {
                         await KD.api.tasks(result.undo);
                         await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
                     },
+                });
+                break;
+            }
+
+            case 'delete': {
+                const taskId = activeTask.id;
+                const taskTitle = activeTask.title || 'Tarefa';
+                const result = await KD.api.tasks({ action: 'delete_task', task_id: taskId });
+                KD.closeTaskDetail();
+                await KD.loadBoard({ silent: true });
+                if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                KD.toast(`"${taskTitle}" movida para a lixeira.`, {
+                    undo: result && result.undo ? async () => {
+                        await KD.api.tasks(result.undo);
+                        await KD.loadBoard({ silent: true });
+                        if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                        KD.toast('Tarefa restaurada.', { tone: 'info' });
+                    } : null,
                 });
                 break;
             }
@@ -1131,10 +1234,42 @@ window.KD = window.KD || {};
         handleDetailEvent(event);
     });
 
-    document.addEventListener('change', (event) => {
-        if (!event.target.closest('#taskDetailModal')) return;
-        if (event.target.type !== 'checkbox') return;
-        handleDetailEvent(event);
+    async function addQuickSubtask() {
+        const input = el('detailQuickSubtaskInput');
+        if (!input || !activeTask) return;
+        const title = input.value.trim();
+        if (!title) return;
+
+        input.disabled = true;
+        try {
+            await KD.api.tasks({
+                action: 'add_checklist',
+                task_id: activeTask.id,
+                title: title
+            });
+            input.value = '';
+            await refreshDetail();
+            if (KD.loadBoard) KD.loadBoard({ silent: true });
+        } catch (err) {
+            KD.toastError(err.message || 'Erro ao adicionar subtarefa');
+        } finally {
+            input.disabled = false;
+            input.focus();
+        }
+    }
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && event.target && event.target.id === 'detailQuickSubtaskInput') {
+            event.preventDefault();
+            addQuickSubtask();
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        if (event.target && event.target.closest('#detailQuickSubtaskBtn')) {
+            event.preventDefault();
+            addQuickSubtask();
+        }
     });
 
     // ---------------------------------------------------------------
@@ -1250,6 +1385,291 @@ window.KD = window.KD || {};
         }
     };
 
+    // ---------------------------------------------------------------
+    // Cadastro Rápido de Empresa no Modal de Tarefa
+    // ---------------------------------------------------------------
+
+    KD.toggleQuickAddClient = function (force) {
+        const wrap = el('quickAddClientWrap');
+        if (!wrap) return;
+        const isHidden = (typeof force === 'boolean') ? !force : !wrap.hidden;
+        wrap.hidden = isHidden;
+        if (!isHidden) {
+            const input = el('quick_client_company');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            if (el('quick_client_contact')) el('quick_client_contact').value = '';
+            if (el('quick_client_phone')) el('quick_client_phone').value = '';
+            KD.icons();
+        }
+    };
+
+    KD.submitQuickClient = async function () {
+        const compInput = el('quick_client_company');
+        const contactInput = el('quick_client_contact');
+        const phoneInput = el('quick_client_phone');
+        const btn = el('btnSubmitQuickClient');
+
+        const companyName = compInput ? compInput.value.trim() : '';
+        if (!companyName) {
+            KD.toast('Digite o nome da empresa.', { tone: 'danger' });
+            if (compInput) compInput.focus();
+            return;
+        }
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Cadastrando...';
+        }
+
+        try {
+            const resp = await KD.api.tasks({
+                action: 'quick_create_client',
+                company_name: companyName,
+                contact_name: contactInput ? contactInput.value.trim() : '',
+                phone: phoneInput ? phoneInput.value.trim() : '',
+            });
+
+            if (resp && resp.client) {
+                const select = el('task_client_id');
+                if (select) {
+                    const opt = document.createElement('option');
+                    opt.value = resp.client.id;
+                    opt.textContent = resp.client.company_name;
+                    select.appendChild(opt);
+                    select.value = String(resp.client.id);
+                }
+
+                KD.toggleQuickAddClient(false);
+                KD.toast(`Empresa "${resp.client.company_name}" cadastrada e vinculada!`);
+            } else {
+                KD.toast(resp?.error || 'Erro ao cadastrar empresa.', { tone: 'danger' });
+            }
+        } catch (err) {
+            KD.toast(err.message || 'Erro ao conectar ao servidor.', { tone: 'danger' });
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> <span>Cadastrar e Vincular</span>';
+                KD.icons();
+            }
+        }
+    };
+
+    // ---------------------------------------------------------------
+    // Ajuste de Tempo do Contador da Tarefa (+ / - minutos ou valor fixo)
+    // ---------------------------------------------------------------
+
+        // ---------------------------------------------------------------
+    // Ajuste de Tempo do Contador da Tarefa (Modal Visual)
+    // ---------------------------------------------------------------
+
+    let adjustTimeBaseSeconds = 0;
+    let adjustTimeCalculatedSeconds = 0;
+
+    KD.adjustTaskTime = async function (deltaMinutes, taskId) {
+        const id = taskId || (activeTask ? activeTask.id : null);
+        if (!id) return;
+
+        try {
+            const resp = await KD.api.tasks({
+                action: 'adjust_time',
+                task_id: id,
+                delta_minutes: deltaMinutes,
+            });
+
+            if (resp && resp.success) {
+                const sign = deltaMinutes >= 0 ? `+${deltaMinutes}m` : `${deltaMinutes}m`;
+                KD.toast(`Tempo ajustado (${sign}). Total: ${resp.formatted}`);
+
+                if (activeTask && Number(activeTask.id) === Number(id)) {
+                    activeTask.effective_seconds = resp.total_seconds;
+                    const timerEl = el('detailTimer');
+                    if (timerEl) timerEl.textContent = resp.formatted;
+                }
+
+                if (KD.loadBoard) await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+            }
+        } catch (err) {
+            KD.toast(err.message || 'Erro ao ajustar tempo.', { tone: 'danger' });
+        }
+    };
+
+    KD.openAdjustTimeModal = function (taskId) {
+        const id = taskId || (activeTask ? activeTask.id : null);
+        if (!id) return;
+
+        // Tentar obter dados da tarefa pelo board ou pelo activeTask
+        let taskData = null;
+        if (activeTask && Number(activeTask.id) === Number(id)) {
+            taskData = activeTask;
+        } else if (KD.board && Array.isArray(KD.board.tasks)) {
+            taskData = KD.board.tasks.find((t) => Number(t.id) === Number(id));
+        }
+
+        const taskTitle = taskData ? (taskData.title || `Tarefa #${id}`) : `Tarefa #${id}`;
+        const currentSecs = taskData ? Number(taskData.effective_seconds || taskData.total_seconds || 0) : 0;
+
+        adjustTimeBaseSeconds = currentSecs;
+        adjustTimeCalculatedSeconds = currentSecs;
+
+        const inputId = el('adjust_time_task_id');
+        if (inputId) inputId.value = String(id);
+
+        const subTitle = el('adjustTimeTaskSubtitle');
+        if (subTitle) subTitle.textContent = taskTitle;
+
+        const currentDisplay = el('adjustTimeCurrentDisplay');
+        if (currentDisplay) currentDisplay.textContent = KD.formatSeconds(currentSecs);
+
+        const previewDisplay = el('adjustTimePreviewDisplay');
+        if (previewDisplay) previewDisplay.textContent = KD.formatSeconds(currentSecs);
+
+        // Resetar campos para modo delta inicial
+        const radioDelta = el('adjust_mode_delta');
+        if (radioDelta) radioDelta.checked = true;
+        KD.toggleAdjustTimeMode('delta');
+
+        const deltaSign = el('adjust_delta_sign');
+        if (deltaSign) deltaSign.value = '1';
+
+        const deltaMinInput = el('adjust_delta_minutes');
+        if (deltaMinInput) deltaMinInput.value = '15';
+
+        const hoursInput = el('adjust_exact_hours');
+        if (hoursInput) hoursInput.value = Math.floor(currentSecs / 3600);
+
+        const minsInput = el('adjust_exact_minutes');
+        if (minsInput) minsInput.value = Math.floor((currentSecs % 3600) / 60);
+
+        KD.recalcAdjustTimePreview();
+        KD.openModal('adjustTimeModal', { focus: '#adjust_delta_minutes' });
+    };
+
+    KD.toggleAdjustTimeMode = function (mode) {
+        const deltaPanel = el('adjustDeltaPanel');
+        const exactPanel = el('adjustExactPanel');
+
+        if (deltaPanel && exactPanel) {
+            deltaPanel.hidden = (mode !== 'delta');
+            exactPanel.hidden = (mode !== 'exact');
+        }
+        KD.recalcAdjustTimePreview();
+    };
+
+    KD.applyQuickTimeDelta = function (deltaMinutes) {
+        const radioDelta = el('adjust_mode_delta');
+        if (radioDelta) radioDelta.checked = true;
+        KD.toggleAdjustTimeMode('delta');
+
+        const deltaSign = el('adjust_delta_sign');
+        const deltaMinInput = el('adjust_delta_minutes');
+
+        if (deltaSign && deltaMinInput) {
+            if (deltaMinutes >= 0) {
+                deltaSign.value = '1';
+                deltaMinInput.value = String(deltaMinutes);
+            } else {
+                deltaSign.value = '-1';
+                deltaMinInput.value = String(Math.abs(deltaMinutes));
+            }
+        }
+        KD.recalcAdjustTimePreview();
+    };
+
+    KD.recalcAdjustTimePreview = function () {
+        const isDelta = el('adjust_mode_delta')?.checked ?? true;
+        let finalSeconds = adjustTimeBaseSeconds;
+
+        if (isDelta) {
+            const sign = Number(el('adjust_delta_sign')?.value || 1);
+            const mins = parseFloat(el('adjust_delta_minutes')?.value || 0);
+            const deltaSec = Math.round(sign * (isNaN(mins) ? 0 : mins) * 60);
+            finalSeconds = Math.max(0, adjustTimeBaseSeconds + deltaSec);
+        } else {
+            const h = parseInt(el('adjust_exact_hours')?.value || 0, 10);
+            const m = parseInt(el('adjust_exact_minutes')?.value || 0, 10);
+            const hoursSec = Math.max(0, isNaN(h) ? 0 : h) * 3600;
+            const minsSec = Math.max(0, isNaN(m) ? 0 : m) * 60;
+            finalSeconds = hoursSec + minsSec;
+        }
+
+        adjustTimeCalculatedSeconds = finalSeconds;
+        const previewDisplay = el('adjustTimePreviewDisplay');
+        if (previewDisplay) {
+            previewDisplay.textContent = KD.formatSeconds(finalSeconds);
+        }
+    };
+
+    KD.resetTimeZero = function () {
+        const radioExact = el('adjust_mode_exact');
+        if (radioExact) radioExact.checked = true;
+        KD.toggleAdjustTimeMode('exact');
+
+        if (el('adjust_exact_hours')) el('adjust_exact_hours').value = '0';
+        if (el('adjust_exact_minutes')) el('adjust_exact_minutes').value = '0';
+
+        adjustTimeCalculatedSeconds = 0;
+        const previewDisplay = el('adjustTimePreviewDisplay');
+        if (previewDisplay) previewDisplay.textContent = '00:00:00';
+    };
+
+    KD.submitAdjustTimeForm = async function (event) {
+        if (event && event.preventDefault) event.preventDefault();
+
+        const taskId = Number(el('adjust_time_task_id')?.value || 0);
+        if (!taskId) {
+            KD.closeModal('adjustTimeModal');
+            return;
+        }
+
+        const btn = el('btnSubmitAdjustTime');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Salvando...';
+        }
+
+        try {
+            const resp = await KD.api.tasks({
+                action: 'adjust_time',
+                task_id: taskId,
+                set_seconds: adjustTimeCalculatedSeconds,
+            });
+
+            if (resp && resp.success) {
+                KD.closeModal('adjustTimeModal');
+                KD.toast(`Tempo ajustado para ${resp.formatted}!`);
+
+                if (activeTask && Number(activeTask.id) === Number(taskId)) {
+                    activeTask.effective_seconds = resp.total_seconds;
+                    const timerEl = el('detailTimer');
+                    if (timerEl) timerEl.textContent = resp.formatted;
+                }
+
+                if (KD.loadBoard) await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+            } else {
+                KD.toast(resp?.error || 'Erro ao ajustar tempo.', { tone: 'danger' });
+            }
+        } catch (err) {
+            KD.toast(err.message || 'Erro ao conectar ao servidor.', { tone: 'danger' });
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Salvar Ajuste';
+                KD.icons();
+            }
+        }
+    };
+
+    // Alias para compatibilidade
+    KD.promptAdjustTaskTime = function (taskId) {
+        KD.openAdjustTimeModal(taskId);
+    };
+
     // Se a página carregar com ?create_with_template=X, abre automaticamente o modal com o modelo
     document.addEventListener('DOMContentLoaded', () => {
         const params = new URLSearchParams(window.location.search);
@@ -1262,4 +1682,137 @@ window.KD = window.KD || {};
             }, 250);
         }
     });
+
+    KD.toggleTimeInput = function (checked) {
+        const wrap = el('task_time_wrap');
+        const input = el('task_due_time');
+        if (wrap) wrap.hidden = !checked;
+        if (!checked && input) input.value = '';
+        if (checked && input && !input.value) input.focus();
+    };
+
+    // ===============================================================
+    // Gerenciamento da Lixeira de Tarefas (30 dias)
+    // ===============================================================
+
+    KD.openTrashModal = async function () {
+        KD.closeMenus();
+        KD.openModal('taskTrashModal');
+        await KD.loadTrashList();
+    };
+
+    KD.closeTrashModal = function () {
+        KD.closeModal('taskTrashModal');
+    };
+
+    KD.loadTrashList = async function () {
+        const listEl = el('trashListContainer');
+        const emptyEl = el('trashEmpty');
+        const loadEl = el('trashLoading');
+        const badgeEl = el('trashModalBadge');
+        const emptyBtn = el('btnEmptyTrash');
+
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        if (loadEl) loadEl.hidden = false;
+        if (emptyEl) emptyEl.hidden = true;
+
+        try {
+            const data = await KD.api.tasks({ action: 'trash_list' });
+            if (loadEl) loadEl.hidden = true;
+            const items = data.trash || [];
+
+            if (badgeEl) badgeEl.textContent = String(items.length);
+            if (emptyBtn) emptyBtn.disabled = (items.length === 0);
+
+            if (items.length === 0) {
+                if (emptyEl) emptyEl.hidden = false;
+                return;
+            }
+
+            listEl.innerHTML = items.map((task) => {
+                const priorityLabels = { urgent: 'Urgente', high: 'Alta', medium: 'Média', low: 'Baixa' };
+                const priorityColors = { urgent: '#ef4444', high: '#f59e0b', medium: '#3b82f6', low: '#64748b' };
+                const pLabel = priorityLabels[task.priority] || 'Normal';
+                const pColor = priorityColors[task.priority] || '#64748b';
+
+                return `
+                    <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700/80 transition flex items-center justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 flex-wrap mb-1">
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" style="background:${pColor}22;color:${pColor};border:1px solid ${pColor}44">
+                                    ${pLabel}
+                                </span>
+                                ${task.stage_name ? `<span class="text-[10px] text-slate-400 font-medium">Coluna: <strong>${KD.escapeHtml(task.stage_name)}</strong></span>` : ''}
+                                ${task.client_company ? `<span class="text-[10px] text-indigo-400 font-medium">· ${KD.escapeHtml(task.client_company)}</span>` : ''}
+                            </div>
+                            <h4 class="text-xs sm:text-sm font-semibold text-slate-200 truncate" title="${KD.escapeHtml(task.title)}">
+                                ${KD.escapeHtml(task.title)}
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
+                                <span>Excluída em ${task.deleted_formatted || '--'}</span>
+                                <span class="text-amber-400/90 font-medium bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
+                                    Restam ${task.days_left || 0} dia(s)
+                                </span>
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                            <button type="button" class="kd-btn text-xs py-1 px-2.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border border-indigo-500/20"
+                                    onclick="KD.restoreTaskFromTrash(${task.id})" title="Restaurar para o Kanban">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                <span class="hidden sm:inline">Restaurar</span>
+                            </button>
+                            <button type="button" class="kd-btn text-xs py-1 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20"
+                                    onclick="KD.deletePermanentFromTrash(${task.id})" title="Excluir definitivamente">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (window.lucide) lucide.createIcons();
+        } catch (err) {
+            if (loadEl) loadEl.hidden = true;
+            KD.toastError(err.message || 'Erro ao carregar lixeira');
+        }
+    };
+
+    KD.restoreTaskFromTrash = async function (taskId) {
+        try {
+            const res = await KD.api.tasks({ action: 'restore_task', task_id: taskId });
+            KD.toast(`"${res.title || 'Tarefa'}" restaurada da lixeira com sucesso!`);
+            await KD.loadTrashList();
+            await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+        } catch (err) {
+            KD.toastError(err.message || 'Erro ao restaurar tarefa');
+        }
+    };
+
+    KD.deletePermanentFromTrash = async function (taskId) {
+        if (!confirm('Tem certeza? Esta tarefa será apagada permanentemente do sistema e não poderá mais ser recuperada.')) {
+            return;
+        }
+        try {
+            await KD.api.tasks({ action: 'delete_permanent', task_id: taskId });
+            KD.toast('Tarefa apagada permanentemente.');
+            await KD.loadTrashList();
+        } catch (err) {
+            KD.toastError(err.message || 'Erro ao excluir permanentemente');
+        }
+    };
+
+    KD.emptyTrashNow = async function () {
+        if (!confirm('Atenção: todas as tarefas da lixeira serão apagadas permanentemente!\nEsta ação não pode ser desfeita. Deseja continuar?')) {
+            return;
+        }
+        try {
+            const res = await KD.api.tasks({ action: 'purge_trash' });
+            KD.toast(res.message || 'Lixeira esvaziada com sucesso.');
+            await KD.loadTrashList();
+        } catch (err) {
+            KD.toastError(err.message || 'Erro ao esvaziar lixeira');
+        }
+    };
 })(window.KD);

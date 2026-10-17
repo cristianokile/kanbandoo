@@ -159,11 +159,11 @@ view_header('Equipe & Usuários');
 </main>
 
 <!-- Modal Novo / Editar Usuário -->
-<div id="userModal" class="fixed inset-0 z-50 hidden bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 relative animate-fade-in my-8">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+<div id="userModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle" hidden>
+    <div class="kd-modal__panel kd-modal__panel--md kd-glass kd-glass--raised">
+        <div class="flex items-center justify-between pb-4 mb-5" style="border-bottom: 1px solid var(--border)">
             <h3 id="userModalTitle" class="text-lg font-bold text-white">Adicionar Membro</h3>
-            <button type="button" onclick="closeUserModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+            <button type="button" onclick="closeUserModal()" class="kd-icon-btn" aria-label="Fechar">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
@@ -202,11 +202,11 @@ view_header('Equipe & Usuários');
                 <span id="passwordHint" class="hidden text-[10px] text-slate-500 mt-1 block">Deixe em branco para manter a senha atual.</span>
             </div>
 
-            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-                <button type="button" onclick="closeUserModal()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition">
+            <div class="flex items-center justify-end gap-3 pt-4" style="border-top: 1px solid var(--border)">
+                <button type="button" onclick="closeUserModal()" class="kd-btn">
                     Cancelar
                 </button>
-                <button type="submit" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl transition shadow-lg shadow-indigo-600/25 flex items-center gap-2">
+                <button type="submit" class="kd-btn kd-btn--primary">
                     <i data-lucide="check" class="w-4 h-4"></i>
                     Salvar Membro
                 </button>
@@ -226,7 +226,7 @@ function openUserModal() {
     document.getElementById('modal_user_password').required = true;
     document.getElementById('passwordHint').classList.add('hidden');
     document.getElementById('userModalTitle').textContent = 'Adicionar Novo Membro';
-    document.getElementById('userModal').classList.remove('hidden');
+    KD.openModal('userModal');
 }
 
 function editUser(user) {
@@ -239,11 +239,11 @@ function editUser(user) {
     document.getElementById('modal_user_password').required = false;
     document.getElementById('passwordHint').classList.remove('hidden');
     document.getElementById('userModalTitle').textContent = 'Editar Membro';
-    document.getElementById('userModal').classList.remove('hidden');
+    KD.openModal('userModal');
 }
 
 function closeUserModal() {
-    document.getElementById('userModal').classList.add('hidden');
+    KD.closeModal('userModal');
 }
 </script>
 

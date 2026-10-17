@@ -272,13 +272,10 @@ window.KD = window.KD || {};
         }
     });
 
-    // Clicar no fundo fecha o modal
-    document.addEventListener('mousedown', (event) => {
-        const modal = KD.topModal();
-        if (modal && event.target === modal) {
-            KD.closeModal(modal.id);
-        }
-    });
+    // [IMPORTANTE] Fechamento ao clicar fora (backdrop) DESATIVADO permanentemente.
+    // Os modais agora fecham EXCLUSIVAMENTE por cliques explícitos em botões
+    // (Salvar, Cancelar, Fechar X) ou via tecla Esc, evitando perda acidental de dados.
+    // (Listener de mousedown no backdrop removido conforme solicitado).
 
     // ---------------------------------------------------------------
     // Menus suspensos (ações do card e da coluna)
@@ -539,3 +536,45 @@ window.KD = window.KD || {};
         }
     });
 })(window.KD);
+
+    // ---------------------------------------------------------------
+    // Busca rápida no cabeçalho (kd-header)
+    // ---------------------------------------------------------------
+    KD.clearHeaderSearch = function () {
+        const headerSearch = document.getElementById('kdHeaderSearch');
+        const clearBtn = document.getElementById('kdHeaderSearchClear');
+        if (headerSearch) {
+            headerSearch.value = '';
+            if (clearBtn) clearBtn.hidden = true;
+            headerSearch.dispatchEvent(new Event('input', { bubbles: true }));
+            headerSearch.focus();
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const headerSearch = document.getElementById('kdHeaderSearch');
+        const clearBtn = document.getElementById('kdHeaderSearchClear');
+        if (!headerSearch) return;
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                e.preventDefault();
+                headerSearch.focus();
+                headerSearch.select();
+            }
+        });
+
+        headerSearch.addEventListener('input', () => {
+            if (clearBtn) clearBtn.hidden = !headerSearch.value;
+        });
+
+        headerSearch.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const query = headerSearch.value.trim();
+                const isBoardPage = Boolean(document.querySelector('.kd-main-board'));
+                if (!isBoardPage && query) {
+                    window.location.href = KD.url('/tarefas?q=' + encodeURIComponent(query));
+                }
+            }
+        });
+    });

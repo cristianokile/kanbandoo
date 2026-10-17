@@ -385,3 +385,61 @@ function create_next_recurrence_task(PDO $pdo, int $taskId, array $user): ?int
 
     return $newTaskId;
 }
+
+
+/**
+ * Escalação automática de prioridade para tarefas atrasadas.
+ * Se uma tarefa tinha data anterior a hoje e não foi concluída, sobe de grau:
+ * - 1 dia de atraso (ontem): sobe 1 nível (low -> medium -> high -> urgent)
+ * - 2+ dias de atraso: sobe proporcionalmente até atingir urgent
+ * Tarefas atrasadas entram com prioridade escalada e são destacadas.
+ */
+function escalate_overdue_priority(string $originalPriority, ?string $dueDate, ?string $completedAt): array
+{
+    $levels = ['low', 'medium', 'high', 'urgent'];
+    $currentIndex = array_search($originalPriority, $levels);
+    if ($currentIndex === false) {
+        $currentIndex = 1; // padrão 'medium'
+    }
+
+    if (empty($dueDate) || !empty($completedAt)) {
+        return [
+            'priority' => $originalPriority,
+            'original_priority' => $originalPriority,
+            'is_overdue' => false,
+            'is_escalated' => false,
+            'days_overdue' => 0,
+        ];
+    }
+
+    try {
+        $today = new DateTime('today');
+        $due = new DateTime($dueDate);
+        $diff = (int)$today->diff($due)->format('%r%a');
+
+        if ($diff < 0) {
+            $daysOverdue = abs($diff);
+            // Sobe 1 grau por dia de atraso até urgent
+            $newIndex = min(3, $currentIndex + max(1, $daysOverdue));
+            $escalatedPriority = $levels[$newIndex];
+
+            return [
+                'priority' => $escalatedPriority,
+                'original_priority' => $originalPriority,
+                'is_overdue' => true,
+                'is_escalated' => ($newIndex > $currentIndex),
+                'days_overdue' => $daysOverdue,
+            ];
+        }
+    } catch (Exception $e) {
+        // Fallback seguro
+    }
+
+    return [
+        'priority' => $originalPriority,
+        'original_priority' => $originalPriority,
+        'is_overdue' => false,
+        'is_escalated' => false,
+        'days_overdue' => 0,
+    ];
+}

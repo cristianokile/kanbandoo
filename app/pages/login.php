@@ -31,6 +31,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login &bull; <?= APP_NAME ?></title>
+
+    <!-- Favicon do KanbanDoo -->
+    <link rel="icon" type="image/svg+xml" href="<?= asset('assets/img/favicon.svg') ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= asset('assets/img/favicon-32x32.png') ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= asset('assets/img/favicon-16x16.png') ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= asset('assets/img/apple-touch-icon.png') ?>">
+    <link rel="shortcut icon" href="<?= asset('assets/img/favicon.ico') ?>">
+
     
     <!-- Script de Inicialização de Tema (Evita FOUC) -->
     <script>
@@ -105,13 +113,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
         </form>
-
-        <!-- Dica de Acesso Padrão -->
-        <div class="mt-8 pt-6 border-t border-slate-800/80 text-center">
-            <p class="text-[11px] text-slate-400">
-                Acesso padrão: <span class="text-slate-300 font-mono">admin</span> / <span class="text-slate-300 font-mono">admin123</span>
-            </p>
-        </div>
     </div>
 
     <script>

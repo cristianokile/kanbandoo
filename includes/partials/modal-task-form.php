@@ -5,7 +5,7 @@
  */
 ?>
 <div id="taskModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle" hidden>
-    <div class="kd-modal__panel kd-glass kd-glass--raised" style="max-width:40rem">
+    <div class="kd-modal__panel kd-modal__panel--xl kd-glass kd-glass--raised">
 
         <div class="flex items-center justify-between gap-3 pb-4 mb-5" style="border-bottom:1px solid var(--border)">
             <div class="flex items-center gap-3">
@@ -24,6 +24,14 @@
 
         <form id="taskForm" onsubmit="KD.submitTaskForm(event)" class="space-y-4" novalidate>
             <input type="hidden" id="task_id" name="id" value="">
+            <input type="hidden" id="task_is_calendar_event" name="is_calendar_event" value="0">
+            <div id="showInKanbanWrap" class="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between" hidden>
+                <label for="task_show_in_kanban" class="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-200">
+                    <input type="checkbox" id="task_show_in_kanban" name="show_in_kanban" value="1" checked class="rounded text-indigo-600 focus:ring-0">
+                    <span>Exibir também no Quadro Kanban</span>
+                </label>
+                <span class="text-[11px] text-slate-400">Se desmarcado, fica visível apenas no Calendário</span>
+            </div>
 
             <!-- Seletor de Modelo de Tarefa (visível na criação de nova tarefa) -->
             <div id="taskTemplateSelectWrap" class="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
@@ -50,9 +58,16 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label for="task_client_id" class="block text-xs font-semibold uppercase tracking-wider mb-2">Cliente</label>
+                    <div class="flex items-center justify-between mb-2">
+                        <label for="task_client_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Empresa / Cliente</label>
+                        <button type="button" onclick="KD.toggleQuickAddClient()" class="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
+                            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                            <span>Nova empresa</span>
+                        </button>
+                    </div>
+
                     <select id="task_client_id" name="client_id" class="kd-field">
-                        <option value="">Sem cliente vinculado</option>
+                        <option value="">Sem empresa vinculada</option>
                         <?php foreach ($activeClients as $c): ?>
                             <option value="<?= (int)$c['id'] ?>"><?= e($c['company_name']) ?></option>
                         <?php endforeach; ?>
@@ -60,12 +75,73 @@
                 </div>
 
                 <div>
-                    <label for="task_stage_id" class="block text-xs font-semibold uppercase tracking-wider mb-2">Coluna *</label>
+                    <label for="task_stage_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Coluna *</label>
                     <select id="task_stage_id" name="stage_id" required class="kd-field">
-                        <?php foreach ($kanbanStages as $stg): ?>
-                            <option value="<?= (int)$stg['id'] ?>"><?= e($stg['name']) ?></option>
+                        <?php 
+                        $hasAFazer = false;
+                        foreach ($kanbanStages as $stg) {
+                            if (stripos($stg['name'], 'fazer') !== false || stripos($stg['name'], 'to do') !== false) {
+                                $hasAFazer = true;
+                                break;
+                            }
+                        }
+                        foreach ($kanbanStages as $idx => $stg): 
+                            $isSel = $hasAFazer 
+                                ? (stripos($stg['name'], 'fazer') !== false || stripos($stg['name'], 'to do') !== false)
+                                : ($idx === 0);
+                        ?>
+                            <option value="<?= (int)$stg['id'] ?>" <?= $isSel ? 'selected' : '' ?>><?= e($stg['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+            </div>
+
+            <!-- Mini painel de Cadastro Rápido de Empresa (100% de largura, rico e balanceado) -->
+            <div id="quickAddClientWrap" class="p-4 rounded-xl bg-slate-900/95 border border-indigo-500/40 shadow-xl space-y-3 animate-fade-in" hidden>
+                <div class="flex items-center justify-between pb-2 border-b border-indigo-500/20">
+                    <div class="flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
+                            <i data-lucide="building-2" class="w-3.5 h-3.5"></i>
+                        </span>
+                        <div>
+                            <span class="text-xs font-bold text-slate-100 uppercase tracking-wider">Cadastrar Nova Empresa</span>
+                            <span class="text-[10px] text-slate-400 ml-2">Vinculação imediata à tarefa</span>
+                        </div>
+                    </div>
+                    <button type="button" onclick="KD.toggleQuickAddClient(false)" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition" title="Fechar">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="sm:col-span-1">
+                        <label class="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1">Nome da Empresa *</label>
+                        <input type="text" id="quick_client_company" placeholder="Ex: Pizzani Restaurante" class="kd-field text-xs w-full" style="min-height:36px" autocomplete="off">
+                    </div>
+                    <div class="sm:col-span-1">
+                        <label class="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1">Pessoa de Contato</label>
+                        <input type="text" id="quick_client_contact" placeholder="Ex: Carlos Oliveira" class="kd-field text-xs w-full" style="min-height:36px" autocomplete="off">
+                    </div>
+                    <div class="sm:col-span-1">
+                        <label class="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1">WhatsApp / Telefone</label>
+                        <input type="text" id="quick_client_phone" placeholder="Ex: (11) 98888-7777" class="kd-field text-xs w-full" style="min-height:36px" autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
+                    <span class="text-[11px] text-slate-400">
+                        <i data-lucide="info" class="w-3.5 h-3.5 inline mr-1 text-slate-500"></i>
+                        Poderá ser gerenciada depois em <a href="<?= url('/clientes') ?>" target="_blank" class="text-indigo-400 underline font-medium">Empresas</a>.
+                    </span>
+                    <div class="flex items-center justify-end gap-2">
+                        <button type="button" onclick="KD.toggleQuickAddClient(false)" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 transition">
+                            Cancelar
+                        </button>
+                        <button type="button" onclick="KD.submitQuickClient()" id="btnSubmitQuickClient" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg transition flex items-center gap-1.5 shadow-md shadow-indigo-600/30">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                            <span>Cadastrar e Vincular</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -73,16 +149,27 @@
                 <div>
                     <label for="task_priority" class="block text-xs font-semibold uppercase tracking-wider mb-2">Prioridade</label>
                     <select id="task_priority" name="priority" class="kd-field">
-                        <option value="low">Baixa</option>
-                        <option value="medium" selected>Média</option>
+                        <option value="low" selected>Baixa</option>
+                        <option value="medium">Média</option>
                         <option value="high">Alta</option>
                         <option value="urgent">Urgente</option>
                     </select>
                 </div>
 
                 <div>
-                    <label for="task_due_date" class="block text-xs font-semibold uppercase tracking-wider mb-2">Prazo de entrega</label>
-                    <input type="date" id="task_due_date" name="due_date" class="kd-field" aria-describedby="error_due_date">
+                    <div class="flex items-center justify-between mb-2">
+                        <label for="task_due_date" class="block text-xs font-semibold uppercase tracking-wider">Prazo de entrega</label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold select-none">
+                            <input type="checkbox" id="task_has_time" onchange="KD.toggleTimeInput(this.checked)" class="rounded text-indigo-600 focus:ring-0">
+                            <span>Ativar horário</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="date" id="task_due_date" name="due_date" class="kd-field flex-1" aria-describedby="error_due_date">
+                        <div id="task_time_wrap" class="flex items-center gap-1.5" hidden>
+                            <input type="time" id="task_due_time" name="due_time" class="kd-field w-28 text-center" style="min-height:42px" placeholder="00:00">
+                        </div>
+                    </div>
                     <p id="error_due_date" class="kd-inline-error" role="alert" hidden></p>
                 </div>
 
@@ -170,9 +257,13 @@
                 <legend class="block text-xs font-semibold uppercase tracking-wider mb-2">Responsáveis</legend>
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-xl max-h-36 overflow-y-auto"
                      style="background:var(--surface-sunken);border:1px solid var(--border)">
-                    <?php foreach ($teamUsers as $u): ?>
+                    <?php 
+                    $curUser = current_user();
+                    foreach ($teamUsers as $u): 
+                        $isLoggedUser = ($curUser && (int)$curUser['id'] === (int)$u['id']);
+                    ?>
                         <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-                            <input type="checkbox" name="assignees[]" value="<?= (int)$u['id'] ?>" class="task-assignee-checkbox rounded">
+                            <input type="checkbox" name="assignees[]" value="<?= (int)$u['id'] ?>" class="task-assignee-checkbox rounded" <?= $isLoggedUser ? 'checked' : '' ?>>
                             <span class="truncate"><?= e($u['full_name']) ?></span>
                         </label>
                     <?php endforeach; ?>
