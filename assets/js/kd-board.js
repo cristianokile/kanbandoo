@@ -1445,6 +1445,11 @@ window.KD = window.KD || {};
                                 <i data-lucide="repeat" class="w-3 h-3"></i>
                             </span>
                         ` : ''}
+                        ${isBomb ? `
+                            <span class="text-rose-500 flex items-center justify-center opacity-90 hover:opacity-100 transition" title="Tarefa Bomba (Urgência Crítica)" style="line-height:0">
+                                <i data-lucide="bomb" class="w-3.5 h-3.5"></i>
+                            </span>
+                        ` : ''}
                     </div>
 
                     <div class="flex items-center gap-1 ml-auto">
@@ -1489,7 +1494,7 @@ window.KD = window.KD || {};
                     <div class="flex items-center gap-1.5 flex-wrap">
                         ${isCalendarTask(task) ? '<span class="kd-flag kd-flag--calendar" style="background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);font-weight:600" title="Evento sincronizado do calendário"><i data-lucide="calendar" class="w-3 h-3"></i>Calendário</span>' : ''}
                         
-                        ${isBomb ? '<span class="kd-flag kd-flag--bomb" title="Precisa ser resolvida antes de estourar."><i data-lucide="flame" class="w-3 h-3"></i>Bomba</span>' : ''}
+                        
                         ${(task.is_overdue && !isDone) ? `<span class="kd-flag kd-flag--overdue" style="background:rgba(239,68,68,0.22);color:#ef4444;border:1px solid rgba(239,68,68,0.45);font-weight:700" title="Atrasada em ${task.days_overdue || 1} dia(s). Prioridade escalada para ${KD.escapeHtml(task.priority || 'urgente')}."><i data-lucide="alert-triangle" class="w-3 h-3"></i>Atrasada${task.priority_escalated ? ' · ' + (task.priority === 'urgent' ? 'Urgente' : 'Alta') : ''}</span>` : ''}
                         ${inFocus ? '<span class="kd-flag kd-flag--focus"><i data-lucide="target" class="w-3 h-3"></i>Foco</span>' : ''}
                         ${isMention ? `<span class="kd-flag kd-flag--mention"><i data-lucide="message-circle" class="w-3 h-3"></i>${KD.escapeHtml(task.mentioned_by ? '@' + task.mentioned_by : 'WhatsApp')}</span>` : ''}

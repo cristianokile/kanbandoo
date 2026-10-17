@@ -1396,58 +1396,80 @@ html.light .kd-card:hover {
 .kd-card[data-focus="1"] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent), var(--shadow-sm); }
 
 /*
- * Bomba: borda vermelha cheia — precisa ser resolvida antes de estourar.
- *
- * Os seletores abaixo repetem o contexto de propósito: as regras de
- * contingência do vidro (transparência reduzida, vidro desligado, arraste)
- * definem border-color com especificidade maior e apagariam o vermelho.
+ * Bomba: Borda vermelha com efeito circulante estilo conversão CapCut (sentido horário).
+ * Sem box-shadow externo volumoso - apenas a borda circulada por cor brilhante em sentido horário.
  */
 .kd-card[data-bomb="1"],
 .kd-card.kd-glass[data-bomb="1"],
 .kd-card.kd-glass[data-bomb="1"]:hover,
 html[data-glass="off"] .kd-card.kd-glass[data-bomb="1"],
 html.kd-dragging .kd-card.kd-glass[data-bomb="1"] {
-    border-color: var(--danger);
-    animation: kdBombPulse 1.8s ease-in-out infinite;
-    /* Não arrasta: a tarefa fica onde está até ser resolvida */
+    position: relative;
+    border: 1px solid rgba(239, 68, 68, 0.35) !important;
+    border-bottom: 1px solid rgba(239, 68, 68, 0.35) !important;
+    box-shadow: none !important;
+    animation: none !important;
+    overflow: hidden;
     cursor: default;
     -webkit-user-drag: none;
 }
 
-@media (prefers-reduced-transparency: reduce) {
-    html:not([data-glass="on"]) .kd-card.kd-glass[data-bomb="1"] {
-        border-color: var(--danger);
-        animation: kdBombPulse 1.8s ease-in-out infinite;
+/* O feixe que circula a borda em sentido horário como na conversão do CapCut */
+.kd-card[data-bomb="1"]::before {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: -100%;
+    width: 300%;
+    height: 300%;
+    background: conic-gradient(
+        from 0deg,
+        transparent 0deg,
+        transparent 200deg,
+        rgba(239, 68, 68, 0.25) 250deg,
+        rgba(239, 68, 68, 0.8) 300deg,
+        #ef4444 335deg,
+        #ff3b5c 360deg
+    );
+    animation: kdBombBorderRotate 2.6s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Miolo do card cobrindo o interior, deixando apenas a borda de 1.5px visível */
+.kd-card[data-bomb="1"]::after {
+    content: '';
+    position: absolute;
+    inset: 1.5px;
+    background: #152238;
+    border-radius: 12.5px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+html.light .kd-card[data-bomb="1"]::after {
+    background: #ffffff;
+}
+
+/* Conteúdo do card fica acima do feixe */
+.kd-card[data-bomb="1"] > * {
+    position: relative;
+    z-index: 1;
+}
+
+@keyframes kdBombBorderRotate {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
     }
 }
 
-/*
- * Um LED vermelho pulsando atrás do card: só o halo cresce e diminui.
- * A borda permanece fixa — nenhum anel na animação, para a espessura da
- * borda não parecer que está mudando.
- *
- * Os valores são literais de propósito: color-mix() com var() dentro de
- * @keyframes não interpola, e a animação roda sem sair do lugar.
- */
-@keyframes kdBombPulse {
-    0%, 100% {
-        box-shadow: 0 0 12px -2px rgba(244, 63, 94, 0.30),
-                    0 0 26px 0 rgba(244, 63, 94, 0.10);
-    }
-    50% {
-        box-shadow: 0 0 22px 3px rgba(244, 63, 94, 0.65),
-                    0 0 52px 12px rgba(244, 63, 94, 0.32);
-    }
-}
-
-/* Quem pediu menos movimento recebe o alerta parado, mas ainda visível */
 @media (prefers-reduced-motion: reduce) {
-    .kd-card[data-bomb="1"],
-    .kd-card.kd-glass[data-bomb="1"],
-    html[data-glass="off"] .kd-card.kd-glass[data-bomb="1"] {
+    .kd-card[data-bomb="1"]::before {
         animation: none;
-        box-shadow: 0 0 20px 2px rgba(244, 63, 94, 0.5),
-                    0 0 40px 8px rgba(244, 63, 94, 0.22);
+        background: rgba(239, 68, 68, 0.6);
     }
 }
 .kd-card[data-running="1"] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 55%, transparent), var(--shadow-sm); }
