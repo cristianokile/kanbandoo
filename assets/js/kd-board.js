@@ -1426,7 +1426,7 @@ window.KD = window.KD || {};
 
                 <!-- Topo: Avatar do responsável (com hover que revela botão de Concluir) e menu ⋮ à direita -->
                 <div class="kd-card__top flex items-center justify-between gap-3 w-full">
-                    <div class="kd-card__avatar-wrap flex items-center gap-2 min-w-0">
+                    <div class="kd-card__avatar-wrap flex items-center gap-1.5 min-w-0">
                         <button type="button"
                                 class="kd-card__check-trigger"
                                 data-action="${isDone ? 'reopen' : 'complete'}"
@@ -1440,14 +1440,14 @@ window.KD = window.KD || {};
                                 <i data-lucide="${isDone ? 'check-circle-2' : 'check'}" class="w-3.5 h-3.5"></i>
                             </span>
                         </button>
+                        ${isRecurring ? `
+                            <span class="text-emerald-400 flex items-center justify-center opacity-85 hover:opacity-100 transition" title="Tarefa Recorrente (${recLabel})" style="line-height:0">
+                                <i data-lucide="repeat" class="w-3 h-3"></i>
+                            </span>
+                        ` : ''}
                     </div>
 
                     <div class="flex items-center gap-1 ml-auto">
-                        ${isRecurring ? `
-                            <span class="kd-card__recurring-icon" title="Tarefa Recorrente (${recLabel})" aria-label="Tarefa Recorrente">
-                                <i data-lucide="repeat" class="w-3.5 h-3.5"></i>
-                            </span>
-                        ` : ''}
                         <div class="kd-menu-wrap relative flex items-center">
                             <button type="button" class="w-7 h-7 rounded-lg text-slate-400 hover:text-white flex items-center justify-center transition"
                                     data-action="toggle-card-menu" data-task-id="${task.id}"
@@ -1485,10 +1485,10 @@ window.KD = window.KD || {};
                     </div>
                 ` : ''}
 
-                ${(inFocus || isBomb || isMention || isRecurring || (task.is_overdue && !isDone)) ? `
+                ${(inFocus || isBomb || isMention || (task.is_overdue && !isDone)) ? `
                     <div class="flex items-center gap-1.5 flex-wrap">
                         ${isCalendarTask(task) ? '<span class="kd-flag kd-flag--calendar" style="background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);font-weight:600" title="Evento sincronizado do calendário"><i data-lucide="calendar" class="w-3 h-3"></i>Calendário</span>' : ''}
-                        ${isRecurring ? `<span class="kd-flag kd-flag--recurring" title="Tarefa Recorrente (${recLabel})"><i data-lucide="repeat" class="w-3 h-3"></i><span>${recLabel}</span></span>` : ''}
+                        
                         ${isBomb ? '<span class="kd-flag kd-flag--bomb" title="Precisa ser resolvida antes de estourar."><i data-lucide="flame" class="w-3 h-3"></i>Bomba</span>' : ''}
                         ${(task.is_overdue && !isDone) ? `<span class="kd-flag kd-flag--overdue" style="background:rgba(239,68,68,0.22);color:#ef4444;border:1px solid rgba(239,68,68,0.45);font-weight:700" title="Atrasada em ${task.days_overdue || 1} dia(s). Prioridade escalada para ${KD.escapeHtml(task.priority || 'urgente')}."><i data-lucide="alert-triangle" class="w-3 h-3"></i>Atrasada${task.priority_escalated ? ' · ' + (task.priority === 'urgent' ? 'Urgente' : 'Alta') : ''}</span>` : ''}
                         ${inFocus ? '<span class="kd-flag kd-flag--focus"><i data-lucide="target" class="w-3 h-3"></i>Foco</span>' : ''}

@@ -17,6 +17,7 @@ $navClass = function (bool $active): string {
 
 $navItems = [
     ['href' => url('/tarefas'),    'icon' => 'layout-grid', 'label' => 'Quadro',     'active' => in_array(current_path(), ['/', '/tarefas'], true) || str_starts_with(current_path(), '/tarefas/'), 'admin' => false],
+    ['href' => url('/dashboard'),  'icon' => 'bar-chart-3', 'label' => 'Dashboard',  'active' => current_path() === '/dashboard', 'admin' => false],
     ['href' => url('/calendario'), 'icon' => 'calendar',    'label' => 'Calendário', 'active' => current_path() === '/calendario', 'admin' => false],
     ['href' => url('/clientes'), 'icon' => 'building-2',  'label' => 'Clientes', 'active' => current_path() === '/clientes', 'admin' => false],
     ['href' => url('/modelos'),  'icon' => 'copy-check',  'label' => 'Modelos',  'active' => current_path() === '/modelos', 'admin' => false],
@@ -130,6 +131,9 @@ $navItems = [
                     <button type="button" class="kd-menu__item w-full text-left" role="menuitem" onclick="KD.openWorkHoursModal(); KD.toggleUserMenu();">
                         <i data-lucide="clock" class="w-4 h-4"></i> Horário de expediente
                     </button>
+                    <a href="<?= url('/dashboard') ?>" class="kd-menu__item md:hidden" role="menuitem">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Dashboard
+                    </a>
                     <a href="<?= url('/calendario') ?>" class="kd-menu__item md:hidden" role="menuitem">
                         <i data-lucide="calendar" class="w-4 h-4"></i> Calendário
                     </a>

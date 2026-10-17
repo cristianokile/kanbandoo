@@ -17,6 +17,7 @@
 $router->add('/',          'pages/tarefas.php');
 $router->add('/tarefas',   'pages/tarefas.php');
 $router->add('/tarefas/:id', 'pages/tarefas.php');   // abre a tarefa direto pelo link
+$router->add('/dashboard',   'pages/dashboard.php');
 $router->add('/calendario', 'pages/calendario.php');
 $router->add('/clientes',  'pages/clientes.php');
 $router->add('/modelos',   'pages/modelos.php');
@@ -29,6 +30,7 @@ $router->add('/sair',      'pages/logout.php');
 
 // -------- API --------
 $router->add('/api/tarefas',      'api/tarefas.php');
+$router->add('/api/dashboard',    'api/dashboard.php');
 $router->add('/api/modelos',      'api/modelos.php');
 $router->add('/api/preferencias', 'api/preferencias.php', ['methods' => ['POST']]);
 $router->add('/api/calendario',   'api/calendario.php');
