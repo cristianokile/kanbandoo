@@ -6,6 +6,11 @@ window.KD = window.KD || {};
 (function (KD) {
     'use strict';
 
+    const dismissedColAlerts = new Set();
+    KD.dismissColumnAlert = function(id) {
+        dismissedColAlerts.add(id);
+    };
+
     const board = {
         stages: [],
         tasks: [],
@@ -1059,22 +1064,37 @@ window.KD = window.KD || {};
                     ` : ''}
                 </header>
 
-                ${overLimit ? `
-                    <p class="kd-col__wip">
-                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
-                        Acima do limite de ${stage.wip_limit} tarefa(s) em andamento
+                ${overLimit && !dismissedColAlerts.has('stage_wip_' + stage.id) ? `
+                    <p class="kd-col__wip flex items-center justify-between gap-1.5">
+                        <span class="flex items-center gap-1.5 flex-1 min-w-0">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                            <span class="truncate">Acima do limite de ${stage.wip_limit} tarefa(s)</span>
+                        </span>
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('stage_wip_${stage.id}')" title="Fechar aviso nesta sessão">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </button>
                     </p>
                 ` : ''}
 
-                ${timeInfo && timeInfo.tone === 'danger' ? `
-                    <p class="kd-col__wip" style="color:var(--danger)">
-                        <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
-                        Tarefas extrapolaram o limite diário de ${timeInfo.formattedCapacity}
+                ${!dismissedColAlerts.has('stage_' + stage.id) && timeInfo && timeInfo.tone === 'danger' ? `
+                    <p class="kd-col__wip flex items-center justify-between gap-1.5" style="color:var(--danger)">
+                        <span class="flex items-center gap-1.5 flex-1 min-w-0">
+                            <i data-lucide="alert-circle" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                            <span class="truncate">Tarefas extrapolaram o limite diário de ${timeInfo.formattedCapacity}</span>
+                        </span>
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('stage_${stage.id}')" title="Fechar aviso nesta sessão">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </button>
                     </p>
-                ` : (timeInfo && timeInfo.tone === 'warning' ? `
-                    <p class="kd-col__wip" style="color:var(--warning)">
-                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
-                        Próximo de extrapolar a capacidade diária (${Math.round(timeInfo.ratio * 100)}%)
+                ` : (!dismissedColAlerts.has('stage_' + stage.id) && timeInfo && timeInfo.tone === 'warning' ? `
+                    <p class="kd-col__wip flex items-center justify-between gap-1.5" style="color:var(--warning)">
+                        <span class="flex items-center gap-1.5 flex-1 min-w-0">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                            <span class="truncate">Próximo de extrapolar capacidade (${Math.round(timeInfo.ratio * 100)}%)</span>
+                        </span>
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('stage_${stage.id}')" title="Fechar aviso nesta sessão">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </button>
                     </p>
                 ` : '')}
 
@@ -1197,15 +1217,25 @@ window.KD = window.KD || {};
                     </div>
                 </header>
 
-                ${timeInfo.tone === 'danger' ? `
-                    <p class="kd-col__wip" style="color:var(--danger)">
-                        <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
-                        Tarefas extrapolaram o limite diário de ${timeInfo.formattedCapacity}
+                ${!dismissedColAlerts.has('day_' + day.id) && timeInfo.tone === 'danger' ? `
+                    <p class="kd-col__wip flex items-center justify-between gap-1.5" style="color:var(--danger)">
+                        <span class="flex items-center gap-1.5 flex-1 min-w-0">
+                            <i data-lucide="alert-circle" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                            <span class="truncate">Tarefas extrapolaram o limite diário de ${timeInfo.formattedCapacity}</span>
+                        </span>
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('day_${day.id}')" title="Fechar aviso nesta sessão">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </button>
                     </p>
-                ` : (timeInfo.tone === 'warning' ? `
-                    <p class="kd-col__wip" style="color:var(--warning)">
-                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
-                        Próximo de extrapolar a capacidade diária (${Math.round(timeInfo.ratio * 100)}%)
+                ` : (!dismissedColAlerts.has('day_' + day.id) && timeInfo.tone === 'warning' ? `
+                    <p class="kd-col__wip flex items-center justify-between gap-1.5" style="color:var(--warning)">
+                        <span class="flex items-center gap-1.5 flex-1 min-w-0">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                            <span class="truncate">Próximo de extrapolar capacidade (${Math.round(timeInfo.ratio * 100)}%)</span>
+                        </span>
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('day_${day.id}')" title="Fechar aviso nesta sessão">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </button>
                     </p>
                 ` : '')}
 

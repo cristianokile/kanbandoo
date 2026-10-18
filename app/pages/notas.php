@@ -402,10 +402,10 @@ function renderNotesGrid(notes) {
                         ${escapeHtml(note.title)}
                     </h3>
 
-                    <!-- Conteudo -->
-                    <div class="text-[11px] text-slate-300 mb-3 whitespace-pre-line line-clamp-6 leading-relaxed bg-slate-950/30 p-2.5 rounded-xl border border-slate-800/40">
+<!-- Conteudo (direto no card, sem caixa/fundo extra) -->
+                    <p class="text-xs text-slate-300 mb-3 whitespace-pre-line line-clamp-6 leading-relaxed">
                         ${escapeHtml(note.content)}
-                    </div>
+                    </p>
                 </div>
 
                 <!-- Footer do Card: Autor, Data e Acoes -->

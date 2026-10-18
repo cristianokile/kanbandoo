@@ -1892,9 +1892,9 @@ window.KD = window.KD || {};
                                         </div>
                                         <span class="text-[10px] text-slate-500 flex-shrink-0">${dateStr}</span>
                                     </div>
-                                    <div class="text-[11px] text-slate-300 whitespace-pre-line leading-relaxed bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/60 font-sans">
+                                    <p class="text-xs text-slate-300 whitespace-pre-line leading-relaxed font-sans py-1">
                                         ${KD.escapeHtml(note.content)}
-                                    </div>
+                                    </p>
                                     <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1">
                                         <span>Por: ${KD.escapeHtml(note.author_name || 'Equipe')}</span>
                                         <a href="${KD.url('/notas')}?client_id=${note.client_id || task.client_id}" class="text-indigo-400 hover:text-indigo-300 font-medium transition flex items-center gap-1">

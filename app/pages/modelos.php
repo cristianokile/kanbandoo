@@ -14,7 +14,7 @@ require_once dirname(__DIR__, 2) . '/includes/header.php';
 require_once dirname(__DIR__, 2) . '/includes/navbar.php';
 ?>
 
-<main class="w-full max-w-7xl mx-auto px-4 lg:px-8 py-6 space-y-6">
+<main class="w-full px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] mx-auto">
 
     <!-- Topo da Página -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
