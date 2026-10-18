@@ -51,7 +51,7 @@ require_once dirname(__DIR__, 2) . '/includes/navbar.php';
     </div>
 
     <!-- Grid de Modelos -->
-    <div id="templatesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div id="templatesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
         <!-- Renderizado dinamicamente via JS -->
     </div>
 
@@ -208,55 +208,57 @@ function renderTemplates(filtered = null) {
         const tags = tpl.tags_list || [];
 
         return `
-            <div class="kd-card kd-glass kd-glass--raised flex flex-col justify-between p-5 rounded-2xl relative group" data-tpl-id="${tpl.id}">
+            <div class="kd-card kd-glass rounded-2xl p-4 flex flex-col justify-between transition-all group hover:border-slate-700 relative shadow-sm" data-tpl-id="${tpl.id}">
                 <div>
-                    <div class="flex items-start justify-between gap-3 mb-2">
-                        <h3 class="font-bold text-base text-white leading-snug line-clamp-2">${escapeHtml(tpl.title)}</h3>
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <h3 class="font-bold text-sm text-white leading-snug line-clamp-2 group-hover:text-indigo-300 transition" title="${escapeHtml(tpl.title)}">
+                            ${escapeHtml(tpl.title)}
+                        </h3>
                         ${tpl.estimated_minutes ? `
-                            <span class="kd-due text-[11px] whitespace-nowrap" data-tone="soon" title="Tempo estimado">
-                                <i data-lucide="clock" class="w-3 h-3"></i> ${tpl.estimated_minutes} min
+                            <span class="kd-due text-[10px] whitespace-nowrap px-1.5 py-0.5 rounded-md flex-shrink-0" data-tone="soon" title="Tempo estimado">
+                                <i data-lucide="clock" class="w-3 h-3"></i> ${tpl.estimated_minutes}m
                             </span>
                         ` : ''}
                     </div>
 
                     ${tpl.description ? `
-                        <p class="text-xs text-slate-400 mb-3 line-clamp-3 leading-relaxed">${escapeHtml(tpl.description)}</p>
-                    ` : '<p class="text-xs text-slate-500 italic mb-3">Sem descrição.</p>'}
+                        <p class="text-[11px] text-slate-400 mb-2 line-clamp-2 leading-relaxed">${escapeHtml(tpl.description)}</p>
+                    ` : '<p class="text-[11px] text-slate-500 italic mb-2">Sem descrição.</p>'}
 
                     ${tags.length > 0 ? `
-                        <div class="kd-tags mb-3">
-                            ${tags.map(t => `<span class="kd-tag">${escapeHtml(t)}</span>`).join('')}
+                        <div class="kd-tags mb-2 gap-1">
+                            ${tags.map(t => `<span class="kd-tag text-[10px] py-0.5 px-2">${escapeHtml(t)}</span>`).join('')}
                         </div>
                     ` : ''}
 
                     ${chkItems.length > 0 ? `
-                        <div class="p-2.5 rounded-xl mb-3 text-xs" style="background:var(--surface-sunken);border:1px solid var(--border)">
-                            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                        <div class="p-2 rounded-xl mb-2 text-xs bg-slate-950/40 border border-slate-800/60">
+                            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                                 <i data-lucide="check-square" class="w-3 h-3 text-indigo-400"></i>
-                                Checklist (${chkItems.length} subtarefas)
+                                Checklist (${chkItems.length})
                             </div>
-                            <ul class="space-y-1 text-slate-300">
-                                ${chkItems.slice(0, 3).map(item => `
+                            <ul class="space-y-0.5 text-slate-300 text-[11px]">
+                                ${chkItems.slice(0, 2).map(item => `
                                     <li class="truncate flex items-center gap-1.5">
                                         <span class="w-1.5 h-1.5 rounded-full bg-slate-500 flex-shrink-0"></span>
-                                        ${escapeHtml(item)}
+                                        <span class="truncate">${escapeHtml(item)}</span>
                                     </li>
                                 `).join('')}
-                                ${chkItems.length > 3 ? `<li class="text-[10px] text-slate-500 italic">+${chkItems.length - 3} outra(s) subtarefa(s)</li>` : ''}
+                                ${chkItems.length > 2 ? `<li class="text-[10px] text-slate-500 italic">+${chkItems.length - 2} subtarefa(s)</li>` : ''}
                             </ul>
                         </div>
                     ` : ''}
                 </div>
 
-                <div class="flex items-center justify-between gap-2 pt-3 mt-2 border-t border-slate-700/40">
-                    <button type="button" onclick="useTemplateToCreate(${tpl.id})" class="kd-btn kd-btn--primary text-xs flex-1">
+                <div class="flex items-center justify-between gap-1.5 pt-2.5 mt-1 border-t border-slate-800/50">
+                    <button type="button" onclick="useTemplateToCreate(${tpl.id})" class="kd-btn kd-btn--primary text-xs flex-1 py-1.5 h-8 font-semibold shadow-sm justify-center">
                         <i data-lucide="plus" class="w-3.5 h-3.5"></i> Usar Modelo
                     </button>
-                    <button type="button" onclick="editTemplate(${tpl.id})" class="kd-icon-btn" title="Editar modelo">
-                        <i data-lucide="edit-2" class="w-4 h-4"></i>
+                    <button type="button" onclick="editTemplate(${tpl.id})" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition" title="Editar modelo">
+                        <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
                     </button>
-                    <button type="button" onclick="deleteTemplateDirect(${tpl.id})" class="kd-icon-btn text-rose-400 hover:text-rose-300" title="Excluir modelo">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    <button type="button" onclick="deleteTemplateDirect(${tpl.id})" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition" title="Excluir modelo">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                     </button>
                 </div>
             </div>

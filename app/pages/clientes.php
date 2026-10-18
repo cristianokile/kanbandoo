@@ -160,7 +160,7 @@ $clients = $stmt->fetchAll();
 view_header('Clientes & Empresas');
 ?>
 
-<main class="flex-1 w-full px-4 lg:px-8 py-6">
+<main class="w-full px-4 lg:px-8 py-6 space-y-6 max-w[1600px] mx-auto">
     
     <!-- Topo -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -219,62 +219,71 @@ view_header('Clientes & Empresas');
             </button>
         </div>
     <?php else: ?>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
             <?php foreach ($clients as $client): ?>
-                <div class="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 shadow-lg flex flex-col justify-between transition group">
+                <div class="kd-card kd-glass rounded-2xl p-4 flex flex-col justify-between transition-all group hover:border-slate-700 relative shadow-sm">
                     <div>
                         <!-- Header do Card -->
-                        <div class="flex items-start justify-between gap-2 mb-3">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 font-bold text-sm flex items-center justify-center">
+                        <div class="flex items-start justify-between gap-2.5 mb-3">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="w-9 h-9 rounded-xl bg-indigo-600/15 border border-indigo-500/25 text-indigo-400 font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-inner">
                                     <?= mb_strtoupper(mb_substr($client['company_name'], 0, 2, 'UTF-8')) ?>
                                 </div>
-                                <div>
-                                    <h3 class="font-bold text-sm text-white leading-tight group-hover:text-indigo-300 transition">
+                                <div class="min-w-0">
+                                    <h3 class="font-bold text-sm text-white leading-tight group-hover:text-indigo-300 transition truncate" title="<?= e($client['company_name']) ?>">
                                         <?= e($client['company_name']) ?>
                                     </h3>
                                     <?php if (!empty($client['contact_name'])): ?>
-                                        <p class="text-xs text-slate-400"><?= e($client['contact_name']) ?></p>
+                                        <p class="text-[11px] text-slate-400 truncate mt-0.5"><?= e($client['contact_name']) ?></p>
                                     <?php endif; ?>
                                 </div>
                             </div>
 
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider <?= $client['status'] === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500' ?>">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider flex-shrink-0 <?= $client['status'] === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500' ?>">
                                 <?= $client['status'] === 'active' ? 'Ativo' : 'Inativo' ?>
                             </span>
                         </div>
 
                         <!-- Informações de Contato -->
-                        <div class="space-y-1.5 py-3 border-y border-slate-800/60 text-xs text-slate-300">
+                        <div class="space-y-1.5 py-2.5 border-y border-slate-800/60 text-xs text-slate-300">
                             <?php if (!empty($client['email'])): ?>
-                                <div class="flex items-center gap-2 truncate">
+                                <div class="flex items-center gap-2 truncate text-[11px]">
                                     <i data-lucide="mail" class="w-3.5 h-3.5 text-slate-500 flex-shrink-0"></i>
-                                    <a href="mailto:<?= e($client['email']) ?>" class="hover:text-indigo-400 truncate"><?= e($client['email']) ?></a>
+                                    <a href="mailto:<?= e($client['email']) ?>" class="hover:text-indigo-400 truncate text-slate-300"><?= e($client['email']) ?></a>
                                 </div>
                             <?php endif; ?>
                             <?php if (!empty($client['phone'])): ?>
-                                <div class="flex items-center gap-2">
+                                <?php $cleanPhone = preg_replace('/\D/', '', (string)$client['phone']); ?>
+                                <div class="flex items-center gap-2 truncate text-[11px]">
                                     <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-500 flex-shrink-0"></i>
-                                    <span><?= e($client['phone']) ?></span>
+                                    <a href="https://wa.me/55<?= $cleanPhone ?>" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 truncate text-slate-300">
+                                        <?= e($client['phone']) ?>
+                                    </a>
                                 </div>
                             <?php endif; ?>
                             <?php if (!empty($client['notes'])): ?>
-                                <p class="text-[11px] text-slate-400 line-clamp-2 pt-1 italic">
+                                <p class="text-[11px] text-slate-400 line-clamp-2 pt-0.5 italic leading-relaxed">
                                     &ldquo;<?= e($client['notes']) ?>&rdquo;
                                 </p>
                             <?php endif; ?>
                         </div>
                     </div>
 
-                    <!-- Footer do Card: Demandas e Ações -->
-                    <div class="flex items-center justify-between pt-4 mt-3 text-xs">
-                        <a href="<?= url('/tarefas') ?>?client=<?= (int)$client['id'] ?>" class="inline-flex items-center gap-1.5 font-semibold text-indigo-400 hover:text-indigo-300 transition" title="Ver demandas no Kanban">
-                            <i data-lucide="kanban" class="w-4 h-4"></i>
-                            <span><?= (int)$client['open_tasks_count'] ?> abertas</span>
-                        </a>
+                    <!-- Footer do Card: Demandas, Notas e Ações -->
+                    <div class="flex items-center justify-between pt-3 mt-2 text-xs border-t border-slate-800/40">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <a href="<?= url('/tarefas') ?>?client=<?= (int)$client['id'] ?>" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[11px] font-semibold transition" title="Ver tarefas no Kanban">
+                                <i data-lucide="layout-grid" class="w-3 h-3"></i>
+                                <span><?= (int)$client['open_tasks_count'] ?> abertas</span>
+                            </a>
+                            <a href="<?= url('/notas') ?>?client_id=<?= (int)$client['id'] ?>" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition" title="Ver notas deste cliente">
+                                <i data-lucide="notebook-tabs" class="w-3 h-3 text-amber-400"></i>
+                                <span><?= (int)($client['notes_count'] ?? 0) ?> notas</span>
+                            </a>
+                        </div>
 
-                        <div class="flex items-center gap-1.5">
-                            <button onclick="editClient(<?= htmlspecialchars(json_encode($client), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition" title="Editar">
+                        <div class="flex items-center gap-1">
+                            <button onclick="editClient(<?= htmlspecialchars(json_encode($client), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition" title="Editar">
                                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                             </button>
                             <form method="POST" onsubmit="return confirm('Tem certeza que deseja excluir esta empresa?');" class="inline">

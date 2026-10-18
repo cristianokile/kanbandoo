@@ -21,6 +21,7 @@ $navItems = [
     ['href' => url('/calendario'), 'icon' => 'calendar',    'label' => 'Calendário', 'active' => current_path() === '/calendario', 'admin' => false],
     ['href' => url('/clientes'), 'icon' => 'building-2',  'label' => 'Clientes', 'active' => current_path() === '/clientes', 'admin' => false],
     ['href' => url('/modelos'),  'icon' => 'copy-check',  'label' => 'Modelos',  'active' => current_path() === '/modelos', 'admin' => false],
+    ['href' => url('/notas'),    'icon' => 'notebook-tabs', 'label' => 'Notas',  'active' => current_path() === '/notas', 'admin' => false],
     ['href' => url('/equipe'),   'icon' => 'users',       'label' => 'Equipe',   'active' => current_path() === '/equipe', 'admin' => true],
 ];
 ?>
@@ -141,6 +142,9 @@ $navItems = [
                     </a>
                     <a href="<?= url('/modelos') ?>" class="kd-menu__item md:hidden" role="menuitem">
                         <i data-lucide="copy-check" class="w-4 h-4"></i> Modelos
+                    </a>
+                    <a href="<?= url('/notas') ?>" class="kd-menu__item md:hidden" role="menuitem">
+                        <i data-lucide="notebook-tabs" class="w-4 h-4"></i> Notas
                     </a>
                     <?php if (is_admin()): ?>
                         <a href="<?= url('/equipe') ?>" class="kd-menu__item md:hidden" role="menuitem">

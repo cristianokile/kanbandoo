@@ -685,6 +685,7 @@ window.KD = window.KD || {};
         renderClientActivities(task.client_recent_tasks || []);
         renderClientProfile(task);
         renderDetailHistory(task.history || []);
+        renderTaskClientNotes(task);
 
         switchTab('details');
         KD.icons();
@@ -713,7 +714,7 @@ window.KD = window.KD || {};
     // Abas
     // ---------------------------------------------------------------
 
-    const TABS = ['details', 'comments', 'links', 'client', 'history'];
+    const TABS = ['details', 'comments', 'links', 'client', 'history', 'notes'];
 
     function switchTab(name) {
         TABS.forEach((tab) => {
@@ -1815,4 +1816,140 @@ window.KD = window.KD || {};
             KD.toastError(err.message || 'Erro ao esvaziar lixeira');
         }
     };
+
+// ---------------------------------------------------------------
+    // Notas do Cliente na Modal da Tarefa
+    // ---------------------------------------------------------------
+
+    let taskClientNotesCache = [];
+
+    async function renderTaskClientNotes(task) {
+        const badge = el('detailNotesTabBadge');
+        const list = el('detailClientNotesList');
+        const notice = el('detailNoClientNotesNotice');
+        const header = el('detailClientNotesHeader');
+        const sub = el('detailClientNotesSub');
+        const btnAdd = el('btnAddNoteFromTaskBtn');
+
+        if (!task || !task.client_id) {
+            if (badge) badge.hidden = true;
+            if (notice) notice.hidden = false;
+            if (list) list.innerHTML = '';
+            if (btnAdd) btnAdd.hidden = true;
+            if (header) header.textContent = 'Notas do Cliente';
+            if (sub) sub.textContent = 'Nenhum cliente associado a esta tarefa.';
+            return;
+        }
+
+        if (notice) notice.hidden = true;
+        if (btnAdd) btnAdd.hidden = false;
+        if (header) header.textContent = `Notas de ${task.client_company || 'Cliente'}`;
+        if (sub) sub.textContent = 'Diretrizes, credenciais e alinhamentos deste cliente';
+
+        if (list) {
+            list.innerHTML = '<div class="p-4 text-xs text-slate-400 text-center flex items-center justify-center gap-2"><span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span> Carregando notas do cliente...</div>';
+        }
+
+        try {
+            const res = await fetch(`${KD.url('/api/notas')}?client_id=${task.client_id}`);
+            const data = await res.json();
+            if (data.ok) {
+                taskClientNotesCache = data.notes || [];
+                if (badge) {
+                    badge.textContent = taskClientNotesCache.length;
+                    badge.hidden = taskClientNotesCache.length === 0;
+                }
+
+                if (taskClientNotesCache.length === 0) {
+                    if (list) {
+                        list.innerHTML = `
+                            <div class="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 text-center">
+                                <p class="text-xs font-semibold text-slate-300 mb-1">Nenhuma nota cadastrada para este cliente.</p>
+                                <p class="text-[11px] text-slate-500 mb-3">Adicione orientações, diretrizes ou atas de reunião para a equipe.</p>
+                                <button type="button" onclick="KD.openQuickNoteForTaskClient()" class="kd-btn kd-btn--primary text-xs mx-auto py-1.5 px-3">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                    <span>Adicionar Primeira Nota</span>
+                                </button>
+                            </div>
+                        `;
+                    }
+                } else {
+                    if (list) {
+                        list.innerHTML = taskClientNotesCache.map(note => {
+                            const grpColor = note.group_color || '#6366f1';
+                            const dateStr = note.created_at ? new Date(note.created_at.replace(/-/g, '/')).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                            return `
+                                <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-slate-700 transition space-y-2 ${note.is_pinned ? 'border-amber-500/40' : ''}">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="flex items-center gap-1.5 flex-wrap min-w-0">
+                                            ${note.is_pinned ? '<i data-lucide="pin" class="w-3 h-3 text-amber-400 flex-shrink-0" title="Nota Fixada"></i>' : ''}
+                                            <h5 class="text-xs font-bold text-white truncate">${KD.escapeHtml(note.title)}</h5>
+                                            ${note.group_name ? `
+                                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase" style="background:${grpColor}20;color:${grpColor}">
+                                                    ${KD.escapeHtml(note.group_name)}
+                                                </span>
+                                            ` : ''}
+                                        </div>
+                                        <span class="text-[10px] text-slate-500 flex-shrink-0">${dateStr}</span>
+                                    </div>
+                                    <div class="text-[11px] text-slate-300 whitespace-pre-line leading-relaxed bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/60 font-sans">
+                                        ${KD.escapeHtml(note.content)}
+                                    </div>
+                                    <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                                        <span>Por: ${KD.escapeHtml(note.author_name || 'Equipe')}</span>
+                                        <a href="${KD.url('/notas')}?client_id=${note.client_id || task.client_id}" class="text-indigo-400 hover:text-indigo-300 font-medium transition flex items-center gap-1">
+                                            <span>Abrir no módulo de notas</span>
+                                            <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                }
+                KD.icons();
+            }
+        } catch (err) {
+            console.error('Erro ao buscar notas do cliente:', err);
+            if (list) list.innerHTML = '<p class="text-xs text-rose-400">Erro ao carregar notas do cliente.</p>';
+        }
+    }
+
+    KD.openQuickNoteForTaskClient = async function () {
+        if (!activeTask || !activeTask.client_id) {
+            KD.toastError('Esta tarefa não possui cliente vinculado.');
+            return;
+        }
+
+        const title = prompt('Título da Anotação para ' + (activeTask.client_company || 'este cliente') + ':');
+        if (!title || !title.trim()) return;
+
+        const content = prompt('Conteúdo da Anotação:');
+        if (!content || !content.trim()) return;
+
+        try {
+            const res = await fetch(KD.url('/api/notas'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'save_note',
+                    title: title.trim(),
+                    content: content.trim(),
+                    client_id: activeTask.client_id,
+                    is_pinned: 0
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                KD.toastSuccess('Nota adicionada com sucesso!');
+                renderTaskClientNotes(activeTask);
+            } else {
+                KD.toastError(data.error || 'Erro ao salvar nota.');
+            }
+        } catch (err) {
+            console.error(err);
+            KD.toastError('Falha de conexão ao salvar nota.');
+        }
+    };
+
 })(window.KD);

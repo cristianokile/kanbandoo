@@ -83,80 +83,135 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Listagem de Usuários
-$users = $pdo->query('SELECT id, username, full_name, email, role, created_at FROM users ORDER BY full_name ASC')->fetchAll();
+$users = $pdo->query("
+    SELECT u.id, u.username, u.full_name, u.email, u.role, u.created_at,
+           (SELECT COUNT(*) FROM tasks t 
+            JOIN task_assignees ta ON ta.task_id = t.id 
+            WHERE ta.user_id = u.id AND t.deleted_at IS NULL AND t.completed_at IS NULL) as active_tasks_count
+    FROM users u 
+    ORDER BY u.full_name ASC
+")->fetchAll();
 
 view_header('Equipe & Usuários');
 ?>
 
-<main class="flex-1 w-full px-4 lg:px-8 py-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+<main class="w-full px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] mx-auto">
+    <!-- Topo -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-                <i data-lucide="users" class="w-6 h-6 text-indigo-400"></i>
-                <span>Equipe & Usuários</span>
-            </h1>
-            <p class="text-xs text-slate-400 mt-0.5">Gerencie os membros com acesso ao KanbanDoo</p>
+            <div class="flex items-center gap-2.5">
+                <span class="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-inner">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                </span>
+                <h1 class="text-2xl font-bold text-white tracking-tight">Equipe & Colaboradores</h1>
+                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                    <?= count($users) ?> membros
+                </span>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Gerencie os acessos, permissões e colaboradores com acesso ao KanbanDoo</p>
         </div>
 
-        <button onclick="openUserModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition shadow-lg shadow-indigo-600/25 flex items-center gap-2 self-start sm:self-auto">
+        <button onclick="openUserModal()" class="kd-btn kd-btn--primary text-xs flex items-center gap-2 self-start sm:self-auto py-2.5 shadow-lg shadow-indigo-600/25">
             <i data-lucide="user-plus" class="w-4 h-4"></i>
-            <span>Novo Membro</span>
+            <span>Adicionar Membro</span>
         </button>
     </div>
 
-    <!-- Tabela de Membros -->
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-slate-950/60 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
-                    <tr>
-                        <th class="px-6 py-4">Membro</th>
-                        <th class="px-6 py-4">Usuário</th>
-                        <th class="px-6 py-4">E-mail</th>
-                        <th class="px-6 py-4">Função</th>
-                        <th class="px-6 py-4 text-right">Ações</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-800/60 text-slate-200">
-                    <?php foreach ($users as $u): ?>
-                        <tr class="hover:bg-slate-800/30 transition">
-                            <td class="px-6 py-4 flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 font-bold text-xs flex items-center justify-center">
-                                    <?= mb_strtoupper(mb_substr($u['full_name'], 0, 1, 'UTF-8')) ?>
-                                </div>
-                                <span class="font-bold text-white"><?= e($u['full_name']) ?></span>
-                            </td>
-                            <td class="px-6 py-4 font-mono text-slate-400"><?= e($u['username']) ?></td>
-                            <td class="px-6 py-4"><?= e($u['email']) ?></td>
-                            <td class="px-6 py-4">
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider <?= $u['role'] === 'admin' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-slate-800 text-slate-400' ?>">
-                                    <?= $u['role'] === 'admin' ? 'Administrador' : 'Membro' ?>
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <div class="inline-flex items-center gap-2">
-                                    <button onclick="editUser(<?= htmlspecialchars(json_encode($u), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition" title="Editar">
-                                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
-                                    </button>
-                                    <?php if ((int)$u['id'] !== (int)$currentUser['id']): ?>
-                                        <form method="POST" onsubmit="return confirm('Deseja realmente excluir este usuário?');" class="inline">
-                                            <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
-                                            <input type="hidden" name="action" value="delete_user">
-                                            <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-                                            <button type="submit" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition" title="Excluir">
-                                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                                            </button>
-                                        </form>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+    <!-- Barra de Busca Rápida de Membros -->
+    <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3 flex items-center justify-between gap-3 kd-glass">
+        <div class="relative flex-1 max-w-md">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="search" id="searchTeam" oninput="filterTeamMembers()"
+                   placeholder="Buscar membros por nome, login ou e-mail..."
+                   class="kd-field pl-10" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+        </div>
+        <div class="text-xs text-slate-400 font-medium px-2 hidden sm:block">
+            Organização &bull; Equipe Ativa
         </div>
     </div>
+
+    <!-- Grid de Cards da Equipe (4 colunas) -->
+    <div id="teamGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
+        <?php foreach ($users as $u): ?>
+            <div class="kd-card kd-glass rounded-2xl p-4 flex flex-col justify-between transition-all group hover:border-slate-700 relative shadow-sm team-member-card"
+                 data-name="<?= strtolower(e($u['full_name'])) ?>"
+                 data-username="<?= strtolower(e($u['username'])) ?>"
+                 data-email="<?= strtolower(e($u['email'])) ?>">
+                <div>
+                    <!-- Header do Card -->
+                    <div class="flex items-start justify-between gap-2.5 mb-3">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-10 h-10 rounded-xl <?= $u['role'] === 'admin' ? 'bg-indigo-600/20 border border-indigo-500/30 text-indigo-400' : 'bg-slate-800 border border-slate-700/60 text-slate-300' ?> font-bold text-sm flex items-center justify-center flex-shrink-0 shadow-inner">
+                                <?= mb_strtoupper(mb_substr($u['full_name'], 0, 1, 'UTF-8')) ?>
+                            </div>
+                            <div class="min-w-0">
+                                <h3 class="font-bold text-sm text-white leading-tight group-hover:text-indigo-300 transition truncate" title="<?= e($u['full_name']) ?>">
+                                    <?= e($u['full_name']) ?>
+                                </h3>
+                                <p class="text-[11px] font-mono text-slate-400 truncate mt-0.5">@<?= e($u['username']) ?></p>
+                            </div>
+                        </div>
+
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider flex-shrink-0 <?= $u['role'] === 'admin' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-slate-800 text-slate-400' ?>">
+                            <?= $u['role'] === 'admin' ? 'Admin' : 'Membro' ?>
+                        </span>
+                    </div>
+
+                    <!-- Contatos e Detalhes -->
+                    <div class="space-y-1.5 py-2.5 border-y border-slate-800/60 text-xs text-slate-300">
+                        <div class="flex items-center gap-2 truncate text-[11px]">
+                            <i data-lucide="mail" class="w-3.5 h-3.5 text-slate-500 flex-shrink-0"></i>
+                            <a href="mailto:<?= e($u['email']) ?>" class="hover:text-indigo-400 truncate text-slate-300" title="<?= e($u['email']) ?>">
+                                <?= e($u['email']) ?>
+                            </a>
+                        </div>
+                        <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                            <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-500 flex-shrink-0"></i>
+                            <span>Desde <?= date('d/m/Y', strtotime($u['created_at'] ?? 'now')) ?></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer do Card: Tarefas e Ações -->
+                <div class="flex items-center justify-between pt-3 mt-2 text-xs border-t border-slate-800/40">
+                    <a href="<?= url('/tarefas') ?>" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition" title="Ver tarefas no quadro">
+                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        <span><?= (int)($u['active_tasks_count'] ?? 0) ?> ativas</span>
+                    </a>
+
+                    <div class="flex items-center gap-1">
+                        <button onclick="editUser(<?= htmlspecialchars(json_encode($u), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition" title="Editar">
+                            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <?php if ((int)$u['id'] !== (int)$currentUser['id']): ?>
+                            <form method="POST" onsubmit="return confirm('Deseja realmente excluir este membro?');" class="inline">
+                                <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                <input type="hidden" name="action" value="delete_user">
+                                <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                                <button type="submit" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition" title="Excluir">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
 </main>
+
+<script>
+function filterTeamMembers() {
+    const q = (document.getElementById('searchTeam')?.value || '').toLowerCase().trim();
+    document.querySelectorAll('.team-member-card').forEach(card => {
+        const name = card.dataset.name || '';
+        const user = card.dataset.username || '';
+        const email = card.dataset.email || '';
+        const match = !q || name.includes(q) || user.includes(q) || email.includes(q);
+        card.style.display = match ? '' : 'none';
+    });
+}
+</script>
 
 <!-- Modal Novo / Editar Usuário -->
 <div id="userModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle" hidden>

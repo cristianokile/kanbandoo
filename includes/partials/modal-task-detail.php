@@ -150,6 +150,11 @@
                         aria-controls="tabPanel-history" data-detail-action="tab" data-tab="history">
                     <i data-lucide="history" class="w-4 h-4 inline"></i> Histórico
                 </button>
+                <button type="button" id="tabBtn-notes" class="modal-tab-btn" role="tab" aria-selected="false"
+                        aria-controls="tabPanel-notes" data-detail-action="tab" data-tab="notes">
+                    <i data-lucide="notebook-tabs" class="w-4 h-4 inline text-amber-400"></i> Notas
+                    <span id="detailNotesTabBadge" class="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 ml-1" hidden>0</span>
+                </button>
             </div>
         </div>
 
@@ -308,6 +313,39 @@
                 </div>
                 <div id="detailHistoryTimeline" class="space-y-3 max-h-[420px] overflow-y-auto pr-1"></div>
             </section>
+        </div>
+
+        <!-- Aba 6: Notas do Cliente da Tarefa -->
+        <div id="tabPanel-notes" class="space-y-4" role="tabpanel" aria-labelledby="tabBtn-notes" hidden>
+            <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center">
+                        <i data-lucide="notebook-tabs" class="w-4 h-4"></i>
+                    </span>
+                    <div>
+                        <h4 class="text-sm font-bold text-white" id="detailClientNotesHeader">Notas do Cliente</h4>
+                        <p class="text-[11px] text-slate-400" id="detailClientNotesSub">Diretrizes, credenciais e alinhamentos deste cliente</p>
+                    </div>
+                </div>
+                <button type="button" id="btnAddNoteFromTaskBtn" onclick="KD.openQuickNoteForTaskClient()" class="kd-btn kd-btn--primary text-xs py-1.5 px-3 shadow-sm">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span>Nova Nota</span>
+                </button>
+            </div>
+
+            <!-- Aviso se a tarefa não tiver cliente vinculado -->
+            <div id="detailNoClientNotesNotice" class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 text-center" hidden>
+                <div class="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-2.5">
+                    <i data-lucide="building-2" class="w-5 h-5"></i>
+                </div>
+                <p class="text-xs font-semibold text-white mb-1">Esta tarefa não possui cliente vinculado.</p>
+                <p class="text-[11px] text-slate-400 max-w-sm mx-auto">Vincule um cliente à tarefa para visualizar suas notas, diretrizes estratégicas e atas de reuniões.</p>
+            </div>
+
+            <!-- Lista de Notas do Cliente -->
+            <div id="detailClientNotesList" class="space-y-3">
+                <!-- Preenchido via kd-task.js -->
+            </div>
         </div>
 
         </div> <!-- fecha kd-detail-body -->
