@@ -1488,60 +1488,60 @@ html.light .kd-card:hover {
 .kd-card.kd-glass[data-bomb="1"]:hover,
 html[data-glass="off"] .kd-card.kd-glass[data-bomb="1"],
 html.kd-dragging .kd-card.kd-glass[data-bomb="1"] {
-    position: relative;
-    border: 1px solid rgba(239, 68, 68, 0.35) !important;
-    border-bottom: 1px solid rgba(239, 68, 68, 0.35) !important;
+    position: relative !important;
+    border: 2px solid transparent !important;
+    background-clip: padding-box !important;
     box-shadow: none !important;
     animation: none !important;
-    overflow: hidden;
+    overflow: hidden !important;
     cursor: default;
     -webkit-user-drag: none;
 }
 
-/* O feixe que circula a borda em sentido horário como na conversão do CapCut */
-/* Tracing Border Effect / Rastro de Pólvora em looping contornando a borda */
+/* Tracing Border Effect / Rastro de Pólvora em looping contornando a borda perimétrica */
 .kd-card[data-bomb="1"]::before {
-    content: '';
-    position: absolute;
-    top: -150%;
-    left: -150%;
-    width: 400%;
-    height: 400%;
+    content: '' !important;
+    position: absolute !important;
+    top: -100% !important;
+    left: -100% !important;
+    width: 300% !important;
+    height: 300% !important;
     background: conic-gradient(
         from 0deg,
-        transparent 0deg,
-        transparent 270deg,
-        rgba(185, 28, 28, 0.15) 280deg,  /* Fumaça do rastro de pólvora */
-        rgba(220, 38, 38, 0.6) 310deg,   /* Brasa vermelha */
-        #ea580c 335deg,                  /* Fogo laranja vivo */
-        #f59e0b 350deg,                  /* Chama amarela */
-        #fef08a 357deg,                  /* Faísca amarela brilhante */
-        #ffffff 360deg                   /* Cabeça incandescente / faísca acesa */
-    );
-    animation: kdBombBorderRotate 2.2s linear infinite;
-    pointer-events: none;
-    z-index: 0;
+        rgba(239, 68, 68, 0.25) 0deg,
+        rgba(239, 68, 68, 0.25) 230deg,
+        rgba(220, 38, 38, 0.7) 275deg,   /* Fumaça e brasa avermelhada */
+        #ea580c 310deg,                  /* Fogo laranja vivo */
+        #f59e0b 335deg,                  /* Chama amarela viva */
+        #fef08a 352deg,                  /* Faísca amarela brilhante */
+        #ffffff 360deg                   /* Cabeça incandescente branca da pólvora */
+    ) !important;
+    animation: kdBombBorderRotate 2.2s linear infinite !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+    display: block !important;
 }
 
-/* Miolo do card cobrindo o interior, deixando apenas a borda de 1.5px visível */
+/* Miolo do card cobrindo o interior com o background do card, deixando a borda de 2px visível */
 .kd-card[data-bomb="1"]::after {
-    content: '';
-    position: absolute;
-    inset: 1.5px;
-    background: #152238;
-    border-radius: 12.5px;
-    pointer-events: none;
-    z-index: 0;
+    content: '' !important;
+    position: absolute !important;
+    inset: 2px !important;
+    background: #152238 !important;
+    border-radius: 12px !important;
+    pointer-events: none !important;
+    z-index: 1 !important;
+    display: block !important;
 }
 
 html.light .kd-card[data-bomb="1"]::after {
-    background: #ffffff;
+    background: #ffffff !important;
 }
 
-/* Conteúdo do card fica acima do feixe */
+/* Conteúdo interno do card fica acima da camada de cobertura com z-index 2 */
 .kd-card[data-bomb="1"] > * {
-    position: relative;
-    z-index: 1;
+    position: relative !important;
+    z-index: 2 !important;
 }
 
 @keyframes kdBombBorderRotate {
