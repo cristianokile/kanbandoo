@@ -1499,23 +1499,26 @@ html.kd-dragging .kd-card.kd-glass[data-bomb="1"] {
 }
 
 /* O feixe que circula a borda em sentido horário como na conversão do CapCut */
+/* Tracing Border Effect / Rastro de Pólvora em looping contornando a borda */
 .kd-card[data-bomb="1"]::before {
     content: '';
     position: absolute;
-    top: -100%;
-    left: -100%;
-    width: 300%;
-    height: 300%;
+    top: -150%;
+    left: -150%;
+    width: 400%;
+    height: 400%;
     background: conic-gradient(
         from 0deg,
         transparent 0deg,
-        transparent 200deg,
-        rgba(239, 68, 68, 0.25) 250deg,
-        rgba(239, 68, 68, 0.8) 300deg,
-        #ef4444 335deg,
-        #ff3b5c 360deg
+        transparent 270deg,
+        rgba(185, 28, 28, 0.15) 280deg,  /* Fumaça do rastro de pólvora */
+        rgba(220, 38, 38, 0.6) 310deg,   /* Brasa vermelha */
+        #ea580c 335deg,                  /* Fogo laranja vivo */
+        #f59e0b 350deg,                  /* Chama amarela */
+        #fef08a 357deg,                  /* Faísca amarela brilhante */
+        #ffffff 360deg                   /* Cabeça incandescente / faísca acesa */
     );
-    animation: kdBombBorderRotate 2.6s linear infinite;
+    animation: kdBombBorderRotate 2.2s linear infinite;
     pointer-events: none;
     z-index: 0;
 }
@@ -2667,8 +2670,25 @@ html.kd-dragging * {
 
 
 #kdHeaderSearch {
-    padding-top: 0.475rem !important;
-    padding-bottom: 0.475rem !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    line-height: 34px !important;
+    box-sizing: border-box !important;
+}
+
+#newTaskDropdownWrap .kd-btn {
+    height: 36px !important;
+    box-sizing: border-box !important;
+}
+
+#themeToggleBtn,
+#glassToggleBtn {
+    height: 36px !important;
+    width: 36px !important;
+    box-sizing: border-box !important;
 }
 
 

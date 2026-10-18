@@ -56,7 +56,6 @@ $navItems = [
                 <input type="search" id="kdHeaderSearch"
                        placeholder="Buscar tarefas, clientes, tags... ( / )"
                        autocomplete="off"
-                       style="padding-top: 0.475rem; padding-bottom: 0.475rem;"
                        class="w-full pl-9 pr-8 bg-slate-900/80 border border-slate-700/60 rounded-xl text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition shadow-inner">
                 <button type="button" id="kdHeaderSearchClear" onclick="KD.clearHeaderSearch()" class="absolute right-2.5 text-slate-400 hover:text-white" hidden aria-label="Limpar busca">
                     <i data-lucide="x" class="w-3.5 h-3.5"></i>
