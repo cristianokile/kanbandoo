@@ -11,8 +11,8 @@ $flashMessages = get_flash_messages();
 /** Classe do link de navegação conforme a página ativa. */
 $navClass = function (bool $active): string {
     return $active
-        ? 'px-3.5 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 bg-indigo-600/10 text-indigo-400 border border-indigo-500/20'
-        : 'px-3.5 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800/50';
+        ? 'kd-nav-link kd-nav-link--active'
+        : 'kd-nav-link kd-nav-link--collapsible';
 };
 
 $navItems = [
@@ -38,12 +38,12 @@ $navItems = [
                 </span>
             </a>
 
-            <nav class="hidden md:flex items-center gap-1" aria-label="Navegação principal">
+            <nav class="hidden md:flex items-center gap-1.5" aria-label="Navegação principal">
                 <?php foreach ($navItems as $item): ?>
                     <?php if ($item['admin'] && !is_admin()) continue; ?>
-                    <a href="<?= e($item['href']) ?>" class="<?= $navClass($item['active']) ?>" <?= $item['active'] ? 'aria-current="page"' : '' ?>>
-                        <i data-lucide="<?= e($item['icon']) ?>" class="w-4 h-4"></i>
-                        <?= e($item['label']) ?>
+                    <a href="<?= e($item['href']) ?>" class="<?= $navClass($item['active']) ?>" <?= $item['active'] ? 'aria-current="page"' : '' ?> title="<?= e($item['label']) ?>">
+                        <i data-lucide="<?= e($item['icon']) ?>" class="kd-nav-link__icon w-4 h-4 flex-shrink-0"></i>
+                        <span class="kd-nav-link__label"><?= e($item['label']) ?></span>
                     </a>
                 <?php endforeach; ?>
             </nav>

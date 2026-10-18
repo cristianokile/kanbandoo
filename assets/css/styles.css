@@ -383,6 +383,90 @@ header.kd-header,
     padding-right: 2rem !important;
 }
 
+/* ==========================================================================
+   Navegação Principal (Header): Item Ativo Expandido + Inativos Expansíveis no Hover
+   ========================================================================== */
+.kd-nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    border-radius: 0.75rem; /* rounded-xl */
+    font-size: 0.8125rem; /* ~13px */
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    user-select: none;
+    text-decoration: none;
+    transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
+}
+
+/* Item Ativo: Sempre expandido com ícone e texto destacados */
+.kd-nav-link--active {
+    padding: 0 0.875rem;
+    background-color: rgba(99, 102, 241, 0.12);
+    color: #818cf8; /* text-indigo-400 */
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    box-shadow: 0 1px 3px rgba(99, 102, 241, 0.1);
+}
+.kd-nav-link--active .kd-nav-link__label {
+    max-width: 140px;
+    opacity: 1;
+    margin-left: 0.5rem;
+    display: inline-block;
+}
+
+/* Itens Inativos: Ícone compacto por padrão, expande no hover suavemente */
+.kd-nav-link--collapsible {
+    padding: 0 0.625rem;
+    width: auto;
+    color: #cbd5e1; /* text-slate-300 */
+    border: 1px solid transparent;
+}
+.kd-nav-link--collapsible .kd-nav-link__icon {
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+.kd-nav-link--collapsible .kd-nav-link__label {
+    display: inline-block;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    margin-left: 0;
+    pointer-events: none;
+    transition: max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1), 
+                opacity 0.2s ease, 
+                margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover: Transição suave expandindo o texto e acendendo o botão */
+.kd-nav-link--collapsible:hover {
+    color: #ffffff;
+    background-color: rgba(30, 41, 59, 0.65); /* slate-800 */
+    border-color: rgba(71, 85, 105, 0.4); /* slate-700 */
+    padding: 0 0.875rem;
+}
+.kd-nav-link--collapsible:hover .kd-nav-link__icon {
+    color: #818cf8; /* indigo */
+    transform: scale(1.05);
+}
+.kd-nav-link--collapsible:hover .kd-nav-link__label {
+    max-width: 130px;
+    opacity: 1;
+    margin-left: 0.5rem;
+}
+
+html.light .kd-nav-link--collapsible {
+    color: #475569;
+}
+html.light .kd-nav-link--collapsible:hover {
+    color: #0f172a;
+    background-color: rgba(241, 245, 249, 0.9);
+    border-color: #cbd5e1;
+}
+
+
 input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 input:not([type="checkbox"]):not([type="radio"]):focus,
