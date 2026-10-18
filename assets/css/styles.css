@@ -970,10 +970,6 @@ body.kd-board-panning * {
     line-height: 1.5;
     flex-shrink: 0;
     margin-right: 0.525rem;
-    min-height: 70px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .kd-col__add {
