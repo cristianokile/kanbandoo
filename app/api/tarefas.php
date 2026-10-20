@@ -34,6 +34,44 @@ function done_stage_id(PDO $pdo): ?int
     return $stage ? (int)$stage['id'] : null;
 }
 
+/** Estágio "Em Andamento / Fazendo". */
+function in_progress_stage(PDO $pdo): ?array
+{
+    static $stage = null;
+    if ($stage === null) {
+        $stage = $pdo->query("SELECT id, name, slug FROM task_stages WHERE slug IN ('in_progress', 'doing', 'fazendo', 'em_andamento') ORDER BY sort_order ASC LIMIT 1")->fetch() ?: false;
+        if (!$stage) {
+            $stage = $pdo->query("SELECT id, name, slug FROM task_stages WHERE name LIKE '%andamento%' OR name LIKE '%fazendo%' ORDER BY sort_order ASC LIMIT 1")->fetch() ?: false;
+        }
+    }
+    return $stage ?: null;
+}
+
+function in_progress_stage_id(PDO $pdo): ?int
+{
+    $stage = in_progress_stage($pdo);
+    return $stage ? (int)$stage['id'] : 2;
+}
+
+/** Estágio "A Fazer". */
+function todo_stage(PDO $pdo): ?array
+{
+    static $stage = null;
+    if ($stage === null) {
+        $stage = $pdo->query("SELECT id, name, slug FROM task_stages WHERE slug IN ('todo', 'to_do', 'a_fazer', 'afazer') ORDER BY sort_order ASC LIMIT 1")->fetch() ?: false;
+        if (!$stage) {
+            $stage = $pdo->query("SELECT id, name, slug FROM task_stages WHERE name LIKE '%fazer%' ORDER BY sort_order ASC LIMIT 1")->fetch() ?: false;
+        }
+    }
+    return $stage ?: null;
+}
+
+function todo_stage_id(PDO $pdo): ?int
+{
+    $stage = todo_stage($pdo);
+    return $stage ? (int)$stage['id'] : 1;
+}
+
 function touch_task(PDO $pdo, int $taskId): void
 {
     $pdo->prepare("UPDATE tasks SET updated_at = :now WHERE id = :id")
@@ -632,14 +670,14 @@ try {
             ]);
         }
 
-        // 1. Alternar Timer (Play / Pause) — só um cronômetro roda por vez
+        // 1. Alternar Timer (Play / Pause) – só um cronômetro roda por vez
         if ($action === 'toggle_timer') {
             $taskId = (int)($input['task_id'] ?? 0);
             if ($taskId <= 0) {
                 json_response(['error' => 'Tarefa inválida.'], 400);
             }
 
-            $stmt = $pdo->prepare("SELECT is_timer_running, timer_started_at, total_seconds FROM tasks WHERE id = :id");
+            $stmt = $pdo->prepare("SELECT id, stage_id, is_timer_running, timer_started_at, total_seconds, completed_at FROM tasks WHERE id = :id");
             $stmt->execute([':id' => $taskId]);
             $task = $stmt->fetch();
 
@@ -649,7 +687,9 @@ try {
 
             $isRunning = (int)($task['is_timer_running'] ?? 0) === 1;
             $totalSecs = (int)($task['total_seconds'] ?? 0);
+            $currentStageId = (int)($task['stage_id'] ?? 0);
 
+            // Se já está rodando, a ação é PAUSAR
             if ($isRunning) {
                 $startedAt = !empty($task['timer_started_at']) ? strtotime($task['timer_started_at']) : time();
                 $newTotal = $totalSecs + max(0, time() - $startedAt);
@@ -658,12 +698,21 @@ try {
                     ->execute([':sec' => $newTotal, ':now' => now(), ':id' => $taskId]);
                 log_task_activity($pdo, $taskId, (int)$user['id'], 'timer_stopped', 'Cronômetro pausado (total: ' . gmdate('H:i:s', $newTotal) . ')');
 
-                json_response(['success' => true, 'is_running' => false, 'total_seconds' => $newTotal]);
+                // Ao pausar, a tarefa continua em "fazendo/em andamento" (não muda de estágio)
+                json_response([
+                    'success' => true,
+                    'is_running' => false,
+                    'total_seconds' => $newTotal,
+                    'formatted' => gmdate('H:i:s', $newTotal),
+                    'stage_id' => $currentStageId,
+                ]);
             }
 
+            // Se NÃO está rodando, a ação é DAR PLAY (iniciar)
             $pdo->beginTransaction();
 
             // Pausa qualquer outro cronômetro em execução para não somar tempo duplicado.
+            // Regra: a tarefa que foi pausada continua no estágio em que já está.
             $running = $pdo->query("SELECT id, timer_started_at, total_seconds FROM tasks WHERE is_timer_running = 1")->fetchAll();
             $paused = [];
             foreach ($running as $r) {
@@ -675,9 +724,28 @@ try {
                 log_task_activity($pdo, (int)$r['id'], (int)$user['id'], 'timer_stopped', 'Cronômetro pausado automaticamente');
             }
 
+            // Regra: Ao dar play na tarefa, mudar automaticamente para "Fazendo / Em andamento"
+            $inProgress = in_progress_stage($pdo);
+            $targetStageId = $inProgress ? (int)$inProgress['id'] : 2;
+            $stageChanged = false;
             $nowStr = now();
-            $pdo->prepare("UPDATE tasks SET is_timer_running = 1, timer_started_at = :now, updated_at = :now2 WHERE id = :id")
-                ->execute([':now' => $nowStr, ':now2' => $nowStr, ':id' => $taskId]);
+
+            if ($currentStageId !== $targetStageId || !empty($task['completed_at'])) {
+                // Reabre caso estivesse concluída e move para Em Andamento
+                $pdo->prepare("UPDATE tasks SET is_timer_running = 1, timer_started_at = :now, stage_id = :stg, completed_at = NULL, updated_at = :now2 WHERE id = :id")
+                    ->execute([':now' => $nowStr, ':stg' => $targetStageId, ':now2' => $nowStr, ':id' => $taskId]);
+                $stageChanged = true;
+                normalize_stage_order($pdo, $targetStageId);
+                if ($currentStageId > 0 && $currentStageId !== $targetStageId) {
+                    normalize_stage_order($pdo, $currentStageId);
+                }
+                $targetStageName = $inProgress['name'] ?? 'Em Andamento';
+                log_task_activity($pdo, $taskId, (int)$user['id'], 'stage_changed', 'Moveu para ' . $targetStageName . ' ao iniciar o cronômetro');
+            } else {
+                $pdo->prepare("UPDATE tasks SET is_timer_running = 1, timer_started_at = :now, updated_at = :now2 WHERE id = :id")
+                    ->execute([':now' => $nowStr, ':now2' => $nowStr, ':id' => $taskId]);
+            }
+
             log_task_activity($pdo, $taskId, (int)$user['id'], 'timer_started', 'Cronômetro iniciado');
 
             $pdo->commit();
@@ -688,6 +756,73 @@ try {
                 'total_seconds' => $totalSecs,
                 'timer_started_at' => $nowStr,
                 'paused_tasks' => $paused,
+                'stage_id' => $targetStageId,
+                'stage_name' => $inProgress['name'] ?? 'Em Andamento',
+                'stage_slug' => $inProgress['slug'] ?? 'in_progress',
+                'stage_changed' => $stageChanged,
+            ]);
+        }
+
+        // Parar Cronômetro e voltar tarefa para "A Fazer"
+        if ($action === 'stop_timer') {
+            $taskId = (int)($input['task_id'] ?? 0);
+            if ($taskId <= 0) {
+                json_response(['error' => 'Tarefa inválida.'], 400);
+            }
+
+            $stmt = $pdo->prepare("SELECT id, stage_id, is_timer_running, timer_started_at, total_seconds, completed_at FROM tasks WHERE id = :id");
+            $stmt->execute([':id' => $taskId]);
+            $task = $stmt->fetch();
+
+            if (!$task) {
+                json_response(['error' => 'Tarefa não encontrada.'], 404);
+            }
+
+            $isRunning = (int)($task['is_timer_running'] ?? 0) === 1;
+            $totalSecs = (int)($task['total_seconds'] ?? 0);
+            $currentStageId = (int)($task['stage_id'] ?? 0);
+            $newTotal = $totalSecs;
+
+            $pdo->beginTransaction();
+
+            if ($isRunning) {
+                $startedAt = !empty($task['timer_started_at']) ? strtotime($task['timer_started_at']) : time();
+                $newTotal = $totalSecs + max(0, time() - $startedAt);
+                log_task_activity($pdo, $taskId, (int)$user['id'], 'timer_stopped', 'Cronômetro finalizado (total: ' . gmdate('H:i:s', $newTotal) . ')');
+            }
+
+            // Regra: Ao parar a tarefa, ela volta para "A Fazer" (a não ser que esteja concluída)
+            $todoStg = todo_stage($pdo);
+            $targetStageId = $todoStg ? (int)$todoStg['id'] : 1;
+            $nowStr = now();
+            $stageChanged = false;
+
+            if (empty($task['completed_at']) && $currentStageId !== $targetStageId) {
+                $pdo->prepare("UPDATE tasks SET is_timer_running = 0, timer_started_at = NULL, total_seconds = :sec, stage_id = :stg, updated_at = :now WHERE id = :id")
+                    ->execute([':sec' => $newTotal, ':stg' => $targetStageId, ':now' => $nowStr, ':id' => $taskId]);
+                $stageChanged = true;
+                normalize_stage_order($pdo, $targetStageId);
+                if ($currentStageId > 0) {
+                    normalize_stage_order($pdo, $currentStageId);
+                }
+                $targetStageName = $todoStg['name'] ?? 'A Fazer';
+                log_task_activity($pdo, $taskId, (int)$user['id'], 'stage_changed', 'Moveu para ' . $targetStageName . ' ao parar o cronômetro');
+            } else {
+                $pdo->prepare("UPDATE tasks SET is_timer_running = 0, timer_started_at = NULL, total_seconds = :sec, updated_at = :now WHERE id = :id")
+                    ->execute([':sec' => $newTotal, ':now' => $nowStr, ':id' => $taskId]);
+            }
+
+            $pdo->commit();
+
+            json_response([
+                'success' => true,
+                'is_running' => false,
+                'total_seconds' => $newTotal,
+                'formatted' => gmdate('H:i:s', $newTotal),
+                'stage_id' => $targetStageId,
+                'stage_name' => $todoStg['name'] ?? 'A Fazer',
+                'stage_slug' => $todoStg['slug'] ?? 'todo',
+                'stage_changed' => $stageChanged,
             ]);
         }
 

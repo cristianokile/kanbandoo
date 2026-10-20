@@ -1200,8 +1200,36 @@ window.KD = window.KD || {};
                 activeTask.effective_seconds = result.total_seconds;
                 updateDetailPlayButton(result.is_running);
                 setText('detailTimer', KD.formatSeconds(result.total_seconds));
-                startDetailTimer();
+                if (result.is_running) {
+                    startDetailTimer();
+                } else {
+                    stopDetailTimer();
+                }
+                if (result.stage_name) {
+                    activeTask.stage_id = result.stage_id;
+                    activeTask.stage_name = result.stage_name;
+                    setText('detailStage', result.stage_name);
+                }
                 KD.loadBoard({ silent: true });
+                KD.toast(result.is_running ? 'Cronômetro iniciado. Tarefa em andamento.' : 'Cronômetro pausado. Tarefa continua em andamento.', { tone: 'info' });
+                break;
+            }
+
+            case 'stop_timer':
+            case 'timer-stop': {
+                const result = await KD.api.tasks({ action: 'stop_timer', task_id: activeTask.id });
+                activeTask.is_running = false;
+                activeTask.effective_seconds = result.total_seconds;
+                updateDetailPlayButton(false);
+                setText('detailTimer', KD.formatSeconds(result.total_seconds));
+                stopDetailTimer();
+                if (result.stage_name) {
+                    activeTask.stage_id = result.stage_id;
+                    activeTask.stage_name = result.stage_name;
+                    setText('detailStage', result.stage_name);
+                }
+                KD.loadBoard({ silent: true });
+                KD.toast('Tarefa parada e movida de volta para A Fazer.', { tone: 'info' });
                 break;
             }
 

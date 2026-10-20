@@ -91,6 +91,10 @@
                             aria-label="Iniciar cronômetro" title="Iniciar / Pausar cronômetro">
                         <i data-lucide="play" class="w-3.5 h-3.5"></i>
                     </button>
+                    <button type="button" id="detailStopBtn" class="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition inline-flex items-center justify-center cursor-pointer" data-detail-action="stop_timer"
+                            aria-label="Parar tarefa" title="Parar tarefa e mover para A Fazer">
+                        <i data-lucide="square" class="w-3.5 h-3.5"></i>
+                    </button>
                     <!-- Ajustes rápidos de tempo: adicionar ou remover minutos -->
                     <div class="inline-flex items-center gap-1 ml-0.5" id="detailTimerAdjustWrap">
                         <button type="button" onclick="KD.adjustTaskTime(-15)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-rose-200 text-[11px] font-mono border border-slate-700 transition" title="Remover 15 minutos do contador">

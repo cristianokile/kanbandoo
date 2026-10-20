@@ -52,7 +52,7 @@ if (!$client) {
 
 // Carregar tarefas deste cliente
 $tasksStmt = $pdo->prepare("
-    SELECT t.id, t.title, t.description, t.priority, t.due_date, t.due_time, t.completed_at, t.created_at,
+    SELECT t.id, t.title, t.description, t.priority, t.due_date, t.due_time, t.completed_at, t.created_at, t.is_timer_running,
            s.slug AS stage_slug, s.name AS stage_name,
            (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) AS checklist_total,
            (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_completed = 1) AS checklist_done
@@ -360,7 +360,18 @@ function renderPortalCard(array $t, string $accentColor): void
     $checklistDone = (int)($t['checklist_done'] ?? 0);
 ?>
     <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 shadow-sm hover:border-slate-700 transition space-y-2.5">
-        <div class="w-8 h-1 rounded-full" style="background-color: <?= $accentColor ?>;"></div>
+        <div class="flex items-center justify-between gap-2">
+            <div class="w-8 h-1 rounded-full" style="background-color: <?= $accentColor ?>;"></div>
+            <?php if (!empty($t['is_timer_running'])): ?>
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    <span class="relative flex h-1.5 w-1.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                    </span>
+                    Trabalhando nisso agora
+                </span>
+            <?php endif; ?>
+        </div>
 
         <h3 class="text-xs font-bold text-slate-100 leading-snug">
             <?= e($t['title']) ?>

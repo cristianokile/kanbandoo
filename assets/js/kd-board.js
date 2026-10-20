@@ -2317,7 +2317,7 @@ window.KD = window.KD || {};
             }
 
             await KD.loadBoard({ silent: true });
-            KD.toast(result.is_running ? 'Cronômetro iniciado.' : 'Cronômetro pausado.', { tone: 'info' });
+            KD.toast(result.is_running ? 'Cronômetro iniciado. Tarefa em andamento.' : 'Cronômetro pausado. Tarefa continua em andamento.', { tone: 'info' });
             if (result.is_running && result.paused_tasks && result.paused_tasks.length > 0) {
                 KD.toast('O cronômetro da outra tarefa foi pausado.', { tone: 'info' });
             }
@@ -2337,9 +2337,7 @@ window.KD = window.KD || {};
             }
             if (triggerNode) triggerNode.blur();
 
-            const p = (card && card.dataset.running === '1')
-                ? KD.api.tasks({ action: 'toggle_timer', task_id: numId })
-                : Promise.resolve();
+            const p = KD.api.tasks({ action: 'stop_timer', task_id: numId });
 
             // Aguarda a animação suave de recolhimento antes de re-renderizar o quadro
             await Promise.all([
@@ -2348,7 +2346,7 @@ window.KD = window.KD || {};
             ]);
 
             await KD.loadBoard({ silent: true });
-            KD.toast('Cronômetro finalizado.', { tone: 'info' });
+            KD.toast('Tarefa parada e movida de volta para A Fazer.', { tone: 'info' });
         } catch (error) {
             KD.toastError(error.message);
         }
