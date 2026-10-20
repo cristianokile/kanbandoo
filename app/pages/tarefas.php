@@ -65,6 +65,12 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                         title="Visão por Dias da Semana (Dom, Seg, Ter, Qua, Qui, Sex, Sáb)" aria-label="Visão por Dias da Semana">
                     <i data-lucide="calendar-days" class="w-4 h-4"></i>
                 </button>
+                <div class="w-px h-4 bg-slate-800 my-auto"></div>
+                <button type="button" id="btnToggleCompact" onclick="KD.toggleCompactMode()"
+                        class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition text-slate-400 hover:text-white"
+                        title="Modo Compacto (estilo Trello: apenas título e detalhes essenciais)" aria-label="Modo Compacto">
+                    <i data-lucide="rows-3" class="w-4 h-4"></i>
+                </button>
             </div>
 
             <!-- Seletor de Colunas Visíveis -->

@@ -433,9 +433,103 @@ window.KD = window.KD || {};
         KD.closeModal('taskModal');
     };
 
+    /**
+     * Exibe modal para escolher o escopo de alteração/exclusão de tarefas recorrentes:
+     * - Apenas este evento
+     * - Apenas eventos futuros
+     * - Todos da série
+     * @param {'edit'|'delete'} mode
+     * @returns {Promise<'single'|'future'|'all'|null>}
+     */
+    KD.promptRecurrenceScope = function (mode = 'edit') {
+        return new Promise((resolve) => {
+            const isDelete = mode === 'delete';
+            const title = isDelete ? 'Excluir Tarefa Recorrente' : 'Salvar Tarefa Recorrente';
+            const desc = isDelete
+                ? 'Esta tarefa faz parte de uma série recorrente. O que você deseja excluir?'
+                : 'Esta tarefa faz parte de uma série recorrente. Quais eventos você deseja alterar?';
+
+            const modalHtml = `
+                <div id="kdRecurrenceModal" class="fixed inset-0 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" style="z-index:999999;">
+                    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl ${isDelete ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'} flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="${isDelete ? 'trash-2' : 'repeat'}" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-white">${title}</h3>
+                                <p class="text-xs text-slate-400">${desc}</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 pt-2">
+                            <button type="button" data-scope="single" class="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500 text-left transition flex items-center justify-between group cursor-pointer">
+                                <div>
+                                    <div class="text-xs font-bold text-white group-hover:text-indigo-300">Apenas este evento</div>
+                                    <div class="text-[11px] text-slate-400">Aplica a alteração somente na ocorrência selecionada</div>
+                                </div>
+                                <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
+                            </button>
+
+                            <button type="button" data-scope="future" class="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500 text-left transition flex items-center justify-between group cursor-pointer">
+                                <div>
+                                    <div class="text-xs font-bold text-white group-hover:text-indigo-300">Apenas eventos futuros</div>
+                                    <div class="text-[11px] text-slate-400">Aplica a este evento e a todas as ocorrências posteriores</div>
+                                </div>
+                                <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
+                            </button>
+
+                            <button type="button" data-scope="all" class="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500 text-left transition flex items-center justify-between group cursor-pointer">
+                                <div>
+                                    <div class="text-xs font-bold text-white group-hover:text-indigo-300">Todos da série</div>
+                                    <div class="text-[11px] text-slate-400">Aplica a todas as ocorrências existentes da série</div>
+                                </div>
+                                <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
+                            </button>
+                        </div>
+
+                        <div class="pt-2 flex justify-end">
+                            <button type="button" data-scope="cancel" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition cursor-pointer">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const wrap = document.createElement('div');
+            wrap.innerHTML = modalHtml;
+            const modalEl = wrap.firstElementChild;
+            document.body.appendChild(modalEl);
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons({ root: modalEl });
+            }
+
+            modalEl.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-scope]');
+                if (!btn) return;
+                const scope = btn.dataset.scope;
+                modalEl.remove();
+                if (scope === 'cancel') {
+                    resolve(null);
+                } else {
+                    resolve(scope);
+                }
+            });
+        });
+    };
+
     KD.submitTaskForm = async function (event) {
         event.preventDefault();
         clearFormErrors();
+
+        const taskId = Number(el('task_id').value || 0);
+        let recurrenceScope = 'single';
+        if (taskId > 0 && activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
+            const scope = await KD.promptRecurrenceScope('edit');
+            if (!scope) return;
+            recurrenceScope = scope;
+        }
 
         const title = el('task_title').value.trim();
         if (!title) {
@@ -481,6 +575,7 @@ window.KD = window.KD || {};
             recurrence_type: recurrenceType,
             recurrence_config: recurrenceConfig,
             initial_checklist: formChecklistItems,
+            recurrence_scope: recurrenceScope,
         };
 
         const saveBtn = el('btnSaveTask');
@@ -507,8 +602,15 @@ window.KD = window.KD || {};
         const taskId = Number(el('task_id').value || 0);
         if (!taskId) return;
 
+        let recurrenceScope = 'single';
+        if (activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
+            const scope = await KD.promptRecurrenceScope('delete');
+            if (!scope) return;
+            recurrenceScope = scope;
+        }
+
         try {
-            const result = await KD.api.tasks({ action: 'delete', task_id: taskId });
+            const result = await KD.api.tasks({ action: 'delete', task_id: taskId, recurrence_scope: recurrenceScope });
             KD.closeTaskForm();
             await KD.loadBoard({ silent: true });
             if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
@@ -1157,7 +1259,13 @@ window.KD = window.KD || {};
             case 'delete': {
                 const taskId = activeTask.id;
                 const taskTitle = activeTask.title || 'Tarefa';
-                const result = await KD.api.tasks({ action: 'delete_task', task_id: taskId });
+                let recurrenceScope = 'single';
+                if (activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
+                    const scope = await KD.promptRecurrenceScope('delete');
+                    if (!scope) break;
+                    recurrenceScope = scope;
+                }
+                const result = await KD.api.tasks({ action: 'delete', task_id: taskId, recurrence_scope: recurrenceScope });
                 KD.closeTaskDetail();
                 await KD.loadBoard({ silent: true });
                 if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }

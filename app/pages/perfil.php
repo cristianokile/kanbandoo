@@ -10,6 +10,44 @@ $pdo = get_pdo();
 $user = current_user();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? 'update_profile';
+
+    if ($action === 'enable_2fa') {
+        $secret = trim($_POST['two_factor_secret'] ?? '');
+        $code = trim($_POST['two_factor_code'] ?? '');
+
+        if ($secret === '' || strlen($code) !== 6 || !ctype_digit($code)) {
+            flash('danger', 'Código de autenticação inválido. Digite os 6 dígitos gerados no aplicativo.');
+            redirect(url('/perfil'));
+        }
+
+        require_once dirname(__DIR__, 2) . '/includes/totp.php';
+        if (TOTP::verifyCode($secret, $code)) {
+            $upd = $pdo->prepare('UPDATE users SET two_factor_enabled = 1, two_factor_secret = :sec WHERE id = :id');
+            $upd->execute([':sec' => $secret, ':id' => $user['id']]);
+            flash('success', 'Verificação em 2 Passos ativada com sucesso! Sua conta agora está protegida.');
+        } else {
+            flash('danger', 'Código incorreto. Certifique-se de escanear o QR Code no seu aplicativo e digitar o código atual.');
+        }
+        redirect(url('/perfil'));
+    }
+
+    if ($action === 'disable_2fa') {
+        $password = $_POST['password'] ?? '';
+        $stmt = $pdo->prepare('SELECT password_hash FROM users WHERE id = :id');
+        $stmt->execute([':id' => $user['id']]);
+        $currentHash = $stmt->fetchColumn();
+
+        if ($currentHash && password_verify($password, $currentHash)) {
+            $upd = $pdo->prepare('UPDATE users SET two_factor_enabled = 0, two_factor_secret = NULL WHERE id = :id');
+            $upd->execute([':id' => $user['id']]);
+            flash('success', 'Verificação em 2 Passos desativada com sucesso.');
+        } else {
+            flash('danger', 'Senha incorreta. A verificação em 2 passos não foi desativada.');
+        }
+        redirect(url('/perfil'));
+    }
+
     if (!verify_csrf($_POST['csrf_token'] ?? '')) {
         flash('danger', 'Token de segurança inválido.');
         redirect(url('/perfil'));
@@ -83,6 +121,11 @@ $user = $userStmt->fetch() ?: $user;
 $currentWorkStart = $user['work_start_time'] ?? '09:00';
 $currentWorkEnd   = $user['work_end_time'] ?? '17:00';
 $currentWorkDays  = !empty($user['work_days']) ? explode(',', $user['work_days']) : ['1', '2', '3', '4', '5'];
+
+
+$pendingSecret = TOTP::generateSecret();
+$otpAuthUrl = TOTP::getOtpAuthUrl($user['email'] ?: $user['username'], $pendingSecret, 'KanbanDoo');
+$qrCodeUrl = TOTP::getQrCodeUrl($otpAuthUrl);
 
 view_header('Meu Perfil');
 ?>
@@ -191,6 +234,159 @@ view_header('Meu Perfil');
             </div>
         </form>
     </div>
+    <!-- Segurança & Verificação em 2 Passos (2FA) -->
+    <div class="mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+            <div class="flex items-start gap-3">
+                <div class="w-12 h-12 rounded-2xl <?= !empty($user['two_factor_enabled']) ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700' ?> flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="shield-check" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-base font-bold text-white">Verificação em 2 Passos (2FA)</h3>
+                        <?php if (!empty($user['two_factor_enabled'])): ?>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">ATIVADA</span>
+                        <?php else: ?>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">DESATIVADA</span>
+                        <?php endif; ?>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1 max-w-xl">
+                        Proteja sua conta e as informações de clientes. Ao ativar o 2FA, cada login solicitará o código de 6 dígitos gerado pelo seu app autenticador (Google Authenticator, Authy, etc.).
+                    </p>
+                </div>
+            </div>
+
+            <?php if (!empty($user['two_factor_enabled'])): ?>
+                <div>
+                    <button type="button" onclick="document.getElementById('disable2faModal').classList.remove('hidden')" class="px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                        <span>Desativar 2FA</span>
+                    </button>
+                </div>
+            <?php else: ?>
+                <div>
+                    <button type="button" onclick="document.getElementById('setup2faModal').classList.remove('hidden')" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="qr-code" class="w-4 h-4"></i>
+                        <span>Configurar 2FA</span>
+                    </button>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <?php if (!empty($user['two_factor_enabled'])): ?>
+            <div class="pt-4 text-xs text-slate-400 flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+                <span>Sua conta está protegida por aplicativo autenticador.</span>
+            </div>
+        <?php else: ?>
+            <div class="pt-4 text-xs text-slate-400 flex items-center gap-2">
+                <i data-lucide="info" class="w-4 h-4 text-indigo-400 flex-shrink-0"></i>
+                <span>Recomendamos ativar para aumentar a segurança das operações do KanbanDoo.</span>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- Modal de Configuração do 2FA -->
+    <div id="setup2faModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden animate-fade-in">
+        <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+                        <i data-lucide="qr-code" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">Ativar Verificação em 2 Passos</h3>
+                        <p class="text-xs text-slate-400">Google Authenticator / Authy / Microsoft Authenticator</p>
+                    </div>
+                </div>
+                <button type="button" onclick="document.getElementById('setup2faModal').classList.add('hidden')" class="p-1 rounded-lg text-slate-400 hover:text-white transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
+                    <div class="bg-white p-2 rounded-xl flex-shrink-0 shadow-md">
+                        <img src="<?= e($qrCodeUrl) ?>" alt="QR Code 2FA" class="w-36 h-36 object-contain">
+                    </div>
+                    <div class="text-xs text-slate-300 space-y-2">
+                        <p class="font-semibold text-white">Passo 1: Escaneie o QR Code</p>
+                        <p class="text-slate-400">Abra o aplicativo autenticador no seu celular e aponte a câmera para o código.</p>
+                        <p class="text-[11px] text-slate-400 pt-1">Ou adicione manualmente a chave:</p>
+                        <code class="block font-mono bg-slate-900 border border-slate-800 px-2 py-1 rounded text-indigo-300 select-all font-bold tracking-wider text-[11px]">
+                            <?= chunk_split($pendingSecret, 4, ' ') ?>
+                        </code>
+                    </div>
+                </div>
+
+                <form method="POST" class="space-y-4">
+                    <input type="hidden" name="action" value="enable_2fa">
+                    <input type="hidden" name="two_factor_secret" value="<?= e($pendingSecret) ?>">
+
+                    <div>
+                        <label for="input2faCode" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                            Passo 2: Digite o código de 6 dígitos gerado
+                        </label>
+                        <input type="text" id="input2faCode" name="two_factor_code" required maxlength="6" pattern="[0-9]*" inputmode="numeric" placeholder="000000" class="w-full text-center text-2xl font-mono font-bold tracking-[0.3em] py-3 bg-slate-950 border border-slate-800 rounded-xl text-indigo-400 focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+
+                    <div class="flex items-center justify-end gap-3 pt-2">
+                        <button type="button" onclick="document.getElementById('setup2faModal').classList.add('hidden')" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition cursor-pointer">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer">
+                            <i data-lucide="check" class="w-4 h-4"></i>
+                            <span>Confirmar e Ativar</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Desativação do 2FA -->
+    <div id="disable2faModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden animate-fade-in">
+        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                        <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">Desativar 2FA</h3>
+                        <p class="text-xs text-slate-400">Confirme sua senha para desativar</p>
+                    </div>
+                </div>
+                <button type="button" onclick="document.getElementById('disable2faModal').classList.add('hidden')" class="p-1 rounded-lg text-slate-400 hover:text-white transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="POST" class="space-y-4">
+                <input type="hidden" name="action" value="disable_2fa">
+
+                <p class="text-xs text-slate-300">
+                    Atenção: Ao desativar a verificação em 2 passos, sua conta ficará protegida apenas pela senha tradicional.
+                </p>
+
+                <div>
+                    <label for="confirmPass2fa" class="block text-xs font-semibold text-slate-400 mb-1.5">Sua senha atual</label>
+                    <input type="password" id="confirmPass2fa" name="password" required placeholder="••••••••" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-rose-500 transition">
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-2">
+                    <button type="button" onclick="document.getElementById('disable2faModal').classList.add('hidden')" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition cursor-pointer">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition shadow-lg shadow-rose-600/30 flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        <span>Desativar</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 </main>
 
 <?php view_footer(); ?>

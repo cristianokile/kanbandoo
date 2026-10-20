@@ -14,7 +14,18 @@ function run_migrations(PDO $pdo): void
     }
 
     if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['kd_schema_checked'])) {
-        $alreadyRun = true;
+        // Garante que todos os clientes ativos tenham portal_token preenchido
+    try {
+        $clientsWithoutToken = $pdo->query("SELECT id FROM clients WHERE portal_token IS NULL OR portal_token = ''")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        if (!empty($clientsWithoutToken)) {
+            $updToken = $pdo->prepare("UPDATE clients SET portal_token = :t WHERE id = :id");
+            foreach ($clientsWithoutToken as $cid) {
+                $updToken->execute([':t' => bin2hex(random_bytes(16)), ':id' => $cid]);
+            }
+        }
+    } catch (Throwable $e) {}
+
+    $alreadyRun = true;
         return;
     }
 
@@ -153,6 +164,19 @@ function kanbandoo_migrations(string $driver): array
         '010_calendar_event_flags' => [
             "ALTER TABLE tasks ADD COLUMN is_calendar_event $int DEFAULT 0",
             "ALTER TABLE tasks ADD COLUMN show_in_kanban $int DEFAULT 1",
+        ],
+
+        // Portal do cliente por empresa e renomeação da coluna de solicitações
+        '011_client_portal' => [
+            "ALTER TABLE clients ADD COLUMN portal_token VARCHAR(64) DEFAULT NULL",
+            "UPDATE task_stages SET name = 'Menções e Solicitações' WHERE slug = 'mentions'",
+        ],
+
+        // Segurança de autenticação: Manter conectado e Verificação em 2 passos (2FA)
+        '012_auth_security' => [
+            "ALTER TABLE users ADD COLUMN remember_token VARCHAR(128) DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN two_factor_secret VARCHAR(64) DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN two_factor_enabled $int DEFAULT 0",
         ],
     ];
 }

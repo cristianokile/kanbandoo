@@ -24,6 +24,8 @@ $router->add('/modelos',   'pages/modelos.php');
 $router->add('/notas',     'pages/notas.php');
 $router->add('/equipe',    'pages/equipe.php', ['admin' => true]);
 $router->add('/perfil',    'pages/perfil.php');
+$router->add('/portal',    'pages/portal.php', ['auth' => false]);
+$router->add('/portal/:token', 'pages/portal.php', ['auth' => false]);
 
 // -------- Conta --------
 $router->add('/entrar',    'pages/login.php',  ['auth' => false]);
@@ -36,6 +38,7 @@ $router->add('/api/modelos',      'api/modelos.php');
 $router->add('/api/notas',        'api/notas.php');
 $router->add('/api/preferencias', 'api/preferencias.php', ['methods' => ['POST']]);
 $router->add('/api/calendario',   'api/calendario.php');
+$router->add('/api/portal',       'api/portal.php', ['auth' => false]);
 
 // -------- Endereços antigos (mantêm links e favoritos funcionando) --------
 $router->legacy('/index.php',    '/tarefas');

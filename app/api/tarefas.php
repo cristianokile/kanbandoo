@@ -299,7 +299,7 @@ try {
             SELECT t.id, t.client_id, t.stage_id, t.title, t.description, t.priority, t.due_date, t.due_time, t.sort_order,
                    t.is_timer_running, t.timer_started_at, t.total_seconds, t.in_focus, t.is_bomb, t.tags,
                    t.source, t.group_name, t.mentioned_by, t.whatsapp_url, t.completed_at, t.created_at,
-                   t.estimated_minutes, t.is_recurring, t.recurrence_type, t.recurrence_config,
+                   t.estimated_minutes, t.is_recurring, t.recurrence_type, t.recurrence_config, t.parent_task_id,
                    t.is_calendar_event, t.show_in_kanban,
                    c.company_name AS client_company,
                    s.slug AS stage_slug,
@@ -1038,6 +1038,8 @@ try {
                 $whatsappUrl = null;
             }
 
+            $recurrenceScope = in_array($input['recurrence_scope'] ?? '', ['single', 'future', 'all'], true) ? $input['recurrence_scope'] : 'single';
+
             $pdo->beginTransaction();
             $isNew = $taskId <= 0;
 
@@ -1074,6 +1076,78 @@ try {
                     ':now' => now(),
                     ':id' => $taskId,
                 ]);
+
+                // Atualizar instâncias vinculadas da série recorrente conforme escopo
+                if ($recurrenceScope !== 'single') {
+                    $curStmt = $pdo->prepare("SELECT id, due_date, parent_task_id, is_recurring FROM tasks WHERE id = :id");
+                    $curStmt->execute([':id' => $taskId]);
+                    $currentTask = $curStmt->fetch();
+                    $seriesParentId = !empty($currentTask['parent_task_id']) ? (int)$currentTask['parent_task_id'] : $taskId;
+
+                    if ($recurrenceScope === 'future') {
+                        $updSiblings = $pdo->prepare("
+                            UPDATE tasks
+                            SET title = :title, client_id = :client_id, priority = :priority,
+                                estimated_minutes = :est, description = :description, tags = :tags,
+                                due_time = :due_time, is_calendar_event = :is_cal, show_in_kanban = :show_kanban,
+                                is_recurring = :is_rec, recurrence_type = :rec_type, recurrence_config = :rec_cfg,
+                                updated_at = :now
+                            WHERE (id = :p OR parent_task_id = :p)
+                              AND id != :tid
+                              AND (due_date >= :cur_due OR due_date IS NULL)
+                              AND completed_at IS NULL
+                              AND deleted_at IS NULL
+                        ");
+                        $updSiblings->execute([
+                            ':title' => $title,
+                            ':client_id' => $clientId,
+                            ':priority' => $priority,
+                            ':est' => $estimatedMinutes,
+                            ':description' => $description,
+                            ':tags' => $tagsJson,
+                            ':due_time' => $dueTime,
+                            ':is_cal' => $isCalendarEvent,
+                            ':show_kanban' => $showInKanban,
+                            ':is_rec' => $isRecurring,
+                            ':rec_type' => $recurrenceType,
+                            ':rec_cfg' => $recurrenceConfig,
+                            ':now' => now(),
+                            ':p' => $seriesParentId,
+                            ':tid' => $taskId,
+                            ':cur_due' => $currentTask['due_date'] ?? date('Y-m-d'),
+                        ]);
+                    } elseif ($recurrenceScope === 'all') {
+                        $updSiblings = $pdo->prepare("
+                            UPDATE tasks
+                            SET title = :title, client_id = :client_id, priority = :priority,
+                                estimated_minutes = :est, description = :description, tags = :tags,
+                                due_time = :due_time, is_calendar_event = :is_cal, show_in_kanban = :show_kanban,
+                                is_recurring = :is_rec, recurrence_type = :rec_type, recurrence_config = :rec_cfg,
+                                updated_at = :now
+                            WHERE (id = :p OR parent_task_id = :p)
+                              AND id != :tid
+                              AND completed_at IS NULL
+                              AND deleted_at IS NULL
+                        ");
+                        $updSiblings->execute([
+                            ':title' => $title,
+                            ':client_id' => $clientId,
+                            ':priority' => $priority,
+                            ':est' => $estimatedMinutes,
+                            ':description' => $description,
+                            ':tags' => $tagsJson,
+                            ':due_time' => $dueTime,
+                            ':is_cal' => $isCalendarEvent,
+                            ':show_kanban' => $showInKanban,
+                            ':is_rec' => $isRecurring,
+                            ':rec_type' => $recurrenceType,
+                            ':rec_cfg' => $recurrenceConfig,
+                            ':now' => now(),
+                            ':p' => $seriesParentId,
+                            ':tid' => $taskId,
+                        ]);
+                    }
+                }
             } else {
                 $stmt = $pdo->prepare("
                     INSERT INTO tasks (title, client_id, stage_id, priority, due_date, due_time, is_calendar_event, show_in_kanban, estimated_minutes, description, created_by,
@@ -1191,22 +1265,46 @@ try {
         }
 
         // 10. Excluir (reversível) e Restaurar
-        if ($action === 'delete') {
+        if ($action === 'delete' || $action === 'delete_task') {
             $taskId = (int)($input['task_id'] ?? 0);
             if ($taskId <= 0) {
                 json_response(['error' => 'Tarefa inválida.'], 400);
             }
 
-            $stmt = $pdo->prepare("SELECT title, stage_id FROM tasks WHERE id = :id");
+            $stmt = $pdo->prepare("SELECT id, title, stage_id, due_date, is_recurring, parent_task_id FROM tasks WHERE id = :id");
             $stmt->execute([':id' => $taskId]);
             $task = $stmt->fetch();
             if (!$task) {
                 json_response(['error' => 'Tarefa não encontrada.'], 404);
             }
 
+            $recurrenceScope = in_array($input['recurrence_scope'] ?? '', ['single', 'future', 'all'], true) ? $input['recurrence_scope'] : 'single';
+            $seriesParentId = !empty($task['parent_task_id']) ? (int)$task['parent_task_id'] : $taskId;
+
             $pdo->beginTransaction();
-            $pdo->prepare("UPDATE tasks SET deleted_at = :now, is_timer_running = 0, updated_at = :now2 WHERE id = :id")
-                ->execute([':now' => now(), ':now2' => now(), ':id' => $taskId]);
+
+            if ($recurrenceScope === 'future') {
+                $curDue = $task['due_date'] ?? date('Y-m-d');
+                $pdo->prepare("
+                    UPDATE tasks
+                    SET deleted_at = :now, is_timer_running = 0, updated_at = :now2
+                    WHERE (id = :p OR parent_task_id = :p)
+                      AND (due_date >= :cur_due OR due_date IS NULL)
+                      AND completed_at IS NULL
+                      AND deleted_at IS NULL
+                ")->execute([':now' => now(), ':now2' => now(), ':p' => $seriesParentId, ':cur_due' => $curDue]);
+            } elseif ($recurrenceScope === 'all') {
+                $pdo->prepare("
+                    UPDATE tasks
+                    SET deleted_at = :now, is_timer_running = 0, updated_at = :now2
+                    WHERE (id = :p OR parent_task_id = :p)
+                      AND deleted_at IS NULL
+                ")->execute([':now' => now(), ':now2' => now(), ':p' => $seriesParentId]);
+            } else {
+                $pdo->prepare("UPDATE tasks SET deleted_at = :now, is_timer_running = 0, updated_at = :now2 WHERE id = :id")
+                    ->execute([':now' => now(), ':now2' => now(), ':id' => $taskId]);
+            }
+
             normalize_stage_order($pdo, (int)$task['stage_id']);
             log_task_activity($pdo, $taskId, (int)$user['id'], 'task_deleted', 'Moveu a tarefa para a lixeira');
             $pdo->commit();

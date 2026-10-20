@@ -40,6 +40,7 @@ window.KD = window.KD || {};
             weekdays: new Set(),
         },
         pausedTimers: new Set(),
+        compactMode: (localStorage.getItem('kanbandoo_compact_mode') === '1'),
     };
 
     const sortables = [];
@@ -278,6 +279,20 @@ window.KD = window.KD || {};
         if (groupBtn) {
             groupBtn.setAttribute('aria-pressed', String(board.groupByClient));
             groupBtn.classList.toggle('kd-btn--active', board.groupByClient);
+        }
+
+        // Modo Compacto (estilo Trello)
+        const compactBtn = el('btnToggleCompact');
+        if (compactBtn) {
+            compactBtn.setAttribute('aria-pressed', String(board.compactMode));
+            compactBtn.classList.toggle('text-indigo-400', Boolean(board.compactMode));
+            compactBtn.classList.toggle('bg-indigo-600/15', Boolean(board.compactMode));
+            compactBtn.classList.toggle('border', Boolean(board.compactMode));
+            compactBtn.classList.toggle('border-indigo-500/20', Boolean(board.compactMode));
+            compactBtn.classList.toggle('text-slate-400', !board.compactMode);
+            compactBtn.title = board.compactMode
+                ? 'Modo Compacto Ativo (clique para modo normal)'
+                : 'Modo Compacto (estilo Trello: apenas título e detalhes essenciais)';
         }
 
         // Modo de visão (Status vs Semana)
@@ -1437,6 +1452,86 @@ window.KD = window.KD || {};
             </div>
         `;
 
+        if (board.compactMode) {
+            return `
+            <article class="kd-card kd-card--compact kd-glass"
+                     role="listitem"
+                     tabindex="0"
+                     data-task-id="${task.id}"
+                     data-stage-id="${task.stage_id}"
+                     data-priority="${KD.escapeHtml(prioritySlug)}"
+                     data-running="${isRunning ? 1 : 0}"
+                     data-paused="${isPaused ? 1 : 0}"
+                     data-focus="${inFocus ? 1 : 0}"
+                     data-bomb="${isBomb ? 1 : 0}"
+                     data-done="${isDone ? 1 : 0}"
+                     data-seconds="${Number(task.effective_seconds || 0)}"
+                     data-recurring="${isRecurring ? 1 : 0}"
+                     style="--card-status-color: ${statusColor};"
+                     aria-label="${KD.escapeHtml(task.title)}">
+
+                <!-- Barra superior de cor sutil (se houver status/cliente) -->
+                <div class="kd-card__compact-bar" style="background-color: var(--card-status-color);"></div>
+
+                <!-- Título da tarefa (estilo Trello) -->
+                <div class="kd-card__title kd-card__title--compact" data-action="open" data-task-id="${task.id}" role="button" tabindex="0">
+                    ${KD.escapeHtml(task.title)}
+                </div>
+
+                <!-- Linha inferior: Ícones discretos (descrição, checklist, recorrência, bomba) e Avatares -->
+                <div class="kd-card__compact-footer flex items-center justify-between gap-1.5 border-t border-slate-800/40 text-slate-400 text-[11px]">
+                    <div class="flex items-center gap-2 flex-wrap min-w-0">
+                        ${task.description && task.description.trim() ? `
+                            <span title="Possui descrição" class="text-slate-400 hover:text-slate-200 transition">
+                                <i data-lucide="align-left" class="w-3.5 h-3.5"></i>
+                            </span>
+                        ` : ''}
+
+                        ${checklistTotal > 0 ? `
+                            <span class="flex items-center gap-1 font-medium ${checklistDone === checklistTotal ? 'text-emerald-400' : 'text-slate-400'}" title="${checklistDone} de ${checklistTotal} subtarefas concluídas">
+                                <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+                                <span>${checklistDone}/${checklistTotal}</span>
+                            </span>
+                        ` : ''}
+
+                        ${isRecurring ? `
+                            <span class="text-emerald-400" title="Recorrente (${recLabel})">
+                                <i data-lucide="repeat" class="w-3.5 h-3.5"></i>
+                            </span>
+                        ` : ''}
+
+                        ${isBomb ? `
+                            <span class="text-rose-500" title="Bomba (Urgente)">
+                                <i data-lucide="bomb" class="w-3.5 h-3.5"></i>
+                            </span>
+                        ` : ''}
+
+                        ${due.text ? `
+                            <span class="text-[10px] font-semibold tracking-tight" style="color: var(--card-status-color);" title="Prazo: ${KD.escapeHtml(due.text)}">
+                                ${KD.escapeHtml(due.text)}
+                            </span>
+                        ` : ''}
+                    </div>
+
+                    <!-- Avatares compactos à direita -->
+                    <div class="flex items-center -space-x-1.5 flex-shrink-0">
+                        ${assignees.length > 0 ? assignees.slice(0, 2).map((u) => {
+                            if (u.avatar) {
+                                return `<img src="${u.avatar}" alt="${KD.escapeHtml(u.name || '')}" class="w-5 h-5 rounded-full object-cover border border-slate-700 shadow-xs" title="${KD.escapeHtml(u.name || '')}">`;
+                            }
+                            const initial = (u.initial || u.name?.charAt(0) || 'U').toUpperCase();
+                            return `<div class="w-5 h-5 rounded-full bg-slate-700 border border-slate-600 text-white font-bold text-[9px] flex items-center justify-center shadow-xs" title="${KD.escapeHtml(u.name || '')}">${KD.escapeHtml(initial)}</div>`;
+                        }).join('') : `
+                            <div class="w-5 h-5 rounded-full bg-slate-800/80 border border-slate-700/80 text-slate-500 flex items-center justify-center" title="Sem responsável">
+                                <i data-lucide="user" class="w-2.5 h-2.5"></i>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </article>
+            `;
+        }
+
         return `
             <article class="kd-card kd-glass"
                      role="listitem"
@@ -2033,7 +2128,14 @@ window.KD = window.KD || {};
 
             case 'delete': {
                 KD.closeMenus();
-                const result = await KD.api.tasks({ action: 'delete', task_id: taskId });
+                const task = board.tasks.find((t) => Number(t.id) === Number(taskId));
+                let recurrenceScope = 'single';
+                if (task && (Number(task.is_recurring) === 1 || Number(task.parent_task_id) > 0) && typeof KD.promptRecurrenceScope === 'function') {
+                    const scope = await KD.promptRecurrenceScope('delete');
+                    if (!scope) break;
+                    recurrenceScope = scope;
+                }
+                const result = await KD.api.tasks({ action: 'delete', task_id: taskId, recurrence_scope: recurrenceScope });
                 await KD.loadBoard({ silent: true });
                 if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
                 KD.toast(`"${result.title || 'Tarefa'}" movida para a lixeira.`, {
@@ -2422,6 +2524,16 @@ window.KD = window.KD || {};
 
     KD.renderBoard = function () {
         render();
+    };
+
+    KD.toggleCompactMode = function () {
+        board.compactMode = !board.compactMode;
+        try {
+            localStorage.setItem('kanbandoo_compact_mode', board.compactMode ? '1' : '0');
+        } catch (e) {}
+        updateToolbarState();
+        render();
+        KD.toast(board.compactMode ? 'Modo compacto ativado.' : 'Modo normal ativado.', { tone: 'info' });
     };
 
     KD.setViewMode = function (mode) {

@@ -283,6 +283,9 @@ view_header('Clientes & Empresas');
                         </div>
 
                         <div class="flex items-center gap-1">
+                            <button type="button" onclick="copyPortalLink('<?= e($client['portal_token'] ?? '') ?>', '<?= e($client['company_name']) ?>')" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 rounded-lg transition cursor-pointer" title="Copiar Link do Portal do Cliente">
+                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                            </button>
                             <button onclick="editClient(<?= htmlspecialchars(json_encode($client), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition" title="Editar">
                                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                             </button>
@@ -417,6 +420,24 @@ function openClientModal() {
     document.getElementById('clientModalTitle').textContent = 'Cadastrar Novo Cliente';
     KD.openModal('clientModal');
     if (window.lucide) lucide.createIcons();
+}
+
+function copyPortalLink(token, companyName) {
+    if (!token) {
+        alert('Este cliente ainda não possui um link de portal configurado.');
+        return;
+    }
+    const baseUrl = window.location.origin + <?= json_encode(url('/portal')) ?>;
+    const portalUrl = `${baseUrl}/${token}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(portalUrl).then(() => {
+            alert(`Link do Portal copiado com sucesso para ${companyName}!\n\n` + portalUrl);
+        }).catch(() => {
+            prompt(`Copie o link do portal para ${companyName}:`, portalUrl);
+        });
+    } else {
+        prompt(`Copie o link do portal para ${companyName}:`, portalUrl);
+    }
 }
 
 function editClient(client) {
