@@ -160,7 +160,7 @@ $clients = $stmt->fetchAll();
 view_header('Clientes & Empresas');
 ?>
 
-<main class="w-full px-4 lg:px-8 py-6 space-y-6 max-w[1600px] mx-auto">
+<main class="w-full px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] mx-auto">
     
     <!-- Topo -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -179,57 +179,105 @@ view_header('Clientes & Empresas');
     </div>
 
     <!-- Barra de Busca e Filtro de Clientes -->
-    <form method="GET" class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3.5 mb-6 flex flex-wrap items-center gap-3">
-        <div class="flex-1 min-w-[220px] relative">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                <i data-lucide="search" class="w-4 h-4"></i>
+    <!-- Barra de Busca Live-Search e Alternador de Visualizacao -->
+    <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3.5 mb-6 flex flex-wrap items-center justify-between gap-3 shadow-sm kd-glass">
+        <div class="flex flex-1 flex-wrap items-center gap-3 min-w-[280px]">
+            <!-- Live Search Input -->
+            <div class="flex-1 min-w-[220px] relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 pointer-events-none">
+                    <i data-lucide="search" class="w-4 h-4"></i>
+                </span>
+                <input type="search" id="clientSearchInput" value="<?= e($search) ?>" oninput="filterClientsLive()"
+                       placeholder="Buscar por empresa, contato, e-mail ou telefone em tempo real..."
+                       class="w-full pl-9 pr-9 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+                <button type="button" id="btnClearSearch" onclick="clearClientSearch()" class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white" title="Limpar busca">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+
+            <!-- Filtro de Status -->
+            <div class="w-full sm:w-auto min-w-[130px]">
+                <select id="clientStatusFilter" onchange="filterClientsLive()"
+                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition cursor-pointer">
+                    <option value="">Status: Todos</option>
+                    <option value="active" <?= $statusFilter === 'active' ? 'selected' : '' ?>>Ativos</option>
+                    <option value="inactive" <?= $statusFilter === 'inactive' ? 'selected' : '' ?>>Inativos</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <!-- Contador Dinamico -->
+            <span id="clientCounter" class="text-xs text-slate-400 font-medium whitespace-nowrap">
+                Exibindo <?= count($clients) ?> empresa(s)
             </span>
-            <input type="text" name="q" value="<?= e($search) ?>" placeholder="Buscar por empresa, contato ou e-mail..." class="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+
+            <!-- Alternador de Modos de Visualizacao (Cards vs Lista) -->
+            <div class="inline-flex items-center p-1 rounded-xl bg-slate-950 border border-slate-800" role="group">
+                <button type="button" id="btnViewGrid" onclick="setClientsView('grid')"
+                        class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-white bg-indigo-600 shadow-sm cursor-pointer"
+                        title="Visualização em Cards">
+                    <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Cards</span>
+                </button>
+                <button type="button" id="btnViewList" onclick="setClientsView('list')"
+                        class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white cursor-pointer"
+                        title="Visualização em Lista">
+                    <i data-lucide="list" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Lista</span>
+                </button>
+            </div>
         </div>
+    </div>
 
-        <div class="w-full sm:w-auto min-w-[140px]">
-            <select name="status" onchange="this.form.submit()" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                <option value="">Status: Todos</option>
-                <option value="active" <?= $statusFilter === 'active' ? 'selected' : '' ?>>Ativos</option>
-                <option value="inactive" <?= $statusFilter === 'inactive' ? 'selected' : '' ?>>Inativos</option>
-            </select>
-        </div>
-
-        <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition">
-            Filtrar
-        </button>
-        <?php if ($search !== '' || $statusFilter !== ''): ?>
-            <a href="<?= url('/clientes') ?>" class="p-2 text-slate-400 hover:text-white transition text-xs flex items-center gap-1">
-                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                Limpar
-            </a>
-        <?php endif; ?>
-    </form>
-
-    <!-- Tabela / Grade de Clientes -->
+    <!-- Estado Vazio (quando nao ha clientes cadastrados) -->
     <?php if (empty($clients)): ?>
         <div class="bg-slate-900/40 border border-slate-800 rounded-2xl p-12 text-center">
             <div class="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-3">
                 <i data-lucide="building-2" class="w-6 h-6"></i>
             </div>
-            <h3 class="text-sm font-bold text-white mb-1">Nenhum cliente encontrado</h3>
-            <p class="text-xs text-slate-400 mb-4">Comece cadastrando sua primeira empresa parceira.</p>
+            <h3 class="text-sm font-bold text-white mb-1">Nenhum cliente cadastrado</h3>
+            <p class="text-xs text-slate-400 mb-4">Cadastre a primeira empresa para gerenciar demandas, notas e links.</p>
             <button onclick="openClientModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition">
                 + Cadastrar Cliente
             </button>
         </div>
     <?php else: ?>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
-            <?php foreach ($clients as $client): ?>
-                <div class="kd-card kd-glass rounded-2xl p-4 flex flex-col justify-between transition-all group hover:border-slate-700 relative shadow-sm">
+
+        <!-- Aviso de Live-Search Sem Resultados -->
+        <div id="clientsEmptySearch" class="hidden bg-slate-900/40 border border-slate-800 rounded-2xl p-10 text-center">
+            <div class="w-10 h-10 rounded-xl bg-slate-800/80 text-slate-400 flex items-center justify-center mx-auto mb-2.5">
+                <i data-lucide="search-x" class="w-5 h-5"></i>
+            </div>
+            <h4 class="text-sm font-bold text-white mb-1">Nenhuma empresa encontrada</h4>
+            <p class="text-xs text-slate-400 mb-3">Tente buscar por outro termo ou limpe o filtro atual.</p>
+            <button type="button" onclick="clearClientSearch()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 transition">
+                Limpar busca
+            </button>
+        </div>
+
+        <!-- 1. MODO CARDS (GRID COMPACTO E ELEGANTE) -->
+        <div id="clientsGridView" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+            <?php foreach ($clients as $client): 
+                $cleanPhone = preg_replace('/\D/', '', (string)($client['phone'] ?? ''));
+                $initials = mb_strtoupper(mb_substr($client['company_name'], 0, 2, 'UTF-8'));
+            ?>
+                <div class="client-item kd-card kd-glass rounded-2xl p-3.5 flex flex-col justify-between transition-all group hover:border-slate-700 relative shadow-sm"
+                     data-company="<?= e(mb_strtolower($client['company_name'])) ?>"
+                     data-contact="<?= e(mb_strtolower($client['contact_name'] ?? '')) ?>"
+                     data-email="<?= e(mb_strtolower($client['email'] ?? '')) ?>"
+                     data-phone="<?= e(mb_strtolower($client['phone'] ?? '')) ?>"
+                     data-notes="<?= e(mb_strtolower($client['notes'] ?? '')) ?>"
+                     data-status="<?= e($client['status']) ?>">
+                    
                     <div>
                         <!-- Header do Card -->
-                        <div class="flex items-start justify-between gap-2.5 mb-3">
-                            <div class="flex items-center gap-2.5 min-w-0">
-                                <div class="w-9 h-9 rounded-xl bg-indigo-600/15 border border-indigo-500/25 text-indigo-400 font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-inner">
-                                    <?= mb_strtoupper(mb_substr($client['company_name'], 0, 2, 'UTF-8')) ?>
+                        <div class="flex items-start justify-between gap-2 mb-2.5">
+                            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div class="w-8 h-8 rounded-xl bg-indigo-600/15 border border-indigo-500/25 text-indigo-400 font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-inner">
+                                    <?= $initials ?>
                                 </div>
-                                <div class="min-w-0">
+                                <div class="min-w-0 flex-1">
                                     <h3 class="font-bold text-sm text-white leading-tight group-hover:text-indigo-300 transition truncate" title="<?= e($client['company_name']) ?>">
                                         <?= e($client['company_name']) ?>
                                     </h3>
@@ -239,44 +287,43 @@ view_header('Clientes & Empresas');
                                 </div>
                             </div>
 
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider flex-shrink-0 <?= $client['status'] === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500' ?>">
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider flex-shrink-0 <?= $client['status'] === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500' ?>">
                                 <?= $client['status'] === 'active' ? 'Ativo' : 'Inativo' ?>
                             </span>
                         </div>
 
-                        <!-- Informações de Contato -->
-                        <div class="space-y-1.5 py-2.5 border-y border-slate-800/60 text-xs text-slate-300">
+                        <!-- Informacoes de Contato Compactas -->
+                        <div class="space-y-1 py-2 border-y border-slate-800/60 text-xs">
                             <?php if (!empty($client['email'])): ?>
                                 <div class="flex items-center gap-2 truncate text-[11px]">
                                     <i data-lucide="mail" class="w-3.5 h-3.5 text-slate-500 flex-shrink-0"></i>
-                                    <a href="mailto:<?= e($client['email']) ?>" class="hover:text-indigo-400 truncate text-slate-300"><?= e($client['email']) ?></a>
+                                    <a href="mailto:<?= e($client['email']) ?>" class="hover:text-indigo-400 truncate text-slate-300 transition"><?= e($client['email']) ?></a>
                                 </div>
                             <?php endif; ?>
                             <?php if (!empty($client['phone'])): ?>
-                                <?php $cleanPhone = preg_replace('/\D/', '', (string)$client['phone']); ?>
                                 <div class="flex items-center gap-2 truncate text-[11px]">
                                     <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-500 flex-shrink-0"></i>
-                                    <a href="https://wa.me/55<?= $cleanPhone ?>" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 truncate text-slate-300">
+                                    <a href="https://wa.me/55<?= $cleanPhone ?>" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 truncate text-slate-300 transition" title="Abrir conversa no WhatsApp">
                                         <?= e($client['phone']) ?>
                                     </a>
                                 </div>
                             <?php endif; ?>
                             <?php if (!empty($client['notes'])): ?>
-                                <p class="text-[11px] text-slate-400 line-clamp-2 pt-0.5 italic leading-relaxed">
+                                <p class="text-[11px] text-slate-400 line-clamp-1 italic pt-0.5" title="<?= e($client['notes']) ?>">
                                     &ldquo;<?= e($client['notes']) ?>&rdquo;
                                 </p>
                             <?php endif; ?>
                         </div>
                     </div>
 
-                    <!-- Footer do Card: Demandas, Notas e Ações -->
-                    <div class="flex items-center justify-between pt-3 mt-2 text-xs border-t border-slate-800/40">
+                    <!-- Footer do Card: Demandas, Notas e Acoes -->
+                    <div class="flex items-center justify-between pt-2.5 mt-1 text-xs">
                         <div class="flex items-center gap-1.5 flex-wrap">
-                            <a href="<?= url('/tarefas') ?>?client=<?= (int)$client['id'] ?>" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[11px] font-semibold transition" title="Ver tarefas no Kanban">
+                            <a href="<?= url('/tarefas') ?>?client=<?= (int)$client['id'] ?>" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[11px] font-semibold transition" title="Ver tarefas no Kanban">
                                 <i data-lucide="layout-grid" class="w-3 h-3"></i>
                                 <span><?= (int)$client['open_tasks_count'] ?> abertas</span>
                             </a>
-                            <a href="<?= url('/notas') ?>?client_id=<?= (int)$client['id'] ?>" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition" title="Ver notas deste cliente">
+                            <a href="<?= url('/notas') ?>?client_id=<?= (int)$client['id'] ?>" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition" title="Ver notas deste cliente">
                                 <i data-lucide="notebook-tabs" class="w-3 h-3 text-amber-400"></i>
                                 <span><?= (int)($client['notes_count'] ?? 0) ?> notas</span>
                             </a>
@@ -286,14 +333,14 @@ view_header('Clientes & Empresas');
                             <button type="button" onclick="copyPortalLink('<?= e($client['portal_token'] ?? '') ?>', '<?= e($client['company_name']) ?>')" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 rounded-lg transition cursor-pointer" title="Copiar Link do Portal do Cliente">
                                 <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                             </button>
-                            <button onclick="editClient(<?= htmlspecialchars(json_encode($client), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition" title="Editar">
+                            <button onclick="editClient(<?= htmlspecialchars(json_encode($client), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition cursor-pointer" title="Editar">
                                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                             </button>
                             <form method="POST" onsubmit="return confirm('Tem certeza que deseja excluir esta empresa?');" class="inline">
                                 <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                                 <input type="hidden" name="action" value="delete_client">
                                 <input type="hidden" name="client_id" value="<?= (int)$client['id'] ?>">
-                                <button type="submit" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition" title="Excluir">
+                                <button type="submit" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition cursor-pointer" title="Excluir">
                                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                 </button>
                             </form>
@@ -302,10 +349,119 @@ view_header('Clientes & Empresas');
                 </div>
             <?php endforeach; ?>
         </div>
-    <?php endif; ?>
-</main>
 
-<!-- Modal Novo / Editar Cliente -->
+        <!-- 2. MODO LISTA (TABELA ELEGANTE E COMPACTA) -->
+        <div id="clientsListView" class="hidden bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden kd-glass shadow-sm">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-800 bg-slate-950/40 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                            <th class="py-3 px-4">Empresa & Contato</th>
+                            <th class="py-3 px-4">E-mail & Telefone</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4">Atividades</th>
+                            <th class="py-3 px-4">Portal do Cliente</th>
+                            <th class="py-3 px-4 text-right">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                        <?php foreach ($clients as $client): 
+                            $cleanPhone = preg_replace('/\D/', '', (string)($client['phone'] ?? ''));
+                            $initials = mb_strtoupper(mb_substr($client['company_name'], 0, 2, 'UTF-8'));
+                        ?>
+                            <tr class="client-item hover:bg-slate-800/30 transition group"
+                                data-company="<?= e(mb_strtolower($client['company_name'])) ?>"
+                                data-contact="<?= e(mb_strtolower($client['contact_name'] ?? '')) ?>"
+                                data-email="<?= e(mb_strtolower($client['email'] ?? '')) ?>"
+                                data-phone="<?= e(mb_strtolower($client['phone'] ?? '')) ?>"
+                                data-notes="<?= e(mb_strtolower($client['notes'] ?? '')) ?>"
+                                data-status="<?= e($client['status']) ?>">
+                                
+                                <td class="py-3 px-4">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-xl bg-indigo-600/15 border border-indigo-500/25 text-indigo-400 font-bold text-xs flex items-center justify-center flex-shrink-0">
+                                            <?= $initials ?>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <p class="font-bold text-white text-xs leading-snug group-hover:text-indigo-300 transition">
+                                                <?= e($client['company_name']) ?>
+                                            </p>
+                                            <?php if (!empty($client['contact_name'])): ?>
+                                                <p class="text-[11px] text-slate-400"><?= e($client['contact_name']) ?></p>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <td class="py-3 px-4">
+                                    <div class="space-y-0.5">
+                                        <?php if (!empty($client['email'])): ?>
+                                            <div class="flex items-center gap-1.5 text-[11px]">
+                                                <i data-lucide="mail" class="w-3 h-3 text-slate-500"></i>
+                                                <a href="mailto:<?= e($client['email']) ?>" class="hover:text-indigo-400 truncate"><?= e($client['email']) ?></a>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($client['phone'])): ?>
+                                            <div class="flex items-center gap-1.5 text-[11px]">
+                                                <i data-lucide="phone" class="w-3 h-3 text-slate-500"></i>
+                                                <a href="https://wa.me/55<?= $cleanPhone ?>" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 truncate">
+                                                    <?= e($client['phone']) ?>
+                                                </a>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+
+                                <td class="py-3 px-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider <?= $client['status'] === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500' ?>">
+                                        <?= $client['status'] === 'active' ? 'Ativo' : 'Inativo' ?>
+                                    </span>
+                                </td>
+
+                                <td class="py-3 px-4">
+                                    <div class="flex items-center gap-1.5">
+                                        <a href="<?= url('/tarefas') ?>?client=<?= (int)$client['id'] ?>" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[11px] font-semibold transition" title="Ver tarefas no Kanban">
+                                            <i data-lucide="layout-grid" class="w-3 h-3"></i>
+                                            <span><?= (int)$client['open_tasks_count'] ?></span>
+                                        </a>
+                                        <a href="<?= url('/notas') ?>?client_id=<?= (int)$client['id'] ?>" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition" title="Ver notas deste cliente">
+                                            <i data-lucide="notebook-tabs" class="w-3 h-3 text-amber-400"></i>
+                                            <span><?= (int)($client['notes_count'] ?? 0) ?></span>
+                                        </a>
+                                    </div>
+                                </td>
+
+                                <td class="py-3 px-4">
+                                    <button type="button" onclick="copyPortalLink('<?= e($client['portal_token'] ?? '') ?>', '<?= e($client['company_name']) ?>')"
+                                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 text-[11px] font-medium transition cursor-pointer" title="Copiar link do portal">
+                                        <i data-lucide="external-link" class="w-3 h-3"></i>
+                                        <span>Copiar Link</span>
+                                    </button>
+                                </td>
+
+                                <td class="py-3 px-4 text-right">
+                                    <div class="inline-flex items-center gap-1">
+                                        <button onclick="editClient(<?= htmlspecialchars(json_encode($client), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition cursor-pointer" title="Editar">
+                                            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                        <form method="POST" onsubmit="return confirm('Tem certeza que deseja excluir esta empresa?');" class="inline">
+                                            <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                            <input type="hidden" name="action" value="delete_client">
+                                            <input type="hidden" name="client_id" value="<?= (int)$client['id'] ?>">
+                                            <button type="submit" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition cursor-pointer" title="Excluir">
+                                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    <?php endif; ?>
 <div id="clientModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="clientModalTitle" hidden>
     <div class="kd-modal__panel kd-modal__panel--md kd-glass kd-glass--raised">
         <div class="flex items-center justify-between pb-4 mb-5" style="border-bottom: 1px solid var(--border)">
@@ -408,6 +564,114 @@ view_header('Clientes & Empresas');
 </div>
 
 <script>
+
+// -------------------------------------------------------------
+// Live-Search & Alternador de Visualizacao (Cards vs Lista)
+// -------------------------------------------------------------
+function setClientsView(mode) {
+    const grid = document.getElementById('clientsGridView');
+    const list = document.getElementById('clientsListView');
+    const btnGrid = document.getElementById('btnViewGrid');
+    const btnList = document.getElementById('btnViewList');
+    if (!grid || !list) return;
+
+    if (mode === 'list') {
+        grid.classList.add('hidden');
+        list.classList.remove('hidden');
+        if (btnList) {
+            btnList.className = 'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-white bg-indigo-600 shadow-sm cursor-pointer';
+        }
+        if (btnGrid) {
+            btnGrid.className = 'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white cursor-pointer';
+        }
+        localStorage.setItem('kd_clients_view_mode', 'list');
+    } else {
+        list.classList.add('hidden');
+        grid.classList.remove('hidden');
+        if (btnGrid) {
+            btnGrid.className = 'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-white bg-indigo-600 shadow-sm cursor-pointer';
+        }
+        if (btnList) {
+            btnList.className = 'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white cursor-pointer';
+        }
+        localStorage.setItem('kd_clients_view_mode', 'grid');
+    }
+}
+
+function normalizeStr(str) {
+    if (!str) return '';
+    return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function filterClientsLive() {
+    const searchInput = document.getElementById('clientSearchInput');
+    const statusSelect = document.getElementById('clientStatusFilter');
+    const btnClear = document.getElementById('btnClearSearch');
+    const counter = document.getElementById('clientCounter');
+    const emptyNotice = document.getElementById('clientsEmptySearch');
+
+    const query = normalizeStr(searchInput ? searchInput.value.trim() : '');
+    const status = statusSelect ? statusSelect.value : '';
+
+    if (btnClear) {
+        btnClear.classList.toggle('hidden', query === '');
+    }
+
+    const items = document.querySelectorAll('.client-item');
+    items.forEach(el => {
+        const company = el.dataset.company || '';
+        const contact = el.dataset.contact || '';
+        const email = el.dataset.email || '';
+        const phone = el.dataset.phone || '';
+        const notes = el.dataset.notes || '';
+        const itemStatus = el.dataset.status || '';
+
+        const fullText = normalizeStr(`${company} ${contact} ${email} ${phone} ${notes}`);
+        const matchesQuery = query === '' || fullText.includes(query);
+        const matchesStatus = status === '' || itemStatus === status;
+
+        const show = matchesQuery && matchesStatus;
+        if (show) {
+            el.style.display = '';
+        } else {
+            el.style.display = 'none';
+        }
+    });
+
+    // Contagem de visiveis (somente no grid para nao contar dobrado)
+    let visibleCount = 0;
+    const gridItems = document.querySelectorAll('#clientsGridView .client-item');
+    gridItems.forEach(el => {
+        if (el.style.display !== 'none') visibleCount++;
+    });
+
+    if (counter) {
+        counter.textContent = query !== '' || status !== '' 
+            ? `Exibindo ${visibleCount} de ${gridItems.length} empresas`
+            : `Exibindo ${gridItems.length} empresa(s)`;
+    }
+
+    if (emptyNotice) {
+        emptyNotice.classList.toggle('hidden', visibleCount > 0);
+    }
+}
+
+function clearClientSearch() {
+    const searchInput = document.getElementById('clientSearchInput');
+    const statusSelect = document.getElementById('clientStatusFilter');
+    if (searchInput) searchInput.value = '';
+    if (statusSelect) statusSelect.value = '';
+    filterClientsLive();
+    if (searchInput) searchInput.focus();
+}
+
+// Inicializacao da visualizacao salva
+document.addEventListener('DOMContentLoaded', () => {
+    const savedMode = localStorage.getItem('kd_clients_view_mode') || 'grid';
+    setClientsView(savedMode);
+    filterClientsLive();
+});
+
 function openClientModal() {
     document.getElementById('modal_client_id').value = '';
     document.getElementById('modal_company_name').value = '';

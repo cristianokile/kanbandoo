@@ -2009,38 +2009,49 @@ window.KD = window.KD || {};
                             </div>
                         `;
                     }
-                } else {
+                                } else {
                     if (list) {
-                        list.innerHTML = taskClientNotesCache.map(note => {
-                            const grpColor = note.group_color || '#6366f1';
-                            const dateStr = note.created_at ? new Date(note.created_at.replace(/-/g, '/')).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-                            return `
-                                <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-slate-700 transition space-y-2 ${note.is_pinned ? 'border-amber-500/40' : ''}">
-                                    <div class="flex items-start justify-between gap-2">
-                                        <div class="flex items-center gap-1.5 flex-wrap min-w-0">
-                                            ${note.is_pinned ? '<i data-lucide="pin" class="w-3 h-3 text-amber-400 flex-shrink-0" title="Nota Fixada"></i>' : ''}
-                                            <h5 class="text-xs font-bold text-white truncate">${KD.escapeHtml(note.title)}</h5>
-                                            ${note.group_name ? `
-                                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase" style="background:${grpColor}20;color:${grpColor}">
-                                                    ${KD.escapeHtml(note.group_name)}
+                        list.innerHTML = `
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                ${taskClientNotesCache.map(note => {
+                                    const grpColor = note.group_color || '#6366f1';
+                                    const dateStr = note.created_at ? new Date(note.created_at.replace(/-/g, '/')).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                                    const cleanText = KD.stripHtml ? KD.stripHtml(note.content) : (note.content || '').replace(/<[^>]*>?/gm, ' ');
+                                    
+                                    return `
+                                        <div onclick="KD.viewTaskClientNote(${note.id})"
+                                             class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/60 hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col justify-between group shadow-sm ${note.is_pinned ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.03] to-transparent' : ''}"
+                                             title="Clique para ler anotação completa">
+                                            <div>
+                                                <div class="flex items-center justify-between gap-1.5 mb-1.5">
+                                                    <div class="flex items-center gap-1.5 min-w-0">
+                                                        ${note.is_pinned ? '<i data-lucide="pin" class="w-3 h-3 text-amber-400 flex-shrink-0" title="Nota Fixada"></i>' : ''}
+                                                        ${note.group_name ? `
+                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider truncate max-w-[120px]" style="background:${grpColor}20;color:${grpColor}">
+                                                                ${KD.escapeHtml(note.group_name)}
+                                                            </span>
+                                                        ` : ''}
+                                                    </div>
+                                                    <span class="text-[10px] text-slate-500 whitespace-nowrap flex-shrink-0">${dateStr}</span>
+                                                </div>
+                                                <h5 class="text-xs font-bold text-white group-hover:text-indigo-300 transition line-clamp-1 mb-1">
+                                                    ${KD.escapeHtml(note.title)}
+                                                </h5>
+                                                <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                                                    ${KD.escapeHtml(cleanText.trim() || 'Sem conteúdo adicional.')}
+                                                </p>
+                                            </div>
+                                            <div class="flex items-center justify-between pt-2 mt-2 border-t border-slate-800/60 text-[10px] text-slate-500">
+                                                <span class="truncate">Por: ${KD.escapeHtml(note.author_name || 'Equipe')}</span>
+                                                <span class="text-indigo-400 font-medium group-hover:translate-x-0.5 transition flex items-center gap-0.5">
+                                                    Ler nota <i data-lucide="chevron-right" class="w-3 h-3"></i>
                                                 </span>
-                                            ` : ''}
+                                            </div>
                                         </div>
-                                        <span class="text-[10px] text-slate-500 flex-shrink-0">${dateStr}</span>
-                                    </div>
-                                    <p class="text-xs text-slate-300 whitespace-pre-line leading-relaxed font-sans py-1">
-                                        ${KD.escapeHtml(note.content)}
-                                    </p>
-                                    <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                                        <span>Por: ${KD.escapeHtml(note.author_name || 'Equipe')}</span>
-                                        <a href="${KD.url('/notas')}?client_id=${note.client_id || task.client_id}" class="text-indigo-400 hover:text-indigo-300 font-medium transition flex items-center gap-1">
-                                            <span>Abrir no módulo de notas</span>
-                                            <i data-lucide="arrow-right" class="w-3 h-3"></i>
-                                        </a>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('');
+                                    `;
+                                }).join('')}
+                            </div>
+                        `;
                     }
                 }
                 KD.icons();
@@ -2086,6 +2097,95 @@ window.KD = window.KD || {};
             console.error(err);
             KD.toastError('Falha de conexão ao salvar nota.');
         }
+    };
+
+
+    KD.stripHtml = function(html) {
+        if (!html) return '';
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        return tmp.textContent || tmp.innerText || '';
+    };
+
+    KD.viewTaskClientNote = function(noteId) {
+        const note = (taskClientNotesCache || []).find(n => Number(n.id) === Number(noteId));
+        if (!note) return;
+
+        const titleEl = el('taskNoteReadTitle');
+        if (titleEl) titleEl.textContent = note.title;
+
+        // Grupo
+        const grpBadge = el('taskNoteReadGroupBadge');
+        if (grpBadge) {
+            if (note.group_name) {
+                const grpColor = note.group_color || '#6366f1';
+                grpBadge.style.display = 'inline-flex';
+                grpBadge.innerHTML = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider" style="background:${grpColor}20;color:${grpColor};border:1px solid ${grpColor}40">
+                    <span class="w-1.5 h-1.5 rounded-full" style="background:${grpColor}"></span>
+                    <span>${KD.escapeHtml(note.group_name)}</span>
+                </span>`;
+            } else {
+                grpBadge.style.display = 'none';
+                grpBadge.innerHTML = '';
+            }
+        }
+
+        // Cliente
+        const cliBadge = el('taskNoteReadClientBadge');
+        if (cliBadge) {
+            if (note.client_company) {
+                cliBadge.style.display = 'inline-flex';
+                cliBadge.innerHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                    <i data-lucide="building-2" class="w-3 h-3 text-indigo-400"></i>
+                    <span>${KD.escapeHtml(note.client_company)}</span>
+                </span>`;
+            } else {
+                cliBadge.style.display = 'none';
+                cliBadge.innerHTML = '';
+            }
+        }
+
+        // Pin
+        const pinBadge = el('taskNoteReadPinnedBadge');
+        if (pinBadge) {
+            pinBadge.classList.toggle('hidden', !note.is_pinned);
+        }
+
+        const authorEl = el('taskNoteReadAuthor');
+        if (authorEl) authorEl.textContent = `Criado por ${note.author_name || 'Equipe'}`;
+
+        const dateEl = el('taskNoteReadDate');
+        if (dateEl && note.created_at) {
+            try {
+                const d = new Date(note.created_at.replace(/-/g, '/'));
+                dateEl.textContent = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            } catch(e) {
+                dateEl.textContent = note.created_at;
+            }
+        }
+
+        // Corpo Formatado
+        const bodyEl = el('taskNoteReadBody');
+        if (bodyEl) {
+            if (note.content && (note.content.includes('<p>') || note.content.includes('<br>') || note.content.includes('<div>') || note.content.includes('<ul>') || note.content.includes('<h3>') || note.content.includes('<strong>'))) {
+                bodyEl.innerHTML = note.content;
+            } else {
+                bodyEl.innerHTML = `<p class="whitespace-pre-line">${KD.escapeHtml(note.content || '')}</p>`;
+            }
+        }
+
+        // Link externo para o modulo de notas
+        const extLink = el('taskNoteReadExternalLink');
+        if (extLink) {
+            extLink.href = `${KD.url('/notas')}?client_id=${note.client_id || (activeTask && activeTask.client_id) || ''}`;
+        }
+
+        KD.openModal('taskNoteReadModal');
+        KD.icons();
+    };
+
+    KD.closeTaskNoteReadModal = function() {
+        KD.closeModal('taskNoteReadModal');
     };
 
 })(window.KD);

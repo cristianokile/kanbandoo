@@ -355,3 +355,43 @@
         </div> <!-- fecha kd-detail-body -->
     </div> <!-- fecha kd-modal__panel -->
 </div>
+
+<!-- Modal Especializado: Leitura da Anotação Completa do Cliente -->
+<div id="taskNoteReadModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="taskNoteReadTitle" style="z-index: 9999;" hidden>
+    <div class="kd-modal__panel kd-modal__panel--lg kd-glass kd-glass--raised max-w-2xl w-full">
+        <div class="flex items-start justify-between gap-3 pb-3 mb-4" style="border-bottom: 1px solid var(--border)">
+            <div class="space-y-1.5 min-w-0 flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span id="taskNoteReadGroupBadge"></span>
+                    <span id="taskNoteReadClientBadge"></span>
+                    <span id="taskNoteReadPinnedBadge" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                        <i data-lucide="pin" class="w-3 h-3"></i> Fixada
+                    </span>
+                </div>
+                <h3 id="taskNoteReadTitle" class="text-base font-bold text-white break-words"></h3>
+                <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                    <span id="taskNoteReadAuthor"></span>
+                    <span>&bull;</span>
+                    <span id="taskNoteReadDate"></span>
+                </div>
+            </div>
+            <button type="button" onclick="KD.closeTaskNoteReadModal()" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition" aria-label="Fechar">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Corpo formatado da anotação com scroll suave -->
+        <div id="taskNoteReadBody" class="note-rich-content max-h-[55vh] overflow-y-auto pr-2 text-sm leading-relaxed text-slate-200">
+        </div>
+
+        <div class="flex items-center justify-between pt-4 mt-4" style="border-top: 1px solid var(--border)">
+            <a id="taskNoteReadExternalLink" href="#" target="_blank" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1 transition">
+                <span>Abrir no módulo de notas</span>
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+            </a>
+            <button type="button" onclick="KD.closeTaskNoteReadModal()" class="kd-btn kd-btn--primary text-xs px-4">
+                Fechar
+            </button>
+        </div>
+    </div>
+</div>

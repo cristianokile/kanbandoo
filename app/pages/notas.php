@@ -20,6 +20,77 @@ $authorsList = $pdo->query("SELECT id, full_name, username FROM users ORDER BY f
 
 view_header('Notas & Conhecimento');
 ?>
+<!-- Quill.js 2.0 para Formatação Rica e Colar do Word / Docs -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+
+<style>
+/* Estilos Dark Mode para o Quill Editor no KanbanDoo */
+.ql-toolbar.ql-snow {
+    background: rgba(15, 23, 42, 0.75);
+    border-color: rgba(51, 65, 85, 0.8) !important;
+    border-top-left-radius: 0.75rem;
+    border-top-right-radius: 0.75rem;
+    padding: 8px 10px;
+}
+.ql-container.ql-snow {
+    background: rgba(2, 6, 23, 0.9);
+    border-color: rgba(51, 65, 85, 0.8) !important;
+    border-bottom-left-radius: 0.75rem;
+    border-bottom-right-radius: 0.75rem;
+    color: #f1f5f9;
+    font-family: inherit;
+    font-size: 0.875rem;
+}
+.ql-snow .ql-stroke { stroke: #94a3b8; }
+.ql-snow .ql-fill { fill: #94a3b8; }
+.ql-snow .ql-picker { color: #94a3b8; font-weight: 500; }
+.ql-snow .ql-picker-options {
+    background-color: #0f172a;
+    border-color: #334155 !important;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+    border-radius: 0.5rem;
+    padding: 6px;
+}
+.ql-snow .ql-picker-item { color: #cbd5e1; }
+.ql-snow .ql-picker-item:hover { color: #818cf8; }
+.ql-snow.ql-toolbar button:hover .ql-stroke,
+.ql-snow .ql-toolbar button.ql-active .ql-stroke { stroke: #818cf8; }
+.ql-snow.ql-toolbar button:hover .ql-fill,
+.ql-snow .ql-toolbar button.ql-active .ql-fill { fill: #818cf8; }
+.ql-snow.ql-toolbar button:hover,
+.ql-snow .ql-toolbar button.ql-active { color: #818cf8; }
+.ql-editor.ql-blank::before { color: #64748b; font-style: normal; }
+.ql-editor { min-height: 160px; max-height: 340px; overflow-y: auto; line-height: 1.6; }
+.ql-editor h2, .ql-editor h3 { color: #ffffff; font-weight: 700; margin-top: 0.75rem; margin-bottom: 0.5rem; }
+.ql-editor h2 { font-size: 1.25rem; }
+.ql-editor h3 { font-size: 1.1rem; }
+.ql-editor ul, .ql-editor ol { padding-left: 1.25rem; }
+.ql-editor blockquote { border-left: 3px solid #6366f1; padding-left: 0.75rem; color: #94a3b8; font-style: italic; }
+.ql-editor a { color: #818cf8; text-decoration: underline; }
+.ql-editor code { background: #1e293b; padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
+.ql-editor pre { background: #0f172a; padding: 10px; border-radius: 6px; border: 1px solid #334155; }
+
+/* Renderizacao de Conteudo Rico de Notas */
+.note-rich-content {
+    line-height: 1.65;
+    color: #e2e8f0;
+}
+.note-rich-content p { margin-bottom: 0.75rem; }
+.note-rich-content h1, .note-rich-content h2, .note-rich-content h3 { color: #fff; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
+.note-rich-content h2 { font-size: 1.25rem; }
+.note-rich-content h3 { font-size: 1.1rem; }
+.note-rich-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+.note-rich-content ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+.note-rich-content li { margin-bottom: 0.25rem; }
+.note-rich-content blockquote { border-left: 3px solid #6366f1; padding-left: 0.75rem; color: #94a3b8; font-style: italic; margin: 0.75rem 0; }
+.note-rich-content a { color: #818cf8; text-decoration: underline; }
+.note-rich-content code { background: #1e293b; padding: 2px 5px; border-radius: 4px; font-family: monospace; }
+.note-rich-content pre { background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #334155; overflow-x: auto; margin-bottom: 0.75rem; }
+.note-rich-content table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
+.note-rich-content th, .note-rich-content td { border: 1px solid #334155; padding: 6px 10px; font-size: 0.8125rem; }
+.note-rich-content th { background: #1e293b; font-weight: 600; color: #fff; }
+</style>
 <main class="w-full px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] mx-auto" id="notasApp">
     <!-- Topo da Pagina -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -190,11 +261,16 @@ view_header('Notas & Conhecimento');
                 </div>
             </div>
 
-            <div>
-                <label for="note_content" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Conteúdo da Anotação *</label>
-                <textarea id="note_content" rows="7" required
-                          placeholder="Digite aqui as anotações, diretrizes, decisões da reunião, links de referência..."
-                          class="kd-field font-sans" style="resize:vertical"></textarea>
+                        <div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Conteúdo da Anotação *</label>
+                    <span class="text-[11px] font-medium text-indigo-400 flex items-center gap-1">
+                        <i data-lucide="sparkles" class="w-3 h-3"></i>
+                        Aceita formatação & colar do Word
+                    </span>
+                </div>
+                <div id="noteQuillEditor"></div>
+                <input type="hidden" id="note_content">
             </div>
 
             <div class="flex items-center justify-between pt-3" style="border-top:1px solid var(--border)">
@@ -215,6 +291,46 @@ view_header('Notas & Conhecimento');
                 </div>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Modal: Visualização de Nota Completa -->
+<div id="viewNoteModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="viewNoteTitle" hidden>
+    <div class="kd-modal__panel kd-modal__panel--lg kd-glass kd-glass--raised max-w-2xl w-full">
+        <div class="flex items-start justify-between gap-3 pb-4 mb-4" style="border-bottom:1px solid var(--border)">
+            <div class="space-y-1.5 min-w-0 flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span id="viewNoteGroupBadge"></span>
+                    <span id="viewNoteClientBadge"></span>
+                    <span id="viewNotePinnedBadge" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                        <i data-lucide="pin" class="w-3 h-3"></i> Fixada
+                    </span>
+                </div>
+                <h3 id="viewNoteTitle" class="text-lg font-bold text-white break-words"></h3>
+                <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <span id="viewNoteAuthor"></span>
+                    <span>&bull;</span>
+                    <span id="viewNoteDate"></span>
+                </div>
+            </div>
+            <button type="button" onclick="closeViewNoteModal()" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition" aria-label="Fechar">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Corpo com formatação rica renderizada -->
+        <div id="viewNoteBody" class="note-rich-content max-h-[60vh] overflow-y-auto pr-2 space-y-2 text-sm">
+        </div>
+
+        <div class="flex items-center justify-between pt-4 mt-4" style="border-top:1px solid var(--border)">
+            <button type="button" id="btnEditFromView" class="kd-btn text-xs flex items-center gap-1.5 text-indigo-400 hover:text-indigo-300">
+                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                <span>Editar esta nota</span>
+            </button>
+            <button type="button" onclick="closeViewNoteModal()" class="kd-btn kd-btn--primary text-xs px-4">
+                Fechar
+            </button>
+        </div>
     </div>
 </div>
 
@@ -294,6 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const select = document.getElementById('filterClient');
         if (select) select.value = initialClientId;
     }
+    initNoteQuill();
     loadNotes();
 });
 
@@ -350,6 +467,102 @@ async function loadNotes() {
     }
 }
 
+let noteQuill = null;
+
+function initNoteQuill() {
+    if (noteQuill) return;
+    const el = document.getElementById('noteQuillEditor');
+    if (!el) return;
+
+    noteQuill = new Quill('#noteQuillEditor', {
+        theme: 'snow',
+        placeholder: 'Digite aqui suas anotações ou cole diretamente do Word / Docs...',
+        modules: {
+            toolbar: [
+                [{ 'header': [2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                ['blockquote', 'code-block'],
+                ['link', 'clean']
+            ]
+        }
+    });
+}
+
+function stripHtml(html) {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+}
+
+function viewNote(id) {
+    const note = allNotes.find(n => n.id === id);
+    if (!note) return;
+
+    document.getElementById('viewNoteTitle').textContent = note.title;
+    
+    // Grupo
+    const grpBadge = document.getElementById('viewNoteGroupBadge');
+    if (note.group_name) {
+        const grpColor = note.group_color || '#6366f1';
+        grpBadge.style.display = 'inline-flex';
+        grpBadge.innerHTML = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider" style="background:${grpColor}20;color:${grpColor};border:1px solid ${grpColor}40">
+            <span class="w-1.5 h-1.5 rounded-full" style="background:${grpColor}"></span>
+            <span>${escapeHtml(note.group_name)}</span>
+        </span>`;
+    } else {
+        grpBadge.style.display = 'none';
+        grpBadge.innerHTML = '';
+    }
+
+    // Cliente
+    const cliBadge = document.getElementById('viewNoteClientBadge');
+    if (note.client_company) {
+        cliBadge.style.display = 'inline-flex';
+        cliBadge.innerHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+            <i data-lucide="building-2" class="w-3 h-3 text-indigo-400"></i>
+            <span>${escapeHtml(note.client_company)}</span>
+        </span>`;
+    } else {
+        cliBadge.style.display = 'none';
+        cliBadge.innerHTML = '';
+    }
+
+    // Pin
+    const pinBadge = document.getElementById('viewNotePinnedBadge');
+    if (pinBadge) {
+        pinBadge.classList.toggle('hidden', !note.is_pinned);
+    }
+
+    document.getElementById('viewNoteAuthor').textContent = `Criado por ${note.author_name || 'Equipe'}`;
+    document.getElementById('viewNoteDate').textContent = formatDateRelative(note.created_at);
+
+    // Corpo renderizado (se tiver HTML renderiza diretamente, se for texto puro converte quebras)
+    const bodyEl = document.getElementById('viewNoteBody');
+    if (note.content && (note.content.includes('<p>') || note.content.includes('<br>') || note.content.includes('<div>') || note.content.includes('<ul>') || note.content.includes('<h3>'))) {
+        bodyEl.innerHTML = note.content;
+    } else {
+        bodyEl.innerHTML = `<p class="whitespace-pre-line">${escapeHtml(note.content || '')}</p>`;
+    }
+
+    // Botao de editar a partir da visualizacao
+    const editBtn = document.getElementById('btnEditFromView');
+    if (editBtn) {
+        editBtn.onclick = function() {
+            closeViewNoteModal();
+            openNoteModal(note);
+        };
+    }
+
+    KD.openModal('viewNoteModal');
+    KD.icons();
+}
+
+function closeViewNoteModal() {
+    KD.closeModal('viewNoteModal');
+}
+
 function renderNotesGrid(notes) {
     const grid = document.getElementById('notesGrid');
     const empty = document.getElementById('emptyNotesState');
@@ -398,14 +611,14 @@ function renderNotesGrid(notes) {
                     </div>
 
                     <!-- Titulo -->
-                    <h3 class="font-bold text-sm text-white leading-snug line-clamp-2 mb-2 group-hover:text-indigo-300 transition" title="${escapeHtml(note.title)}">
+                    <h3 onclick="viewNote(${note.id})" class="font-bold text-sm text-white leading-snug line-clamp-2 mb-2 group-hover:text-indigo-300 transition cursor-pointer" title="${escapeHtml(note.title)}">
                         ${escapeHtml(note.title)}
                     </h3>
 
-<!-- Conteudo (direto no card, sem caixa/fundo extra) -->
-                    <p class="text-xs text-slate-300 mb-3 whitespace-pre-line line-clamp-6 leading-relaxed">
-                        ${escapeHtml(note.content)}
-                    </p>
+                    <!-- Conteudo Resumido / Snippet Limpo -->
+                    <div onclick="viewNote(${note.id})" class="text-xs text-slate-300/90 mb-3 line-clamp-4 leading-relaxed cursor-pointer hover:text-white transition">
+                        ${escapeHtml(stripHtml(note.content))}
+                    </div>
                 </div>
 
                 <!-- Footer do Card: Autor, Data e Acoes -->
@@ -418,6 +631,9 @@ function renderNotesGrid(notes) {
                     </div>
 
                     <div class="flex items-center gap-1">
+                        <button type="button" onclick="viewNote(${note.id})" class="p-1.5 bg-indigo-600/15 hover:bg-indigo-600/30 text-indigo-400 hover:text-indigo-300 rounded-lg transition" title="Ler anotação completa">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                        </button>
                         <button onclick="editNote(${note.id})" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition" title="Editar">
                             <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                         </button>
@@ -492,14 +708,28 @@ function renderGroupsModalList(groups) {
 }
 
 function openNoteModal(note = null) {
+    initNoteQuill();
     document.getElementById('note_id').value = note ? note.id : '';
     document.getElementById('note_title').value = note ? note.title : '';
-    document.getElementById('note_content').value = note ? note.content : '';
+    
+    const contentVal = note ? (note.content || '') : '';
+    document.getElementById('note_content').value = contentVal;
+    if (noteQuill) {
+        if (contentVal && (contentVal.includes('<p>') || contentVal.includes('<div>') || contentVal.includes('<br>') || contentVal.includes('<ul>') || contentVal.includes('<h3>'))) {
+            noteQuill.root.innerHTML = contentVal;
+        } else if (contentVal) {
+            noteQuill.setText(contentVal);
+        } else {
+            noteQuill.setText('');
+        }
+    }
+
     document.getElementById('note_group_id').value = note && note.group_id ? note.group_id : '';
     document.getElementById('note_client_id').value = note && note.client_id ? note.client_id : '';
     document.getElementById('note_is_pinned').checked = note ? Boolean(note.is_pinned) : false;
     document.getElementById('noteModalTitle').textContent = note ? 'Editar Anotação' : 'Nova Anotação';
     KD.openModal('noteModal');
+    setTimeout(() => { if (noteQuill) noteQuill.focus(); }, 150);
 }
 
 function closeNoteModal() {
@@ -515,7 +745,24 @@ async function saveNote(event) {
     event.preventDefault();
     const id = document.getElementById('note_id').value;
     const title = document.getElementById('note_title').value.trim();
-    const content = document.getElementById('note_content').value.trim();
+    let contentHtml = '';
+    if (noteQuill) {
+        const textOnly = noteQuill.getText().trim();
+        const rawHtml = noteQuill.root.innerHTML;
+        if (!textOnly && !rawHtml.includes('<img') && !rawHtml.includes('<table')) {
+            contentHtml = '';
+        } else {
+            contentHtml = rawHtml;
+        }
+    } else {
+        contentHtml = document.getElementById('note_content').value.trim();
+    }
+
+    if (!contentHtml) {
+        alert('Por favor, informe o conteúdo da anotação.');
+        return;
+    }
+    const content = contentHtml;
     const group_id = document.getElementById('note_group_id').value || null;
     const client_id = document.getElementById('note_client_id').value || null;
     const is_pinned = document.getElementById('note_is_pinned').checked ? 1 : 0;
