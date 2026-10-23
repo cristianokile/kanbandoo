@@ -23,6 +23,14 @@ function run_migrations(PDO $pdo): void
                 $updToken->execute([':t' => bin2hex(random_bytes(16)), ':id' => $cid]);
             }
         }
+
+        $usersWithoutToken = $pdo->query("SELECT id FROM users WHERE public_token IS NULL OR public_token = ''")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        if (!empty($usersWithoutToken)) {
+            $updUserToken = $pdo->prepare("UPDATE users SET public_token = :t WHERE id = :id");
+            foreach ($usersWithoutToken as $uid) {
+                $updUserToken->execute([':t' => bin2hex(random_bytes(16)), ':id' => $uid]);
+            }
+        }
     } catch (Throwable $e) {}
 
     $alreadyRun = true;
@@ -59,6 +67,25 @@ function run_migrations(PDO $pdo): void
         $stmt = $pdo->prepare("INSERT INTO schema_migrations (name, applied_at) VALUES (:n, :d)");
         $stmt->execute([':n' => $name, ':d' => date('Y-m-d H:i:s')]);
     }
+
+    // Garante que clientes e usuarios tenham tokens publicos gerados
+    try {
+        $clientsWithoutToken = $pdo->query("SELECT id FROM clients WHERE portal_token IS NULL OR portal_token = ''")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        if (!empty($clientsWithoutToken)) {
+            $updToken = $pdo->prepare("UPDATE clients SET portal_token = :t WHERE id = :id");
+            foreach ($clientsWithoutToken as $cid) {
+                $updToken->execute([':t' => bin2hex(random_bytes(16)), ':id' => $cid]);
+            }
+        }
+
+        $usersWithoutToken = $pdo->query("SELECT id FROM users WHERE public_token IS NULL OR public_token = ''")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        if (!empty($usersWithoutToken)) {
+            $updUserToken = $pdo->prepare("UPDATE users SET public_token = :t WHERE id = :id");
+            foreach ($usersWithoutToken as $uid) {
+                $updUserToken->execute([':t' => bin2hex(random_bytes(16)), ':id' => $uid]);
+            }
+        }
+    } catch (Throwable $e) {}
 
     $alreadyRun = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
@@ -177,6 +204,13 @@ function kanbandoo_migrations(string $driver): array
             "ALTER TABLE users ADD COLUMN remember_token VARCHAR(128) DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN two_factor_secret VARCHAR(64) DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN two_factor_enabled $int DEFAULT 0",
+        ],
+
+        // Link público para coordenadoria, tarefas particulares e retenção de prazo atrasado
+        '013_public_board_and_private_tasks' => [
+            "ALTER TABLE users ADD COLUMN public_token VARCHAR(64) DEFAULT NULL",
+            "ALTER TABLE tasks ADD COLUMN is_private $int DEFAULT 0",
+            "ALTER TABLE tasks ADD COLUMN original_due_date VARCHAR(10) DEFAULT NULL",
         ],
     ];
 }

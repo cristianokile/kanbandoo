@@ -344,6 +344,7 @@ window.KD = window.KD || {};
                     });
                 }
                 if (initialDueDate && el('task_due_date')) el('task_due_date').value = initialDueDate;
+                if (el('task_is_private')) el('task_is_private').checked = false;
                 if (templateWrap) templateWrap.hidden = false;
                 if (templateSelect) templateSelect.value = '';
 
@@ -366,6 +367,7 @@ window.KD = window.KD || {};
             el('task_client_id').value = task.client_id || '';
             el('task_stage_id').value = task.stage_id || '';
             const isExistingCal = Number(task.is_calendar_event) === 1;
+            if (el('task_is_private')) el('task_is_private').checked = Boolean(Number(task.is_private) === 1);
             if (el('task_is_calendar_event')) el('task_is_calendar_event').value = isExistingCal ? '1' : '0';
             if (el('showInKanbanWrap')) el('showInKanbanWrap').hidden = !isExistingCal;
             if (el('task_show_in_kanban')) el('task_show_in_kanban').checked = (Number(task.show_in_kanban ?? 1) === 1);
@@ -541,6 +543,7 @@ window.KD = window.KD || {};
             .map((box) => Number(box.value));
 
         const isRecurring = el('task_is_recurring')?.checked ? 1 : 0;
+        const isPrivate = el('task_is_private')?.checked ? 1 : 0;
         let recurrenceType = null;
         let recurrenceConfig = null;
 
@@ -572,6 +575,7 @@ window.KD = window.KD || {};
             assignees,
             tags: formTags,
             is_recurring: isRecurring,
+            is_private: isPrivate,
             recurrence_type: recurrenceType,
             recurrence_config: recurrenceConfig,
             initial_checklist: formChecklistItems,
@@ -672,6 +676,12 @@ window.KD = window.KD || {};
         if (description) {
             description.textContent = task.description || 'Sem descrição.';
             description.classList.toggle('italic', !task.description);
+        }
+
+        // Particular
+        const privBadge = el('detailPrivateBadge');
+        if (privBadge) {
+            privBadge.hidden = Number(task.is_private) !== 1;
         }
 
         // Recorrencia

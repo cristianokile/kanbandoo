@@ -189,6 +189,18 @@
                 </div>
             </div>
 
+            <!-- Tarefa Particular (Privada) -->
+            <div class="p-3.5 rounded-xl border border-slate-700/50 bg-slate-800/30">
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold uppercase tracking-wider text-slate-200">
+                        <input type="checkbox" id="task_is_private" name="is_private" value="1" class="rounded">
+                        <i data-lucide="lock" class="w-4 h-4 text-amber-400"></i>
+                        <span>Tarefa Particular</span>
+                    </label>
+                    <span class="text-[11px] text-slate-400">Visível apenas no seu painel (oculta em links públicos)</span>
+                </div>
+            </div>
+
             <!-- Recorrência de Tarefa -->
             <div class="p-3.5 rounded-xl border border-slate-700/50 bg-slate-800/30 space-y-3">
                 <div class="flex items-center justify-between">

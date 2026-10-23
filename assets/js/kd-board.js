@@ -749,10 +749,11 @@ window.KD = window.KD || {};
         if (Number(t.is_bomb) === 1) return 1;
 
         const dueDate = t.due_date || '';
+        const origDueDate = t.original_due_date || '';
         const priority = t.priority || 'medium';
 
-        // 2. Tarefa atrasada por ordem de mais atrasadas primeiro (due_date < todayStr)
-        if (dueDate && dueDate < todayStr) {
+        // 2. Tarefa atrasada (prazo original ou atual menor que hoje)
+        if ((dueDate && dueDate < todayStr) || (origDueDate && origDueDate < todayStr)) {
             return 2;
         }
 
@@ -1475,7 +1476,7 @@ window.KD = window.KD || {};
 
                 <!-- Título da tarefa (estilo Trello) -->
                 <div class="kd-card__title kd-card__title--compact" data-action="open" data-task-id="${task.id}" role="button" tabindex="0">
-                    ${KD.escapeHtml(task.title)}
+                    ${Number(task.is_private) === 1 ? `<i data-lucide="lock" class="w-3 h-3 text-amber-400 inline-block mr-1"></i>` : ""}${KD.escapeHtml(task.title)}
                 </div>
 
                 <!-- Linha inferior: Ícones discretos (descrição, checklist, recorrência, bomba) e Avatares -->
@@ -1573,6 +1574,11 @@ window.KD = window.KD || {};
                         ${isBomb ? `
                             <span class="text-rose-500 flex items-center justify-center opacity-90 hover:opacity-100 transition" title="Tarefa Bomba (Urgência Crítica)" style="line-height:0">
                                 <i data-lucide="bomb" class="w-3.5 h-3.5"></i>
+                            </span>
+                        ` : ''}
+                        ${Number(task.is_private) === 1 ? `
+                            <span class="text-amber-400 flex items-center justify-center opacity-90 hover:opacity-100 transition" title="Tarefa Particular (não visível em links públicos)" style="line-height:0">
+                                <i data-lucide="lock" class="w-3 h-3"></i>
                             </span>
                         ` : ''}
                     </div>
@@ -1855,12 +1861,16 @@ window.KD = window.KD || {};
                 // 3. Arrastou entre colunas normais de dias ou na mesma coluna
                 const orderedIds = Array.from(targetBody.querySelectorAll('.kd-card:not(.sortable-ghost):not(.sortable-fallback)')).map((node) => Number(node.dataset.taskId)).filter((id) => id > 0);
 
-                // Atualização otimista imediata no cache local para evitar qualquer "pulo"
+                                // Atualizacao otimista imediata no cache local para evitar qualquer "pulo"
+                const todayStrLocal = getTodayString();
                 orderedIds.forEach((id, idx) => {
                     const t = board.tasks.find((task) => Number(task.id) === id);
                     if (t) {
                         t.sort_order = (idx + 1) * 10;
                         if (targetWeekdayId !== fromWeekdayId) {
+                            if (newDueDate && t.due_date && t.due_date <= todayStrLocal && newDueDate > t.due_date) {
+                                t.original_due_date = t.original_due_date || t.due_date;
+                            }
                             t.due_date = newDueDate;
                         }
                     }

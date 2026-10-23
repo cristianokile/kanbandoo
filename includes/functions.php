@@ -68,14 +68,39 @@ function format_date(?string $dateStr, bool $includeTime = false): string
 /**
  * Badge de prazo: texto curto para o card e rótulo completo para leitores de tela.
  */
-function format_due_date_badge(?string $dueDate): array
+function format_due_date_badge(?string $dueDate, ?string $originalDueDate = null): array
 {
-    if (empty($dueDate)) {
+    if (empty($dueDate) && empty($originalDueDate)) {
         return ['text' => '', 'short' => '', 'label' => '', 'tone' => 'none', 'is_overdue' => false, 'formatted' => ''];
     }
 
     try {
         $today = new DateTime('today');
+
+        // Se tem data de prazo original atrasada (ex: tarefa era para hoje/ontem e foi reagendada para amanhã)
+        if (!empty($originalDueDate)) {
+            $origDue = new DateTime($originalDueDate);
+            $origDiff = (int)$today->diff($origDue)->format('%r%a');
+            if ($origDiff < 0) {
+                $abs = abs($origDiff);
+                $origFormatted = $origDue->format('d/m/Y');
+                $newFormatted = !empty($dueDate) ? (new DateTime($dueDate))->format('d/m') : '';
+                return [
+                    'text' => $abs === 1 ? '1 dia de atraso' : "$abs dias de atraso",
+                    'short' => (string)$abs,
+                    'label' => "Prazo original era em $origFormatted, atrasada em $abs dia(s)",
+                    'tone' => 'overdue',
+                    'is_overdue' => true,
+                    'formatted' => $newFormatted ?: $origDue->format('d/m'),
+                    'original_due_date' => $originalDueDate,
+                ];
+            }
+        }
+
+        if (empty($dueDate)) {
+            return ['text' => '', 'short' => '', 'label' => '', 'tone' => 'none', 'is_overdue' => false, 'formatted' => ''];
+        }
+
         $due = new DateTime($dueDate);
         $days = (int)$today->diff($due)->format('%r%a');
         $formatted = $due->format('d/m/Y');

@@ -234,6 +234,103 @@ view_header('Meu Perfil');
             </div>
         </form>
     </div>
+        <!-- Link Público para a Coordenadoria -->
+    <div class="mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+            <div class="flex items-start gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="share-2" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-base font-bold text-white">Link Público para a Coordenadoria</h3>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">SOMENTE LEITURA</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1 max-w-xl">
+                        Passe este link para a coordenadoria acompanhar todas as suas demandas divididas em <strong>A Fazer</strong>, <strong>Em Andamento</strong>, <strong>Revisão / Aguardando</strong> e <strong>Concluído</strong>. Tarefas marcadas como <em>particulares</em> ficam estritamente ocultas.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-6 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Seu Link Exclusivo</label>
+                <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <div class="relative flex-1 min-w-[240px]">
+                        <input type="text" id="coordPublicUrl" readonly value="" class="w-full pl-4 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-mono select-all focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <button type="button" onclick="copyCoordLink()" id="btnCopyCoord" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20 flex-shrink-0">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span id="copyCoordText">Copiar Link</span>
+                    </button>
+                    <a id="btnOpenCoord" href="#" target="_blank" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition flex items-center gap-1.5 border border-slate-700 flex-shrink-0">
+                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                        <span>Abrir Painel</span>
+                    </a>
+                    <button type="button" onclick="regenerateCoordLink()" class="px-3 py-2.5 bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 font-semibold text-xs rounded-xl transition flex items-center gap-1.5 border border-slate-700 hover:border-rose-500/40 flex-shrink-0" title="Gerar novo link e invalidar o link antigo">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span>Novo Link</span>
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2">
+                    <i data-lucide="info" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i>
+                    Qualquer membro da coordenadoria com este link poderá visualizar suas demandas sem precisar de login. Ao clicar em <strong>Novo Link</strong>, o link anterior deixará de funcionar imediatamente.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const token = <?= json_encode($user['public_token'] ?? '') ?>;
+            const fullUrl = window.location.origin + <?= json_encode(url('/coordenadoria')) ?> + '/' + token;
+            const inp = document.getElementById('coordPublicUrl');
+            if (inp) inp.value = fullUrl;
+            const btnOpen = document.getElementById('btnOpenCoord');
+            if (btnOpen) btnOpen.href = fullUrl;
+        })();
+
+        function copyCoordLink() {
+            const input = document.getElementById('coordPublicUrl');
+            input.select();
+            input.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(input.value).then(() => {
+                const btnText = document.getElementById('copyCoordText');
+                const btn = document.getElementById('btnCopyCoord');
+                btnText.textContent = 'Link Copiado!';
+                btn.classList.add('bg-emerald-600');
+                setTimeout(() => {
+                    btnText.textContent = 'Copiar Link';
+                    btn.classList.remove('bg-emerald-600');
+                }, 2500);
+            });
+        }
+
+        async function regenerateCoordLink() {
+            if (!confirm('Deseja realmente gerar um novo link para a coordenadoria? O link antigo será invalidado imediatamente e quem o possuir perderá o acesso.')) {
+                return;
+            }
+            try {
+                const res = await fetch('<?= url("/api/coordenadoria") ?>', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'regenerate_token' })
+                });
+                const data = await res.json();
+                if (data.success && data.url) {
+                    document.getElementById('coordPublicUrl').value = data.url;
+                    alert('Novo link gerado com sucesso!');
+                    location.reload();
+                } else {
+                    alert(data.error || 'Erro ao gerar novo link.');
+                }
+            } catch (e) {
+                alert('Falha na comunicação com o servidor.');
+            }
+        }
+    </script>
+
     <!-- Segurança & Verificação em 2 Passos (2FA) -->
     <div class="mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">

@@ -128,6 +128,11 @@ $navItems = [
                     <a href="<?= url('/perfil') ?>" class="kd-menu__item" role="menuitem">
                         <i data-lucide="user" class="w-4 h-4"></i> Meu perfil
                     </a>
+                    <?php if (!empty($currentUser['public_token'])): ?>
+                    <a href="<?= url('/coordenadoria/' . $currentUser['public_token']) ?>" target="_blank" class="kd-menu__item" role="menuitem">
+                        <i data-lucide="share-2" class="w-4 h-4 text-indigo-400"></i> Link da Coordenadoria
+                    </a>
+                    <?php endif; ?>
                     <button type="button" class="kd-menu__item w-full text-left" role="menuitem" onclick="KD.openWorkHoursModal(); KD.toggleUserMenu();">
                         <i data-lucide="clock" class="w-4 h-4"></i> Horário de expediente
                     </button>

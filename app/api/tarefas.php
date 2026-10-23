@@ -243,7 +243,7 @@ try {
             $task['effective_seconds'] = effective_seconds($task);
             $task['is_running'] = (int)($task['is_timer_running'] ?? 0) === 1;
             $task['priority_info'] = priority_info($task['priority']);
-            $task['due_badge'] = format_due_date_badge($task['due_date']);
+            $task['due_badge'] = format_due_date_badge($task['due_date'], $task['original_due_date'] ?? null);
             $task['recurrence_label'] = recurrence_label($task['recurrence_type'] ?? '');
             $task['client_color'] = client_color_index($task['client_id'] ? (int)$task['client_id'] : null);
             $task['tags'] = array_map(
@@ -338,7 +338,7 @@ try {
                    t.is_timer_running, t.timer_started_at, t.total_seconds, t.in_focus, t.is_bomb, t.tags,
                    t.source, t.group_name, t.mentioned_by, t.whatsapp_url, t.completed_at, t.created_at,
                    t.estimated_minutes, t.is_recurring, t.recurrence_type, t.recurrence_config, t.parent_task_id,
-                   t.is_calendar_event, t.show_in_kanban,
+                   t.is_calendar_event, t.show_in_kanban, t.is_private, t.original_due_date,
                    c.company_name AS client_company,
                    s.slug AS stage_slug,
                    (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) AS checklist_total,
@@ -478,7 +478,7 @@ try {
 
             foreach ($tasks as &$t) {
                 $t['assignees'] = $assigneesGrouped[$t['id']] ?? [];
-                $t['due_badge'] = format_due_date_badge($t['due_date']);
+                $t['due_badge'] = format_due_date_badge($t['due_date'], $t['original_due_date'] ?? null);
 
                 // Escalação de prioridade para tarefas atrasadas
                 $overdueEscalation = escalate_overdue_priority($t['priority'], $t['due_date'], $t['completed_at']);
@@ -1026,7 +1026,7 @@ try {
                 json_response(['error' => 'Tarefa inválida para movimentação.'], 400);
             }
 
-            $stmt = $pdo->prepare("SELECT stage_id, completed_at, is_bomb, title, due_date FROM tasks WHERE id = :id");
+            $stmt = $pdo->prepare("SELECT stage_id, completed_at, is_bomb, title, due_date, original_due_date FROM tasks WHERE id = :id");
             $stmt->execute([':id' => $taskId]);
             $prev = $stmt->fetch();
             if (!$prev) {
@@ -1050,11 +1050,19 @@ try {
 
             $pdo->beginTransaction();
 
+            $todayDate = date('Y-m-d');
+            $origDueToSave = $prev['original_due_date'] ?? null;
+            if ($newDueDate !== false) {
+                if (!empty($prev['due_date']) && $prev['due_date'] <= $todayDate && $newDueDate > $prev['due_date']) {
+                    $origDueToSave = !empty($prev['original_due_date']) ? $prev['original_due_date'] : $prev['due_date'];
+                }
+            }
+
             // Entrar na coluna de conclusão fecha a tarefa; sair reabre.
             if ($doneId !== null && $stageId === $doneId && empty($prev['completed_at'])) {
                 if ($newDueDate !== false) {
-                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, due_date = :due, completed_at = :now, is_timer_running = 0, updated_at = :now2 WHERE id = :id")
-                        ->execute([':stg' => $stageId, ':due' => $newDueDate, ':now' => now(), ':now2' => now(), ':id' => $taskId]);
+                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, due_date = :due, original_due_date = :orig_due, completed_at = :now, is_timer_running = 0, updated_at = :now2 WHERE id = :id")
+                        ->execute([':stg' => $stageId, ':due' => $newDueDate, ':orig_due' => $origDueToSave, ':now' => now(), ':now2' => now(), ':id' => $taskId]);
                 } else {
                     $pdo->prepare("UPDATE tasks SET stage_id = :stg, completed_at = :now, is_timer_running = 0, updated_at = :now2 WHERE id = :id")
                         ->execute([':stg' => $stageId, ':now' => now(), ':now2' => now(), ':id' => $taskId]);
@@ -1062,16 +1070,16 @@ try {
                 create_next_recurrence_task($pdo, $taskId, $user);
             } elseif ($doneId !== null && $stageId !== $doneId && !empty($prev['completed_at'])) {
                 if ($newDueDate !== false) {
-                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, due_date = :due, completed_at = NULL, archived_at = NULL, updated_at = :now WHERE id = :id")
-                        ->execute([':stg' => $stageId, ':due' => $newDueDate, ':now' => now(), ':id' => $taskId]);
+                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, due_date = :due, original_due_date = :orig_due, completed_at = NULL, archived_at = NULL, updated_at = :now WHERE id = :id")
+                        ->execute([':stg' => $stageId, ':due' => $newDueDate, ':orig_due' => $origDueToSave, ':now' => now(), ':id' => $taskId]);
                 } else {
                     $pdo->prepare("UPDATE tasks SET stage_id = :stg, completed_at = NULL, archived_at = NULL, updated_at = :now WHERE id = :id")
                         ->execute([':stg' => $stageId, ':now' => now(), ':id' => $taskId]);
                 }
             } else {
                 if ($newDueDate !== false) {
-                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, due_date = :due, updated_at = :now WHERE id = :id")
-                        ->execute([':stg' => $stageId, ':due' => $newDueDate, ':now' => now(), ':id' => $taskId]);
+                    $pdo->prepare("UPDATE tasks SET stage_id = :stg, due_date = :due, original_due_date = :orig_due, updated_at = :now WHERE id = :id")
+                        ->execute([':stg' => $stageId, ':due' => $newDueDate, ':orig_due' => $origDueToSave, ':now' => now(), ':id' => $taskId]);
                 } else {
                     $pdo->prepare("UPDATE tasks SET stage_id = :stg, updated_at = :now WHERE id = :id")
                         ->execute([':stg' => $stageId, ':now' => now(), ':id' => $taskId]);
@@ -1149,6 +1157,7 @@ try {
             $tagsJson = json_encode($tags, JSON_UNESCAPED_UNICODE);
 
             $isRecurring = !empty($input['is_recurring']) ? 1 : 0;
+            $isPrivate = !empty($input['is_private']) ? 1 : 0;
             $recurrenceType = $isRecurring && !empty($input['recurrence_type']) ? $input['recurrence_type'] : null;
             $recurrenceConfig = $isRecurring && !empty($input['recurrence_config']) ? (is_array($input['recurrence_config']) ? json_encode($input['recurrence_config'], JSON_UNESCAPED_UNICODE) : (string)$input['recurrence_config']) : null;
             $initialChecklist = isset($input['initial_checklist']) && is_array($input['initial_checklist']) ? $input['initial_checklist'] : [];
@@ -1185,7 +1194,7 @@ try {
                         priority = :priority, due_date = :due_date, due_time = :due_time, is_calendar_event = :is_cal, show_in_kanban = :show_kanban, estimated_minutes = :est,
                         description = :description, source = :source, group_name = :group_name,
                         mentioned_by = :mentioned_by, whatsapp_url = :whatsapp_url, tags = :tags,
-                        is_recurring = :is_rec, recurrence_type = :rec_type, recurrence_config = :rec_cfg,
+                        is_recurring = :is_rec, recurrence_type = :rec_type, recurrence_config = :rec_cfg, is_private = :is_private,
                         updated_at = :now
                     WHERE id = :id
                 ");
@@ -1206,6 +1215,7 @@ try {
                     ':whatsapp_url' => $whatsappUrl,
                     ':tags' => $tagsJson,
                     ':is_rec' => $isRecurring,
+                    ':is_private' => $isPrivate,
                     ':rec_type' => $recurrenceType,
                     ':rec_cfg' => $recurrenceConfig,
                     ':now' => now(),
@@ -1244,6 +1254,7 @@ try {
                             ':is_cal' => $isCalendarEvent,
                             ':show_kanban' => $showInKanban,
                             ':is_rec' => $isRecurring,
+                    ':is_private' => $isPrivate,
                             ':rec_type' => $recurrenceType,
                             ':rec_cfg' => $recurrenceConfig,
                             ':now' => now(),
@@ -1287,10 +1298,10 @@ try {
                 $stmt = $pdo->prepare("
                     INSERT INTO tasks (title, client_id, stage_id, priority, due_date, due_time, is_calendar_event, show_in_kanban, estimated_minutes, description, created_by,
                                        status, source, group_name, mentioned_by, whatsapp_url, tags,
-                                       is_recurring, recurrence_type, recurrence_config, created_at, updated_at)
+                                       is_recurring, recurrence_type, recurrence_config, is_private, created_at, updated_at)
                     VALUES (:title, :client_id, :stage_id, :priority, :due_date, :due_time, :is_cal, :show_kanban, :est, :description, :created_by,
                             'open', :source, :group_name, :mentioned_by, :whatsapp_url, :tags,
-                            :is_rec, :rec_type, :rec_cfg, :now, :now2)
+                            :is_rec, :rec_type, :rec_cfg, :is_private, :now, :now2)
                 ");
                 $stmt->execute([
                     ':title' => $title,
@@ -1312,6 +1323,7 @@ try {
                     ':is_rec' => $isRecurring,
                     ':rec_type' => $recurrenceType,
                     ':rec_cfg' => $recurrenceConfig,
+                    ':is_private' => $isPrivate,
                     ':now' => now(),
                     ':now2' => now(),
                 ]);

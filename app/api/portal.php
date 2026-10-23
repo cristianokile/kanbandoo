@@ -95,6 +95,7 @@ $tasksStmt = $pdo->prepare("
     WHERE t.client_id = :cid
       AND t.deleted_at IS NULL
       AND (t.is_calendar_event = 0 OR t.show_in_kanban = 1)
+      AND (t.is_private IS NULL OR t.is_private = 0)
     ORDER BY t.sort_order ASC, t.created_at DESC
 ");
 $tasksStmt->execute([':cid' => $client['id']]);

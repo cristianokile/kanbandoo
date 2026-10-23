@@ -26,6 +26,9 @@ $router->add('/equipe',    'pages/equipe.php', ['admin' => true]);
 $router->add('/perfil',    'pages/perfil.php');
 $router->add('/portal',    'pages/portal.php', ['auth' => false]);
 $router->add('/portal/:token', 'pages/portal.php', ['auth' => false]);
+$router->add('/coordenadoria', 'pages/coordenadoria.php', ['auth' => false]);
+$router->add('/coordenadoria/:token', 'pages/coordenadoria.php', ['auth' => false]);
+$router->add('/api/coordenadoria', 'api/coordenadoria.php', ['auth' => false]);
 
 // -------- Conta --------
 $router->add('/entrar',    'pages/login.php',  ['auth' => false]);

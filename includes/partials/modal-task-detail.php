@@ -15,7 +15,10 @@
             <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2 flex-wrap mb-1.5">
                     <span id="detailPriority" class="kd-due" data-tone="medium">Média</span>
-                    <span id="detailRecurringBadge" class="kd-flag kd-flag--recurring" hidden title="Tarefa Recorrente">
+                    <span id="detailPrivateBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30" hidden title="Tarefa Particular (visível apenas no seu dashboard)">
+                    <i data-lucide="lock" class="w-3 h-3"></i> Particular
+                </span>
+                <span id="detailRecurringBadge" class="kd-flag kd-flag--recurring" hidden title="Tarefa Recorrente">
                         <i data-lucide="repeat" class="w-3 h-3"></i>
                         <span id="detailRecurringText">Recorrente</span>
                     </span>
