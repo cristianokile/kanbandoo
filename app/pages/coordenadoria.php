@@ -146,6 +146,34 @@ $initialPriority = in_array($_GET['priority'] ?? '', ['low', 'medium', 'high', '
         .custom-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); }
         .custom-scroll::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.6); border-radius: 9999px; }
         .custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(71, 85, 105, 0.9); }
+                /* Estilos Glass idênticos ao kd-card kd-glass */
+        .coord-card {
+            position: relative;
+            border-radius: 15px;
+            padding: 14px 15px;
+            background-color: #152238;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent 55%), #152238;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 4px 18px rgba(0, 0, 0, 0.32);
+            -webkit-backdrop-filter: blur(12px) saturate(165%);
+            backdrop-filter: blur(12px) saturate(165%);
+            transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+            overflow: hidden;
+        }
+        .coord-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.18);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 10px 24px -2px rgba(0, 0, 0, 0.5);
+        }
+        .coord-card.is-overdue {
+            border-color: rgba(244, 63, 94, 0.55);
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.10), transparent 60%), #1a1628;
+            box-shadow: inset 0 1px 0 rgba(244, 63, 94, 0.2), 0 4px 18px rgba(0, 0, 0, 0.35);
+        }
+        .coord-card.is-overdue:hover {
+            border-color: rgba(244, 63, 94, 0.75);
+            box-shadow: inset 0 1px 0 rgba(244, 63, 94, 0.3), 0 10px 24px -2px rgba(244, 63, 94, 0.2);
+        }
         .period-tab.is-active {
             background-color: #4f46e5;
             color: #ffffff;
@@ -193,6 +221,11 @@ $initialPriority = in_array($_GET['priority'] ?? '', ['low', 'medium', 'high', '
 
             <!-- Busca Instantânea no Topo -->
             <div class="flex items-center gap-3">
+                <!-- Contador de Auto-Sync (5 minutos) -->
+                <div class="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs text-slate-300 shadow-inner" title="Atualização automática a cada 5 minutos">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>Atualiza em <strong id="coordReloadCountdown" class="text-white font-mono font-bold">05:00</strong></span>
+                </div>
                 <div class="relative w-48 sm:w-72">
                     <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                     <input type="text" id="coordSearchInput" oninput="applyAllFilters()" placeholder="Buscar demandas, clientes, tags..." class="w-full pl-9 pr-8 py-2 bg-slate-900/90 border border-slate-700/80 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition shadow-inner">
@@ -488,7 +521,7 @@ $initialPriority = in_array($_GET['priority'] ?? '', ['low', 'medium', 'high', '
                 <i data-lucide="kanban" class="w-3.5 h-3.5 text-indigo-400"></i>
                 KanbanDoo &bull; Painel Executivo da Coordenadoria
             </span>
-            <span class="text-slate-600">Somente leitura &bull; Atualizado em tempo real</span>
+            <span class="text-slate-400 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Somente leitura &bull; Atualização automática a cada 5 minutos</span>
         </div>
     </footer>
 
@@ -750,6 +783,49 @@ $initialPriority = in_array($_GET['priority'] ?? '', ['low', 'medium', 'high', '
             document.getElementById('descModal').classList.remove('hidden');
         }
 
+        
+        // Sincronizar filtros na URL para que o reload preserve a visão do coordenador
+        function syncUrlParams() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                if (activePeriod) params.set('period', activePeriod);
+                const client = document.getElementById('coordClientSelect')?.value;
+                if (client && client !== 'all') params.set('client', client); else params.delete('client');
+                const prio = document.getElementById('coordPrioritySelect')?.value;
+                if (prio && prio !== 'all') params.set('priority', prio); else params.delete('priority');
+                const q = (document.getElementById('coordSearchInput')?.value || '').trim();
+                if (q) params.set('q', q); else params.delete('q');
+
+                const newUrl = `${window.location.pathname}?${params.toString()}`;
+                window.history.replaceState({}, '', newUrl);
+            } catch (e) {}
+        }
+
+        // Auto-Reload a cada 5 minutos (300 segundos) para manter dados em tempo real
+        let reloadRemainingSeconds = 300;
+        function updateReloadTimer() {
+            reloadRemainingSeconds--;
+            if (reloadRemainingSeconds <= 0) {
+                // Se o modal de detalhes estiver aberto lendo uma demanda, adiar 60s
+                const modal = document.getElementById('descModal');
+                if (modal && !modal.classList.contains('hidden')) {
+                    reloadRemainingSeconds = 60;
+                    return;
+                }
+                syncUrlParams();
+                location.reload();
+                return;
+            }
+
+            const mins = Math.floor(reloadRemainingSeconds / 60);
+            const secs = String(reloadRemainingSeconds % 60).padStart(2, '0');
+            const el = document.getElementById('coordReloadCountdown');
+            if (el) {
+                el.textContent = `${String(mins).padStart(2, '0')}:${secs}`;
+            }
+        }
+        setInterval(updateReloadTimer, 1000);
+
         function closeDescModal() {
             document.getElementById('descModal').classList.add('hidden');
         }
@@ -834,7 +910,8 @@ function renderCoordCard(array $t): string
     $completedAtAttr = !empty($t['completed_at']) ? htmlspecialchars(substr($t['completed_at'], 0, 10)) : '';
     $stageGroup = $t['stage_group'] ?? 'todo';
 
-    $out = '<div class="coord-card p-3.5 rounded-2xl border ' . $borderClass . ' transition-all shadow-sm space-y-2.5" '
+    $cardOverdueClass = $isOverdue ? 'is-overdue' : '';
+    $out = '<div class="coord-card space-y-2.5 ' . $cardOverdueClass . '" '
          . 'data-search="' . $searchHaystack . '" '
          . 'data-client="' . $clientAttr . '" '
          . 'data-priority="' . htmlspecialchars($priority) . '" '
