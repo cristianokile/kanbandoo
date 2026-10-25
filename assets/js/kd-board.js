@@ -30,6 +30,7 @@ window.KD = window.KD || {};
         viewMode: 'status', // 'status' ou 'weekdays'
         weekStartMode: localStorage.getItem('kanbandoo_week_start') || 'today', // 'today' (começa em hoje) ou 'monday'
         weekdayDaysCount: parseInt(localStorage.getItem('kanbandoo_weekday_days_count') || '5', 10),
+        weekOffset: 0,
         tagVisibility: 'hover', // 'hover', 'always', 'hidden'
         showCardAvatar: true,
         showCardStatusBar: true,
@@ -313,6 +314,7 @@ window.KD = window.KD || {};
             btnWeek.classList.toggle('border-indigo-500/20', isWeek);
             btnWeek.classList.toggle('text-slate-400', !isWeek);
         }
+        updateWeekNav();
 
         // Badge de colunas ocultas
         const hiddenCount = (board.hiddenColumns && board.hiddenColumns[board.viewMode]) ? board.hiddenColumns[board.viewMode].size : 0;
@@ -640,7 +642,11 @@ window.KD = window.KD || {};
             cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         }
 
-        // Quantidade de dias a exibir na visão (padrão 5, configurável pelo usuário)
+        // Deslocamento de semanas (ex: +1 para pr�xima semana, -1 para semana anterior)
+        if (board.weekOffset) {
+            cursor.setDate(cursor.getDate() + (board.weekOffset * 7));
+        }
+
         const daysCount = Math.max(1, Math.min(14, Number(board.weekdayDaysCount) || 5));
 
         // Gera os dias consecutivos a partir do cursor
@@ -2542,6 +2548,51 @@ window.KD = window.KD || {};
         updateToolbarState();
         render();
         KD.toast(board.compactMode ? 'Modo compacto ativado.' : 'Modo normal ativado.', { tone: 'info' });
+    };
+
+    
+    function updateWeekNav() {
+        const wrap = el('weekNavControls');
+        if (!wrap) return;
+        const isWeek = (board.viewMode === 'weekdays');
+        wrap.style.display = isWeek ? 'inline-flex' : 'none';
+        if (!isWeek) return;
+
+        const label = el('weekNavLabelText');
+        const btnCurrent = el('btnWeekCurrent');
+        const offset = board.weekOffset || 0;
+
+        if (label) {
+            if (offset === 0) {
+                label.textContent = 'Esta Semana';
+            } else if (offset === 1) {
+                label.textContent = 'Pr�x. Semana';
+            } else if (offset === -1) {
+                label.textContent = 'Semana Anterior';
+            } else if (offset > 0) {
+                label.textContent = `+${offset} Semanas`;
+            } else {
+                label.textContent = `${offset} Semanas`;
+            }
+        }
+
+        if (btnCurrent) {
+            btnCurrent.classList.toggle('text-indigo-400', offset !== 0);
+            btnCurrent.classList.toggle('bg-indigo-600/15', offset !== 0);
+            btnCurrent.classList.toggle('border', offset !== 0);
+            btnCurrent.classList.toggle('border-indigo-500/20', offset !== 0);
+        }
+    }
+
+    KD.navigateWeek = function (step) {
+        if (step === 0) {
+            board.weekOffset = 0;
+        } else {
+            board.weekOffset = (board.weekOffset || 0) + step;
+        }
+        updateWeekNav();
+        render();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     };
 
     KD.setViewMode = function (mode) {

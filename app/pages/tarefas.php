@@ -73,6 +73,26 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                 </button>
             </div>
 
+            <!-- Navegação de Semanas (apenas Visão por Dias da Semana) -->
+            <div id="weekNavControls" class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/80" style="display: none;">
+                <button type="button" onclick="KD.navigateWeek(-1)"
+                        class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-slate-800"
+                        title="Semana Anterior" aria-label="Semana Anterior">
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                </button>
+                <button type="button" id="btnWeekCurrent" onclick="KD.navigateWeek(0)"
+                        class="px-2.5 h-8 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition text-slate-300 hover:text-white hover:bg-slate-800"
+                        title="Ir para Esta Semana" aria-label="Semana Atual">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5 text-indigo-400"></i>
+                    <span id="weekNavLabelText">Esta Semana</span>
+                </button>
+                <button type="button" onclick="KD.navigateWeek(1)"
+                        class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-slate-800"
+                        title="Próxima Semana" aria-label="Próxima Semana">
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+
             <!-- Seletor de Colunas VisÃ­veis -->
             <div class="relative inline-block text-left kd-menu-wrap" id="columnsMenuWrap">
                 <button type="button" id="btnToggleColumnsMenu" class="kd-btn kd-btn--icon kd-glass" onclick="KD.toggleColumnsMenu(event)"
