@@ -1,6 +1,6 @@
 <?php
 /**
- * FunÃ§Ãµes Auxiliares do KanbanDoo
+ * Funções Auxiliares do KanbanDoo
  */
 
 // CSRF Protection
@@ -20,7 +20,7 @@ function verify_csrf(?string $token): bool
     return hash_equals($_SESSION['csrf_token'], $token);
 }
 
-// Timestamp atual no fuso da aplicaÃ§Ã£o
+// Timestamp atual no fuso da aplicação
 function now(): string
 {
     return date('Y-m-d H:i:s');
@@ -45,13 +45,13 @@ function get_flash_messages(): array
     return $messages;
 }
 
-// SanitizaÃ§Ã£o e Escape
+// Sanitização e Escape
 function e(?string $string): string
 {
     return htmlspecialchars((string)$string, ENT_QUOTES, 'UTF-8');
 }
 
-// FormataÃ§Ã£o de Data AmigÃ¡vel
+// Formatação de Data Amigável
 function format_date(?string $dateStr, bool $includeTime = false): string
 {
     if (empty($dateStr)) {
@@ -66,7 +66,7 @@ function format_date(?string $dateStr, bool $includeTime = false): string
 }
 
 /**
- * Badge de prazo: texto curto para o card e rÃ³tulo completo para leitores de tela.
+ * Badge de prazo: texto curto para o card e rótulo completo para leitores de tela.
  */
 function format_due_date_badge(?string $dueDate, ?string $originalDueDate = null): array
 {
@@ -77,7 +77,7 @@ function format_due_date_badge(?string $dueDate, ?string $originalDueDate = null
     try {
         $today = new DateTime('today');
 
-        // Se tem data de prazo original atrasada (ex: tarefa era para hoje/ontem e foi reagendada para amanhÃ£)
+        // Se tem data de prazo original atrasada (ex: tarefa era para hoje/ontem e foi reagendada para amanhã)
         if (!empty($originalDueDate)) {
             $origDue = new DateTime($originalDueDate);
             $origDiff = (int)$today->diff($origDue)->format('%r%a');
@@ -128,9 +128,9 @@ function format_due_date_badge(?string $dueDate, ?string $originalDueDate = null
         }
         if ($days === 1) {
             return [
-                'text' => 'AmanhÃ£',
-                'short' => 'AmanhÃ£',
-                'label' => "Entrega amanhÃ£, $formatted",
+                'text' => 'Amanhã',
+                'short' => 'Amanhã',
+                'label' => "Entrega amanhã, $formatted",
                 'tone' => 'soon',
                 'is_overdue' => false,
                 'formatted' => $due->format('d/m'),
@@ -166,15 +166,15 @@ function priority_info(string $priority): array
     return match ($priority) {
         'urgent' => ['label' => 'Urgente', 'tone' => 'urgent', 'rank' => 4],
         'high'   => ['label' => 'Alta',    'tone' => 'high',   'rank' => 3],
-        'medium' => ['label' => 'MÃ©dia',   'tone' => 'medium', 'rank' => 2],
+        'medium' => ['label' => 'Média',   'tone' => 'medium', 'rank' => 2],
         default  => ['label' => 'Baixa',   'tone' => 'low',    'rank' => 1],
     };
 }
 
 /**
- * LÃª as etiquetas de uma tarefa.
- * Aceita o formato atual (JSON) e o antigo (texto separado por vÃ­rgula),
- * para que registros criados antes desta versÃ£o continuem funcionando.
+ * Lê as etiquetas de uma tarefa.
+ * Aceita o formato atual (JSON) e o antigo (texto separado por vírgula),
+ * para que registros criados antes desta versão continuem funcionando.
  */
 function parse_tags($raw): array
 {
@@ -195,7 +195,7 @@ function parse_tags($raw): array
     return normalize_tags(explode(',', $raw));
 }
 
-/** Limpa, corta e remove repetiÃ§Ãµes (sem diferenciar maiÃºsculas). */
+/** Limpa, corta e remove repetições (sem diferenciar maiúsculas). */
 function normalize_tags(array $tags, int $max = 8): array
 {
     $clean = [];
@@ -225,14 +225,14 @@ function normalize_tags(array $tags, int $max = 8): array
     return $clean;
 }
 
-/** Ãndice de cor estÃ¡vel por etiqueta (0-9). */
+/** Índice de cor estável por etiqueta (0-9). */
 function tag_color_index(string $tag): int
 {
     return (int)(crc32(mb_strtolower($tag, 'UTF-8')) % 10);
 }
 
 /**
- * Ãndice de cor estÃ¡vel por cliente (0-9), para o nome da empresa no card.
+ * Índice de cor estável por cliente (0-9), para o nome da empresa no card.
  */
 function client_color_index(?int $clientId): int
 {
@@ -261,7 +261,7 @@ function json_response(array $data, int $statusCode = 200): void
 function recurrence_label(?string $type): string
 {
     return match ($type) {
-        'daily' => 'DiÃ¡ria',
+        'daily' => 'Diária',
         'weekly' => 'Semanal',
         'biweekly' => 'Quinzenal',
         'monthly' => 'Mensal',
@@ -272,7 +272,7 @@ function recurrence_label(?string $type): string
 }
 
 /**
- * Calcula a prÃ³xima data de entrega de acordo com a regra de recorrÃªncia.
+ * Calcula a próxima data de entrega de acordo com a regra de recorrência.
  */
 function calculate_next_recurrence_date(?string $currentDueDate, ?string $recurrenceType, ?string $recurrenceConfigJson): string
 {
@@ -453,18 +453,18 @@ function create_next_recurrence_task(PDO $pdo, int $taskId, array $user): ?int
 
 
 /**
- * EscalaÃ§Ã£o automÃ¡tica de prioridade para tarefas atrasadas.
- * Se uma tarefa tinha data anterior a hoje e nÃ£o foi concluÃ­da, sobe de grau:
- * - 1 dia de atraso (ontem): sobe 1 nÃ­vel (low -> medium -> high -> urgent)
- * - 2+ dias de atraso: sobe proporcionalmente atÃ© atingir urgent
- * Tarefas atrasadas entram com prioridade escalada e sÃ£o destacadas.
+ * Escalação automática de prioridade para tarefas atrasadas.
+ * Se uma tarefa tinha data anterior a hoje e não foi concluída, sobe de grau:
+ * - 1 dia de atraso (ontem): sobe 1 nível (low -> medium -> high -> urgent)
+ * - 2+ dias de atraso: sobe proporcionalmente até atingir urgent
+ * Tarefas atrasadas entram com prioridade escalada e são destacadas.
  */
 function escalate_overdue_priority(string $originalPriority, ?string $dueDate, ?string $completedAt): array
 {
     $levels = ['low', 'medium', 'high', 'urgent'];
     $currentIndex = array_search($originalPriority, $levels);
     if ($currentIndex === false) {
-        $currentIndex = 1; // padrÃ£o 'medium'
+        $currentIndex = 1; // padrão 'medium'
     }
 
     if (empty($dueDate) || !empty($completedAt)) {
@@ -484,7 +484,7 @@ function escalate_overdue_priority(string $originalPriority, ?string $dueDate, ?
 
         if ($diff < 0) {
             $daysOverdue = abs($diff);
-            // Sobe 1 grau por dia de atraso atÃ© urgent
+            // Sobe 1 grau por dia de atraso até urgent
             $newIndex = min(3, $currentIndex + max(1, $daysOverdue));
             $escalatedPriority = $levels[$newIndex];
 

@@ -22,6 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_client') {
         $clientId = !empty($_POST['client_id']) ? (int)$_POST['client_id'] : 0;
         $companyName = trim((string)($_POST['company_name'] ?? ''));
+        $category = trim((string)($_POST['category'] ?? 'C'));
+        if (!in_array($category, ['A+', 'A', 'B', 'C', 'D'])) {
+            $category = 'C';
+        }
         $contactName = trim((string)($_POST['contact_name'] ?? ''));
         $email = trim((string)($_POST['email'] ?? ''));
         $phone = trim((string)($_POST['phone'] ?? ''));
@@ -61,11 +65,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($clientId > 0) {
                 $stmt = $pdo->prepare('
                     UPDATE clients 
-                    SET company_name = :comp, contact_name = :contact, email = :email, phone = :phone, status = :status, notes = :notes, links_json = :links 
+                    SET company_name = :comp, category = :cat, contact_name = :contact, email = :email, phone = :phone, status = :status, notes = :notes, links_json = :links 
                     WHERE id = :id
                 ');
                 $stmt->execute([
                     ':comp' => $companyName,
+                    ':cat' => $category,
                     ':contact' => $contactName,
                     ':email' => $email,
                     ':phone' => $phone,
@@ -77,11 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('success', "Cliente \"{$companyName}\" atualizado com sucesso!");
             } else {
                 $stmt = $pdo->prepare('
-                    INSERT INTO clients (company_name, contact_name, email, phone, status, notes, links_json) 
-                    VALUES (:comp, :contact, :email, :phone, :status, :notes, :links)
+                    INSERT INTO clients (company_name, category, contact_name, email, phone, status, notes, links_json) 
+                    VALUES (:comp, :cat, :contact, :email, :phone, :status, :notes, :links)
                 ');
                 $stmt->execute([
                     ':comp' => $companyName,
+                    ':cat' => $category,
                     ':contact' => $contactName,
                     ':email' => $email,
                     ':phone' => $phone,
@@ -476,9 +482,21 @@ view_header('Clientes & Empresas');
             <input type="hidden" name="action" value="save_client">
             <input type="hidden" id="modal_client_id" name="client_id" value="">
 
-            <div>
-                <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Nome da Empresa / Cliente *</label>
-                <input type="text" id="modal_company_name" name="company_name" required placeholder="Ex: Studio Alpha &bull; Advocacia" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Nome da Empresa / Cliente *</label>
+                    <input type="text" id="modal_company_name" name="company_name" required placeholder="Ex: Studio Alpha &bull; Advocacia" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Categoria *</label>
+                    <select id="modal_category" name="category" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition font-bold">
+                        <option value="A+">Categoria A+ (Máxima)</option>
+                        <option value="A">Categoria A</option>
+                        <option value="B">Categoria B</option>
+                        <option value="C" selected>Categoria C</option>
+                        <option value="D">Categoria D</option>
+                    </select>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -675,6 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function openClientModal() {
     document.getElementById('modal_client_id').value = '';
     document.getElementById('modal_company_name').value = '';
+    const catEl = document.getElementById('modal_category'); if (catEl) catEl.value = 'C';
     document.getElementById('modal_contact_name').value = '';
     document.getElementById('modal_email').value = '';
     document.getElementById('modal_phone').value = '';
@@ -707,6 +726,7 @@ function copyPortalLink(token, companyName) {
 function editClient(client) {
     document.getElementById('modal_client_id').value = client.id;
     document.getElementById('modal_company_name').value = client.company_name;
+    document.getElementById('modal_category').value = client.category || 'C';
     document.getElementById('modal_contact_name').value = client.contact_name || '';
     document.getElementById('modal_email').value = client.email || '';
     document.getElementById('modal_phone').value = client.phone || '';

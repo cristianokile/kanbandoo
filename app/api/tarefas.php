@@ -222,7 +222,7 @@ try {
         if ($taskId > 0) {
             $stmt = $pdo->prepare("
                 SELECT t.*,
-                       c.company_name AS client_company, c.contact_name AS client_contact,
+                       c.company_name AS client_company, c.category AS client_category, c.contact_name AS client_contact,
                        c.email AS client_email, c.phone AS client_phone, c.notes AS client_notes,
                        c.links_json AS client_links_json, c.summary AS client_summary,
                        s.name AS stage_name, s.color AS stage_color, s.slug AS stage_slug,
@@ -339,7 +339,7 @@ try {
                    t.source, t.group_name, t.mentioned_by, t.whatsapp_url, t.completed_at, t.created_at,
                    t.estimated_minutes, t.is_recurring, t.recurrence_type, t.recurrence_config, t.parent_task_id,
                    t.is_calendar_event, t.show_in_kanban, t.is_private, t.original_due_date,
-                   c.company_name AS client_company,
+                   c.company_name AS client_company, c.category AS client_category,
                    s.slug AS stage_slug,
                    (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) AS checklist_total,
                    (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_completed = 1) AS checklist_done,
@@ -710,6 +710,11 @@ try {
 
             // Se NÃO está rodando, a ação é DAR PLAY (iniciar)
             $pdo->beginTransaction();
+
+            // Atualização de prioridade quando a tarefa é movida
+            if (!empty($input['priority']) && in_array($input['priority'], ['low', 'medium', 'high', 'urgent'])) {
+                $pdo->prepare("UPDATE tasks SET priority = :prio WHERE id = :id")->execute([':prio' => $input['priority'], ':id' => $taskId]);
+            }
 
             // Pausa qualquer outro cronômetro em execução para não somar tempo duplicado.
             // Regra: a tarefa que foi pausada continua no estágio em que já está.
@@ -1371,7 +1376,7 @@ try {
         if ($action === 'trash_list') {
             $stmt = $pdo->query("
                 SELECT t.id, t.title, t.priority, t.deleted_at, t.due_date, t.due_time,
-                       c.company_name AS client_company,
+                       c.company_name AS client_company, c.category AS client_category,
                        s.name AS stage_name, s.color AS stage_color
                 FROM tasks t
                 LEFT JOIN clients c ON t.client_id = c.id
