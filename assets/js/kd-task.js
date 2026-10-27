@@ -289,68 +289,136 @@ window.KD = window.KD || {};
         style.split(' ').forEach(c => element.classList.add(c));
     }
 
-    KD.onTaskFormClientChange = function (select) {
-        if (!select) return;
-        const opt = select.options[select.selectedIndex];
-        const cat = (opt && opt.getAttribute('data-category')) ? opt.getAttribute('data-category') : 'C';
-        const catField = el('task_client_category');
-        if (catField) {
-            catField.value = cat;
+        // ---------------------------------------------------------------
+    // Combobox / Dropdown com Busca Live de Empresa no Modal de Tarefa
+    // ---------------------------------------------------------------
+
+    KD.toggleTaskClientDropdown = function (force) {
+        const panel = el('taskClientDropdownPanel');
+        const chevron = el('taskClientChevronIcon');
+        if (!panel) return;
+
+        let shouldOpen;
+        if (typeof force === 'boolean') {
+            shouldOpen = force;
+        } else if (force && force.stopPropagation) {
+            force.stopPropagation();
+            shouldOpen = panel.hidden;
+        } else {
+            shouldOpen = panel.hidden;
+        }
+
+        panel.hidden = !shouldOpen;
+        if (chevron) {
+            chevron.style.transform = shouldOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+
+        if (shouldOpen) {
+            const searchInput = el('task_client_live_search');
+            if (searchInput) {
+                setTimeout(() => searchInput.focus(), 60);
+            }
         }
     };
 
-    KD.filterTaskClients = function (query) {
-        const select = el('task_client_id');
-        const clearBtn = el('task_client_search_clear');
-        if (!select) return;
+    KD.filterTaskClientDropdown = function (query) {
+        const cleanQuery = (query || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const items = document.querySelectorAll('.task-client-opt');
+        const clearBtn = el('task_client_live_search_clear');
+        const notFound = el('taskClientOptionsNotFound');
+        let visibleCount = 0;
 
-        const cleanQuery = (query || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         if (clearBtn) clearBtn.hidden = !cleanQuery;
 
-        for (let i = 0; i < select.options.length; i++) {
-            const opt = select.options[i];
-            if (!opt.value) {
-                opt.hidden = false;
-                opt.style.display = '';
-                continue;
-            }
-            const text = opt.text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const matches = !cleanQuery || text.includes(cleanQuery);
-            opt.hidden = !matches;
-            opt.style.display = matches ? '' : 'none';
+        items.forEach(item => {
+            const name = (item.getAttribute('data-client-name') || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const cat = (item.getAttribute('data-client-cat') || '').toLowerCase();
+            const matches = !cleanQuery || name.includes(cleanQuery) || cat.includes(cleanQuery);
+            item.hidden = !matches;
+            if (matches) visibleCount++;
+        });
+
+        if (notFound) {
+            notFound.hidden = visibleCount > 0;
         }
     };
 
-    KD.clearTaskClientFilter = function () {
-        const input = el('task_client_search');
-        if (input) input.value = '';
-        KD.filterTaskClients('');
-        if (input) input.focus();
-    };
-
-    KD.selectFirstFilteredClient = function () {
-        const select = el('task_client_id');
-        if (!select) return;
-        for (let i = 0; i < select.options.length; i++) {
-            const opt = select.options[i];
-            if (opt.value && !opt.hidden && opt.style.display !== 'none') {
-                select.value = opt.value;
-                KD.onTaskFormClientChange(select);
-                break;
-            }
+    KD.clearTaskClientDropdownSearch = function (event) {
+        if (event && event.stopPropagation) event.stopPropagation();
+        const input = el('task_client_live_search');
+        if (input) {
+            input.value = '';
+            KD.filterTaskClientDropdown('');
+            input.focus();
         }
     };
 
-    KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initialDueDate = null, isCalendarEvent = null) {
+    KD.selectFirstVisibleClient = function () {
+        const first = document.querySelector('.task-client-opt:not([hidden])');
+        if (first) {
+            first.click();
+        }
+    };
+
+    KD.selectTaskClient = function (clientId, clientName, clientCategory) {
+        const hiddenId = el('task_client_id');
+        const label = el('taskClientSelectedLabel');
+        const catSelect = el('task_client_category');
+
+        if (hiddenId) hiddenId.value = clientId || '';
+        if (label) {
+            label.textContent = clientName || 'Sem empresa vinculada';
+            if (clientId) {
+                label.className = 'truncate font-semibold text-xs sm:text-sm text-white';
+            } else {
+                label.className = 'truncate font-normal text-xs sm:text-sm text-slate-400';
+            }
+        }
+
+        if (catSelect && clientCategory) {
+            catSelect.value = clientCategory;
+        }
+
+        // Atualizar estado ativo na lista
+        const items = document.querySelectorAll('.task-client-opt');
+        items.forEach(item => {
+            const isMatch = String(item.getAttribute('data-client-id') || '') === String(clientId || '');
+            const check = item.querySelector('.opt-check');
+            if (isMatch) {
+                item.classList.add('bg-indigo-600/20', 'text-indigo-200');
+                if (check) check.hidden = false;
+            } else {
+                item.classList.remove('bg-indigo-600/20', 'text-indigo-200');
+                if (check) check.hidden = true;
+            }
+        });
+
+        KD.toggleTaskClientDropdown(false);
+    };
+
+    // Fechar dropdown de empresa ao clicar fora
+    if (!window._taskClientDropdownListenerAdded) {
+        document.addEventListener('click', function (e) {
+            const container = document.getElementById('taskClientComboboxContainer');
+            if (container && !container.contains(e.target)) {
+                KD.toggleTaskClientDropdown(false);
+            }
+        });
+        window._taskClientDropdownListenerAdded = true;
+    }
+
+KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initialDueDate = null, isCalendarEvent = null) {
         try {
             const form = el('taskForm');
             if (!form) return;
 
             form.reset();
-            if (el('task_client_search')) {
-                el('task_client_search').value = '';
-                KD.filterTaskClients('');
+            if (el('task_client_live_search')) {
+                el('task_client_live_search').value = '';
+                KD.filterTaskClientDropdown('');
             }
+            KD.toggleTaskClientDropdown(false);
+            KD.selectTaskClient('', 'Sem empresa vinculada', 'C');
             clearFormErrors();
             setupTagInput();
             setupFormChecklistInput();
@@ -441,6 +509,16 @@ window.KD = window.KD || {};
             el('task_title').value = task.title || '';
             el('task_client_id').value = task.client_id || '';
             if (el('task_client_category')) el('task_client_category').value = task.client_category || 'C';
+
+            // Sincronizar Combobox de Empresa
+            if (task.client_id) {
+                const optEl = document.querySelector(`.task-client-opt[data-client-id="${task.client_id}"]`);
+                const compName = optEl ? (optEl.querySelector('.opt-name')?.textContent || task.client_company) : (task.client_company || 'Empresa Vinculada');
+                const compCat = optEl ? (optEl.getAttribute('data-client-cat')?.toUpperCase() || task.client_category || 'C') : (task.client_category || 'C');
+                KD.selectTaskClient(task.client_id, compName, compCat);
+            } else {
+                KD.selectTaskClient('', 'Sem empresa vinculada', 'C');
+            }
             el('task_stage_id').value = task.stage_id || '';
             const isExistingCal = Number(task.is_calendar_event) === 1;
             if (el('task_is_private')) el('task_is_private').checked = Boolean(Number(task.is_private) === 1);
@@ -1661,6 +1739,20 @@ window.KD = window.KD || {};
             return;
         }
 
+        // Validação imediata: se já existe empresa com este nome cadastrada
+        const compLower = companyName.toLowerCase();
+        let alreadyExists = false;
+        document.querySelectorAll('.task-client-opt').forEach(opt => {
+            if ((opt.getAttribute('data-client-name') || '').toLowerCase() === compLower) {
+                alreadyExists = true;
+            }
+        });
+        if (alreadyExists) {
+            KD.toast(`Já existe uma empresa cadastrada com o nome "${companyName}".`, { tone: 'danger' });
+            if (compInput) compInput.focus();
+            return;
+        }
+
         if (btn) {
             btn.disabled = true;
             btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Cadastrando...';
@@ -1679,19 +1771,28 @@ window.KD = window.KD || {};
             });
 
             if (resp && resp.client) {
-                const select = el('task_client_id');
-                if (select) {
-                    const opt = document.createElement('option');
-                    opt.value = resp.client.id;
-                    opt.setAttribute('data-category', resp.client.category || quickCategory);
-                    opt.textContent = `${resp.client.company_name} (${resp.client.category || quickCategory})`;
-                    select.appendChild(opt);
-                    select.value = String(resp.client.id);
-                }
-                if (el('task_client_category')) {
-                    el('task_client_category').value = resp.client.category || quickCategory;
+                const wrap = el('taskClientOptionsWrapper');
+                if (wrap) {
+                    const newDiv = document.createElement('div');
+                    newDiv.className = 'task-client-opt flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/80 cursor-pointer transition text-slate-200 hover:text-white group';
+                    newDiv.setAttribute('data-client-id', resp.client.id);
+                    newDiv.setAttribute('data-client-name', resp.client.company_name.toLowerCase());
+                    newDiv.setAttribute('data-client-cat', (resp.client.category || quickCategory).toLowerCase());
+                    newDiv.onclick = () => KD.selectTaskClient(resp.client.id, resp.client.company_name, resp.client.category || quickCategory);
+                    newDiv.innerHTML = `
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border text-indigo-300 bg-indigo-500/15 border-indigo-500/30 flex-shrink-0">
+                                ${resp.client.category || quickCategory}
+                            </span>
+                            <span class="truncate font-medium opt-name">${resp.client.company_name}</span>
+                        </div>
+                        <i data-lucide="check" class="opt-check w-3.5 h-3.5 text-indigo-400" hidden></i>
+                    `;
+                    wrap.appendChild(newDiv);
+                    if (typeof KD.icons === 'function') KD.icons();
                 }
 
+                KD.selectTaskClient(resp.client.id, resp.client.company_name, resp.client.category || quickCategory);
                 KD.toggleQuickAddClient(false);
                 KD.toast(`Empresa "${resp.client.company_name}" cadastrada e vinculada!`);
             } else {

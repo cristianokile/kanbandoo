@@ -74,8 +74,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $linksJson = json_encode($links, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        if ($companyName === '') {
+                if ($companyName === '') {
             flash('danger', 'O nome da empresa / cliente é obrigatório.');
+            redirect(url('/clientes'));
+        }
+
+        // Verificar se já existe empresa cadastrada com o mesmo nome (case-insensitive)
+        if ($clientId > 0) {
+            $stmtCheck = $pdo->prepare('SELECT id, company_name FROM clients WHERE LOWER(TRIM(company_name)) = LOWER(:comp) AND id != :id LIMIT 1');
+            $stmtCheck->execute([':comp' => $companyName, ':id' => $clientId]);
+        } else {
+            $stmtCheck = $pdo->prepare('SELECT id, company_name FROM clients WHERE LOWER(TRIM(company_name)) = LOWER(:comp) LIMIT 1');
+            $stmtCheck->execute([':comp' => $companyName]);
+        }
+        $existingComp = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+        if ($existingComp) {
+            flash('danger', "Já existe uma empresa cadastrada com o nome \"{$existingComp['company_name']}\"! Não é permitido cadastrar empresas com nomes duplicados.");
             redirect(url('/clientes'));
         }
 
@@ -496,7 +510,7 @@ view_header('Clientes & Empresas');
             </button>
         </div>
 
-        <form method="POST" class="space-y-4">
+        <form method="POST" onsubmit="return validateClientForm(event, this);" class="space-y-4">
             <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
             <input type="hidden" name="action" value="save_client">
             <input type="hidden" id="modal_client_id" name="client_id" value="">
@@ -849,6 +863,34 @@ async function updateClientCategory(clientId, category, selectEl) {
         alert(e.message || 'Falha ao atualizar categoria.');
         selectEl.value = originalValue;
     }
+}
+
+const existingClientsList = <?= json_encode(array_map(function($c) {
+    return [
+        'id' => (int)$c['id'],
+        'name' => mb_strtolower(trim($c['company_name']))
+    ];
+}, $clients ?? [])) ?>;
+
+function validateClientForm(e, form) {
+    const id = parseInt(document.getElementById('modal_client_id').value || '0', 10);
+    const nameInput = document.getElementById('modal_company_name');
+    const rawName = nameInput ? nameInput.value.trim() : '';
+    const cleanName = rawName.toLowerCase();
+    
+    if (!cleanName) return true;
+    
+    const duplicate = existingClientsList.find(c => c.name === cleanName && c.id !== id);
+    if (duplicate) {
+        e.preventDefault();
+        alert(`Já existe uma empresa cadastrada com o nome "${rawName}". Não é permitido cadastrar empresas com nomes duplicados.`);
+        if (nameInput) {
+            nameInput.focus();
+            nameInput.classList.add('border-rose-500');
+        }
+        return false;
+    }
+    return true;
 }
 
 function escapeHtml(str) {

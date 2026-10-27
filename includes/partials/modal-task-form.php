@@ -58,34 +58,89 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
+                    <div class="relative" id="taskClientComboboxContainer">
                     <div class="flex items-center justify-between mb-1.5">
-                        <label for="task_client_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Empresa / Cliente</label>
+                        <label for="taskClientDropdownTrigger" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Empresa / Cliente</label>
                         <button type="button" onclick="KD.toggleQuickAddClient()" class="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
                             <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
                             <span>Nova empresa</span>
                         </button>
                     </div>
 
-                    <div class="relative mb-2">
-                        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500 pointer-events-none"></i>
-                        <input type="text" id="task_client_search" placeholder="Digitar para filtrar empresa..." 
-                               oninput="KD.filterTaskClients(this.value)" 
-                               onkeydown="if(event.key==='Enter'){event.preventDefault();KD.selectFirstFilteredClient();}"
-                               class="kd-field text-xs pl-8 pr-7 py-1.5 bg-slate-900/90 border-slate-700/60 rounded-lg placeholder:text-slate-500 focus:border-indigo-500 w-full" 
-                               autocomplete="off" style="min-height:32px;">
-                        <button type="button" id="task_client_search_clear" onclick="KD.clearTaskClientFilter()" class="absolute right-2 top-2 text-slate-500 hover:text-white p-0.5" hidden title="Limpar filtro">
-                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                        </button>
-                    </div>
+                    <!-- Botão Gatilho do Dropdown -->
+                    <button type="button" id="taskClientDropdownTrigger" onclick="KD.toggleTaskClientDropdown(event)"
+                            class="kd-field w-full flex items-center justify-between text-left cursor-pointer transition-all hover:border-indigo-500/60 focus:border-indigo-500 bg-slate-900/90 text-slate-200 py-2.5 px-3 rounded-xl border border-slate-700/80 shadow-inner" style="min-height: 42px;">
+                        <span id="taskClientSelectedLabel" class="truncate font-medium text-xs sm:text-sm text-slate-300">Sem empresa vinculada</span>
+                        <i data-lucide="chevron-down" id="taskClientChevronIcon" class="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200"></i>
+                    </button>
 
-                    <select id="task_client_id" name="client_id" class="kd-field" onchange="KD.onTaskFormClientChange(this)">
-                        <option value="" data-category="C">Sem empresa vinculada</option>
-                        <?php foreach ($activeClients as $c): 
-                            $cat = $c['category'] ?? 'C';
-                        ?>
-                            <option value="<?= (int)$c['id'] ?>" data-category="<?= e($cat) ?>"><?= e($c['company_name']) ?><?= !empty($cat) ? ' (' . e($cat) . ')' : '' ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <!-- Hidden Input com o valor real para o backend -->
+                    <input type="hidden" id="task_client_id" name="client_id" value="">
+
+                    <!-- Painel Dropdown Flutuante -->
+                    <div id="taskClientDropdownPanel" class="absolute left-0 right-0 top-full mt-1.5 p-2 rounded-xl bg-slate-950/98 border border-slate-700/90 shadow-2xl z-50 space-y-2 backdrop-blur-xl animate-fade-in" hidden>
+                        <!-- Campo de Busca em Live Mode -->
+                        <div class="relative">
+                            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5 pointer-events-none"></i>
+                            <input type="text" id="task_client_live_search"
+                                   oninput="KD.filterTaskClientDropdown(this.value)"
+                                   onkeydown="if(event.key==='Escape'){KD.toggleTaskClientDropdown(false);}else if(event.key==='Enter'){event.preventDefault();KD.selectFirstVisibleClient();}"
+                                   placeholder="Digitar para filtrar empresa..."
+                                   class="w-full bg-slate-900/90 border border-slate-700 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition shadow-inner"
+                                   autocomplete="off">
+                            <button type="button" id="task_client_live_search_clear" onclick="KD.clearTaskClientDropdownSearch(event)" class="absolute right-2 top-1.5 text-slate-500 hover:text-white p-0.5" hidden title="Limpar busca">
+                                <i data-lucide="x" class="w-3 h-3"></i>
+                            </button>
+                        </div>
+
+                        <!-- Lista Rolável com scroll customizado -->
+                        <div id="taskClientOptionsWrapper" class="max-h-56 overflow-y-auto space-y-1 pr-1 text-xs" style="scrollbar-width: thin;">
+                            <!-- Opção 1: Sem Empresa -->
+                            <div onclick="KD.selectTaskClient('', 'Sem empresa vinculada', 'C')"
+                                 data-client-id="" data-client-name="sem empresa vinculada" data-client-cat="c"
+                                 class="task-client-opt flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/80 cursor-pointer transition text-slate-300 hover:text-white group">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-5 h-5 rounded flex items-center justify-center bg-slate-800 text-slate-400 text-[10px]">
+                                        <i data-lucide="ban" class="w-3 h-3"></i>
+                                    </span>
+                                    <span class="font-medium opt-name">Sem empresa vinculada</span>
+                                </div>
+                                <i data-lucide="check" class="opt-check w-3.5 h-3.5 text-indigo-400" hidden></i>
+                            </div>
+
+                            <!-- Lista de Clientes -->
+                            <?php foreach ($activeClients as $c): 
+                                $cat = $c['category'] ?? 'C';
+                                $catStyle = match($cat) {
+                                    'A+' => 'text-amber-400 bg-amber-500/15 border-amber-500/30',
+                                    'A'  => 'text-purple-300 bg-purple-500/15 border-purple-500/30',
+                                    'B'  => 'text-blue-300 bg-blue-500/15 border-blue-500/30',
+                                    'C'  => 'text-emerald-300 bg-emerald-500/15 border-emerald-500/30',
+                                    'D'  => 'text-slate-400 bg-slate-500/15 border-slate-500/30',
+                                    default => 'text-slate-400 bg-slate-500/15 border-slate-500/30',
+                                };
+                            ?>
+                                <div onclick="KD.selectTaskClient('<?= (int)$c['id'] ?>', '<?= e(addslashes($c['company_name'])) ?>', '<?= e($cat) ?>')"
+                                     data-client-id="<?= (int)$c['id'] ?>"
+                                     data-client-name="<?= e(mb_strtolower($c['company_name'])) ?>"
+                                     data-client-cat="<?= e(mb_strtolower($cat)) ?>"
+                                     class="task-client-opt flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/80 cursor-pointer transition text-slate-200 hover:text-white group">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border <?= $catStyle ?> flex-shrink-0">
+                                            <?= e($cat) ?>
+                                        </span>
+                                        <span class="truncate font-medium opt-name"><?= e($c['company_name']) ?></span>
+                                    </div>
+                                    <i data-lucide="check" class="opt-check w-3.5 h-3.5 text-indigo-400" hidden></i>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <!-- Mensagem quando não encontrar nada -->
+                        <div id="taskClientOptionsNotFound" class="py-3 text-center text-xs text-slate-500" hidden>
+                            Nenhuma empresa encontrada com este nome.
+                        </div>
+                    </div>
                 </div>
 
                 <div>

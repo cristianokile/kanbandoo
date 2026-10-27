@@ -594,8 +594,16 @@ try {
             $email = trim((string)($input['email'] ?? ''));
             $category = in_array($input['category'] ?? '', ['A+', 'A', 'B', 'C', 'D'], true) ? $input['category'] : 'C';
 
-            if ($companyName === '') {
+                        if ($companyName === '') {
                 json_response(['error' => 'O nome da empresa é obrigatório.'], 400);
+            }
+
+            // Verificar se já existe empresa com este nome (case-insensitive)
+            $stmtCheck = $pdo->prepare('SELECT id, company_name FROM clients WHERE LOWER(TRIM(company_name)) = LOWER(:comp) LIMIT 1');
+            $stmtCheck->execute([':comp' => $companyName]);
+            $existingComp = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            if ($existingComp) {
+                json_response(['error' => "Já existe uma empresa cadastrada com o nome \"{$existingComp['company_name']}\"."], 400);
             }
 
             try {
