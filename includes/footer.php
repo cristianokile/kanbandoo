@@ -5,7 +5,7 @@
  */
 $pdo = get_pdo();
 
-$activeClients = $pdo->query("SELECT id, company_name FROM clients WHERE status = 'active' ORDER BY company_name ASC")->fetchAll();
+$activeClients = $pdo->query("SELECT id, company_name, category FROM clients WHERE status = 'active' ORDER BY company_name ASC")->fetchAll();
 $teamUsers     = $pdo->query("SELECT id, full_name, role FROM users ORDER BY full_name ASC")->fetchAll();
 $kanbanStages  = $pdo->query("SELECT id, name FROM task_stages ORDER BY sort_order ASC")->fetchAll();
 $taskTemplates = $pdo->query("SELECT id, title, estimated_minutes, tags, description, checklist FROM task_templates ORDER BY title ASC")->fetchAll();

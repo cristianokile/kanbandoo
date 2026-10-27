@@ -592,6 +592,7 @@ try {
             $contactName = trim((string)($input['contact_name'] ?? ''));
             $phone = trim((string)($input['phone'] ?? ''));
             $email = trim((string)($input['email'] ?? ''));
+            $category = in_array($input['category'] ?? '', ['A+', 'A', 'B', 'C', 'D'], true) ? $input['category'] : 'C';
 
             if ($companyName === '') {
                 json_response(['error' => 'O nome da empresa é obrigatório.'], 400);
@@ -599,14 +600,15 @@ try {
 
             try {
                 $stmt = $pdo->prepare("
-                    INSERT INTO clients (company_name, contact_name, phone, email, status, notes, links_json, created_at)
-                    VALUES (:comp, :contact, :phone, :email, 'active', '', '[]', :now)
+                    INSERT INTO clients (company_name, contact_name, phone, email, category, status, notes, links_json, created_at)
+                    VALUES (:comp, :contact, :phone, :email, :cat, 'active', '', '[]', :now)
                 ");
                 $stmt->execute([
                     ':comp' => $companyName,
                     ':contact' => $contactName,
                     ':phone' => $phone,
                     ':email' => $email,
+                    ':cat' => $category,
                     ':now' => now(),
                 ]);
                 $clientId = (int)$pdo->lastInsertId();
@@ -619,10 +621,30 @@ try {
                         'contact_name' => $contactName,
                         'phone' => $phone,
                         'email' => $email,
+                        'category' => $category,
                     ],
                 ]);
             } catch (Throwable $e) {
                 json_response(['error' => 'Erro ao cadastrar empresa: ' . $e->getMessage()], 500);
+            }
+        }
+
+        // 0.2 Atualizar Categoria da Empresa / Cliente (via modal de detalhes ou formulário)
+        if ($action === 'update_client_category') {
+            $clientId = (int)($input['client_id'] ?? 0);
+            $category = trim((string)($input['category'] ?? ''));
+            if ($clientId <= 0 || !in_array($category, ['A+', 'A', 'B', 'C', 'D'], true)) {
+                json_response(['error' => 'Dados inválidos para categoria.'], 400);
+            }
+            try {
+                $stmt = $pdo->prepare("UPDATE clients SET category = :cat, updated_at = NOW() WHERE id = :id");
+                $stmt->execute([
+                    ':cat' => $category,
+                    ':id'  => $clientId,
+                ]);
+                json_response(['success' => true, 'client_id' => $clientId, 'category' => $category]);
+            } catch (Throwable $e) {
+                json_response(['error' => 'Erro ao atualizar categoria: ' . $e->getMessage()], 500);
             }
         }
 
@@ -1148,6 +1170,15 @@ try {
             $taskId = !empty($input['id']) ? (int)$input['id'] : 0;
             $title = trim((string)($input['title'] ?? ''));
             $clientId = !empty($input['client_id']) ? (int)$input['client_id'] : null;
+            $clientCategory = !empty($input['client_category']) ? trim((string)$input['client_category']) : null;
+            if ($clientId && $clientCategory && in_array($clientCategory, ['A+', 'A', 'B', 'C', 'D'], true)) {
+                try {
+                    $pdo->prepare("UPDATE clients SET category = :cat, updated_at = NOW() WHERE id = :id")->execute([
+                        ':cat' => $clientCategory,
+                        ':id'  => $clientId,
+                    ]);
+                } catch (Throwable $e) {}
+            }
             $stageId = !empty($input['stage_id']) ? (int)$input['stage_id'] : 1;
             $priority = in_array($input['priority'] ?? '', ['low', 'medium', 'high', 'urgent'], true) ? $input['priority'] : 'medium';
             $dueDate = !empty($input['due_date']) ? $input['due_date'] : null;

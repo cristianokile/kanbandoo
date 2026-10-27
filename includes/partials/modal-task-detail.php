@@ -23,6 +23,16 @@
                         <span id="detailRecurringText">Recorrente</span>
                     </span>
                     <span id="detailClientChip" class="kd-client" hidden></span>
+                    <span id="detailClientCategoryBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border transition shadow-sm" hidden title="Categoria da Empresa (influencia o peso na ordenação)">
+                        <i data-lucide="award" class="w-3 h-3"></i>
+                        <select id="detailHeaderClientCategorySelect" onchange="KD.updateDetailClientCategory(this.value)" class="bg-transparent border-none text-inherit font-bold cursor-pointer p-0 focus:ring-0 focus:outline-none" title="Clique para alterar a Categoria da Empresa">
+                            <option value="A+" class="bg-slate-900 text-amber-300">⭐ A+</option>
+                            <option value="A" class="bg-slate-900 text-indigo-300">🟣 A</option>
+                            <option value="B" class="bg-slate-900 text-sky-300">🔵 B</option>
+                            <option value="C" class="bg-slate-900 text-emerald-300">🟢 C</option>
+                            <option value="D" class="bg-slate-900 text-slate-300">⚪ D</option>
+                        </select>
+                    </span>
                     <span id="detailIdBadge" class="text-xs font-mono text-slate-500">#0</span>
                 </div>
                 <h2 id="detailTitle" class="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight"></h2>
@@ -36,6 +46,9 @@
                 <button type="button" id="detailBombBtn" class="kd-icon-btn" data-detail-action="bomb"
                         aria-pressed="false" aria-label="Marcar tarefa como bomba" title="Bomba">
                     <i data-lucide="flame" class="w-4 h-4"></i>
+                </button>
+                <button type="button" id="detailEditTaskBtn" class="kd-icon-btn text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10" onclick="KD.openTaskForm(KD.activeTask?.id)" aria-label="Editar tarefa completa" title="Editar tarefa completa">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i>
                 </button>
                 <button type="button" id="detailCopyLinkBtn" class="kd-icon-btn" data-detail-action="copy-link" aria-label="Copiar link da tarefa" title="Copiar link">
                     <i data-lucide="link-2" class="w-4 h-4"></i>
@@ -275,6 +288,28 @@
                 <div class="pb-3 border-b border-slate-800">
                     <h3 id="clientName" class="text-base font-bold text-white"></h3>
                     <p id="clientContact" class="text-xs text-slate-400 mt-0.5"></p>
+                </div>
+
+                <!-- Categoria da Empresa Interativa -->
+                <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
+                            <i data-lucide="award" class="w-4 h-4"></i>
+                        </span>
+                        <div>
+                            <div class="text-xs font-bold text-slate-200 uppercase tracking-wider">Categoria do Cliente</div>
+                            <div class="text-[11px] text-slate-400">Define o peso na ordenação automática de prioridade do Kanban</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="detailTabClientCategorySelect" onchange="KD.updateDetailClientCategory(this.value)" class="kd-field text-xs py-1.5 px-3 font-bold">
+                            <option value="A+">⭐ Categoria A+ (Estratégico / VIP)</option>
+                            <option value="A">🟣 Categoria A (Prioritário)</option>
+                            <option value="B">🔵 Categoria B (Padrão Alto)</option>
+                            <option value="C">🟢 Categoria C (Normal / Regular)</option>
+                            <option value="D">⚪ Categoria D (Baixa Demanda)</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">

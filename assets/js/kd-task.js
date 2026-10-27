@@ -271,6 +271,35 @@ window.KD = window.KD || {};
     // Abrir Formulário de Tarefa
     // ---------------------------------------------------------------
 
+    
+    // Estilos visuais unificados por categoria da empresa
+    const CATEGORY_STYLES = {
+        'A+': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        'A':  'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+        'B':  'bg-sky-500/20 text-sky-300 border-sky-500/40',
+        'C':  'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        'D':  'bg-slate-500/20 text-slate-300 border-slate-500/40'
+    };
+
+    function applyCategoryBadgeStyle(element, cat) {
+        if (!element) return;
+        Object.values(CATEGORY_STYLES).forEach(cls => {
+            cls.split(' ').forEach(c => element.classList.remove(c));
+        });
+        const style = CATEGORY_STYLES[cat] || CATEGORY_STYLES['C'];
+        style.split(' ').forEach(c => element.classList.add(c));
+    }
+
+    KD.onTaskFormClientChange = function (select) {
+        if (!select) return;
+        const opt = select.options[select.selectedIndex];
+        const cat = (opt && opt.getAttribute('data-category')) ? opt.getAttribute('data-category') : 'C';
+        const catField = el('task_client_category');
+        if (catField) {
+            catField.value = cat;
+        }
+    };
+
     KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initialDueDate = null, isCalendarEvent = null) {
         try {
             const form = el('taskForm');
@@ -345,6 +374,7 @@ window.KD = window.KD || {};
                 }
                 if (initialDueDate && el('task_due_date')) el('task_due_date').value = initialDueDate;
                 if (el('task_is_private')) el('task_is_private').checked = false;
+                if (el('task_client_category')) el('task_client_category').value = 'C';
                 if (templateWrap) templateWrap.hidden = false;
                 if (templateSelect) templateSelect.value = '';
 
@@ -365,6 +395,7 @@ window.KD = window.KD || {};
             el('task_id').value = task.id;
             el('task_title').value = task.title || '';
             el('task_client_id').value = task.client_id || '';
+            if (el('task_client_category')) el('task_client_category').value = task.client_category || 'C';
             el('task_stage_id').value = task.stage_id || '';
             const isExistingCal = Number(task.is_calendar_event) === 1;
             if (el('task_is_private')) el('task_is_private').checked = Boolean(Number(task.is_private) === 1);
@@ -564,6 +595,7 @@ window.KD = window.KD || {};
             id: el('task_id').value || null,
             title,
             client_id: el('task_client_id').value || null,
+            client_category: el('task_client_category')?.value || 'C',
             stage_id: el('task_stage_id').value,
             priority: el('task_priority').value,
             due_date: el('task_due_date').value || null,
@@ -704,7 +736,7 @@ window.KD = window.KD || {};
             }
         }
 
-        // Cliente
+        // Cliente e Categoria da Empresa
         const chip = el('detailClientChip');
         if (chip) {
             if (task.client_company) {
@@ -712,6 +744,19 @@ window.KD = window.KD || {};
                 chip.textContent = task.client_company;
             } else {
                 chip.hidden = true;
+            }
+        }
+
+        const catBadge = el('detailClientCategoryBadge');
+        const catSelect = el('detailHeaderClientCategorySelect');
+        if (catBadge && catSelect) {
+            if (task.client_company && (task.client_id || task.client?.id)) {
+                catBadge.hidden = false;
+                const cat = task.client_category || 'C';
+                catSelect.value = cat;
+                applyCategoryBadgeStyle(catBadge, cat);
+            } else {
+                catBadge.hidden = true;
             }
         }
 
@@ -810,7 +855,12 @@ window.KD = window.KD || {};
         const email = el('clientEmail');
         if (email) {
             email.textContent = task.client_email || 'Não informado';
-            email.href = task.client_email ? `mailto:${task.client_email}` : '#';
+            email.href = task.client_email ? `mailto:${task.client_email
+        const tabCatSelect = el('detailTabClientCategorySelect');
+        if (tabCatSelect) {
+            tabCatSelect.value = task.client_category || 'C';
+        }
+}` : '#';
         }
 
         const phone = el('clientPhone');
@@ -1572,11 +1622,15 @@ window.KD = window.KD || {};
         }
 
         try {
+            const catInput = el('quick_client_category');
+            const quickCategory = catInput ? catInput.value : 'C';
+
             const resp = await KD.api.tasks({
                 action: 'quick_create_client',
                 company_name: companyName,
                 contact_name: contactInput ? contactInput.value.trim() : '',
                 phone: phoneInput ? phoneInput.value.trim() : '',
+                category: quickCategory,
             });
 
             if (resp && resp.client) {
@@ -1584,9 +1638,13 @@ window.KD = window.KD || {};
                 if (select) {
                     const opt = document.createElement('option');
                     opt.value = resp.client.id;
-                    opt.textContent = resp.client.company_name;
+                    opt.setAttribute('data-category', resp.client.category || quickCategory);
+                    opt.textContent = `${resp.client.company_name} (${resp.client.category || quickCategory})`;
                     select.appendChild(opt);
                     select.value = String(resp.client.id);
+                }
+                if (el('task_client_category')) {
+                    el('task_client_category').value = resp.client.category || quickCategory;
                 }
 
                 KD.toggleQuickAddClient(false);
@@ -2199,3 +2257,65 @@ window.KD = window.KD || {};
     };
 
 })(window.KD);
+
+
+    KD.updateDetailClientCategory = async function (newCat) {
+        if (!activeTask) return;
+        const clientId = activeTask.client_id || (activeTask.client && activeTask.client.id);
+        if (!clientId) {
+            KD.toast('Esta tarefa não possui empresa vinculada para alterar a categoria.', { tone: 'warning' });
+            return;
+        }
+
+        try {
+            const resp = await KD.api.tasks({
+                action: 'update_client_category',
+                client_id: clientId,
+                category: newCat
+            });
+
+            if (resp && resp.success) {
+                activeTask.client_category = newCat;
+
+                // Atualizar badge do cabeçalho
+                const catBadge = el('detailClientCategoryBadge');
+                if (catBadge) applyCategoryBadgeStyle(catBadge, newCat);
+                const headerSel = el('detailHeaderClientCategorySelect');
+                if (headerSel) headerSel.value = newCat;
+
+                // Atualizar select da aba Cliente
+                const tabSel = el('detailTabClientCategorySelect');
+                if (tabSel) tabSel.value = newCat;
+
+                // Atualizar select do formulário de edição se aberto
+                if (el('task_client_category')) el('task_client_category').value = newCat;
+
+                // Atualizar select de clientes na página
+                const clientOpt = document.querySelector(`#task_client_id option[value="${clientId}"]`);
+                if (clientOpt) {
+                    clientOpt.setAttribute('data-category', newCat);
+                    const baseName = clientOpt.text.replace(/\s*\([A-D\+]+\)$/, '').trim();
+                    clientOpt.text = `${baseName} (${newCat})`;
+                }
+
+                // Atualizar tarefa no quadro Kanban e reordenar em tempo real
+                if (KD.board && Array.isArray(KD.board.tasks)) {
+                    KD.board.tasks.forEach(t => {
+                        if (Number(t.client_id) === Number(clientId)) {
+                            t.client_category = newCat;
+                        }
+                    });
+                    if (typeof KD.renderBoard === 'function') {
+                        KD.renderBoard();
+                    }
+                }
+
+                KD.toast(`Categoria da empresa atualizada para ${newCat}!`, { tone: 'success' });
+            } else {
+                KD.toast(resp?.error || 'Não foi possível atualizar a categoria.', { tone: 'danger' });
+            }
+        } catch (err) {
+            console.error('Erro ao atualizar categoria:', err);
+            KD.toast('Erro na requisição ao atualizar categoria.', { tone: 'danger' });
+        }
+    };

@@ -56,7 +56,7 @@
                 <p id="error_title" class="kd-inline-error" role="alert" hidden></p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <label for="task_client_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Empresa / Cliente</label>
@@ -66,11 +66,27 @@
                         </button>
                     </div>
 
-                    <select id="task_client_id" name="client_id" class="kd-field">
-                        <option value="">Sem empresa vinculada</option>
-                        <?php foreach ($activeClients as $c): ?>
-                            <option value="<?= (int)$c['id'] ?>"><?= e($c['company_name']) ?></option>
+                    <select id="task_client_id" name="client_id" class="kd-field" onchange="KD.onTaskFormClientChange(this)">
+                        <option value="" data-category="C">Sem empresa vinculada</option>
+                        <?php foreach ($activeClients as $c): 
+                            $cat = $c['category'] ?? 'C';
+                        ?>
+                            <option value="<?= (int)$c['id'] ?>" data-category="<?= e($cat) ?>"><?= e($c['company_name']) ?><?= !empty($cat) ? ' (' . e($cat) . ')' : '' ?></option>
                         <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label for="task_client_category" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Categoria da Empresa</label>
+                        <span id="task_client_category_badge" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Auto</span>
+                    </div>
+                    <select id="task_client_category" name="client_category" class="kd-field font-semibold">
+                        <option value="A+">⭐ Categoria A+ (Estratégico / VIP)</option>
+                        <option value="A">🟣 Categoria A (Prioritário)</option>
+                        <option value="B">🔵 Categoria B (Padrão Alto)</option>
+                        <option value="C" selected>🟢 Categoria C (Normal / Regular)</option>
+                        <option value="D">⚪ Categoria D (Baixa Demanda)</option>
                     </select>
                 </div>
 
@@ -113,10 +129,20 @@
                     </button>
                 </div>
                 
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div class="sm:col-span-1">
                         <label class="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1">Nome da Empresa *</label>
                         <input type="text" id="quick_client_company" placeholder="Ex: Pizzani Restaurante" class="kd-field text-xs w-full" style="min-height:36px" autocomplete="off">
+                    </div>
+                    <div class="sm:col-span-1">
+                        <label class="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1">Categoria</label>
+                        <select id="quick_client_category" class="kd-field text-xs w-full font-semibold" style="min-height:36px">
+                            <option value="A+">⭐ Categoria A+</option>
+                            <option value="A">🟣 Categoria A</option>
+                            <option value="B">🔵 Categoria B</option>
+                            <option value="C" selected>🟢 Categoria C</option>
+                            <option value="D">⚪ Categoria D</option>
+                        </select>
                     </div>
                     <div class="sm:col-span-1">
                         <label class="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1">Pessoa de Contato</label>
