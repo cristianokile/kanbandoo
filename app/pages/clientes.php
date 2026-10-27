@@ -302,9 +302,9 @@ view_header('Clientes & Empresas');
                                     <?= $initials ?>
                                 </div>
                                 <div class="min-w-0 flex-1">
-                                    <h3 class="font-bold text-sm text-white leading-tight group-hover:text-indigo-300 transition truncate" title="<?= e($client['company_name']) ?>">
+                                    <button type="button" onclick="editClient(<?= htmlspecialchars(json_encode($client), ENT_QUOTES, 'UTF-8') ?>)" class="text-left font-bold text-sm text-white leading-tight hover:text-indigo-300 hover:underline cursor-pointer transition truncate block w-full" title="Clique para editar <?= e($client['company_name']) ?>">
                                         <?= e($client['company_name']) ?>
-                                    </h3>
+                                    </button>
                                     <?php if (!empty($client['contact_name'])): ?>
                                         <p class="text-[11px] text-slate-400 truncate mt-0.5"><?= e($client['contact_name']) ?></p>
                                     <?php endif; ?>
@@ -408,9 +408,9 @@ view_header('Clientes & Empresas');
                                             <?= $initials ?>
                                         </div>
                                         <div class="min-w-0">
-                                            <p class="font-bold text-white text-xs leading-snug group-hover:text-indigo-300 transition">
+                                            <button type="button" onclick="editClient(<?= htmlspecialchars(json_encode($client), ENT_QUOTES, 'UTF-8') ?>)" class="text-left font-bold text-white text-xs leading-snug hover:text-indigo-300 hover:underline cursor-pointer transition block truncate" title="Clique para editar <?= e($client['company_name']) ?>">
                                                 <?= e($client['company_name']) ?>
-                                            </p>
+                                            </button>
                                             <?php if (!empty($client['contact_name'])): ?>
                                                 <p class="text-[11px] text-slate-400"><?= e($client['contact_name']) ?></p>
                                             <?php endif; ?>

@@ -50,9 +50,24 @@ require_once dirname(__DIR__, 2) . '/includes/navbar.php';
         </div>
     </div>
 
-    <!-- Grid de Modelos -->
-    <div id="templatesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
-        <!-- Renderizado dinamicamente via JS -->
+    <!-- Lista / Tabela de Modelos (padrão clientes.php) -->
+    <div id="templatesListWrap" class="kd-glass rounded-2xl overflow-hidden border border-slate-800/80 shadow-xl">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-800 bg-slate-950/40 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        <th class="py-3 px-4">Modelo & Descrição</th>
+                        <th class="py-3 px-4">Tempo Estimado</th>
+                        <th class="py-3 px-4">Subtarefas</th>
+                        <th class="py-3 px-4">Etiquetas</th>
+                        <th class="py-3 px-4 text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="templatesTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+                    <!-- Renderizado dinamicamente via JS -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Estado Vazio -->
@@ -190,80 +205,96 @@ async function loadTemplates() {
 
 function renderTemplates(filtered = null) {
     const list = filtered !== null ? filtered : allTemplates;
-    const grid = document.getElementById('templatesGrid');
+    const tableBody = document.getElementById('templatesTableBody');
+    const wrap = document.getElementById('templatesListWrap');
     const empty = document.getElementById('emptyState');
     const count = document.getElementById('templatesCount');
 
-    count.textContent = list.length;
+    if (count) count.textContent = list.length;
 
     if (list.length === 0) {
-        grid.innerHTML = '';
-        empty.hidden = false;
+        if (tableBody) tableBody.innerHTML = '';
+        if (wrap) wrap.hidden = true;
+        if (empty) empty.hidden = false;
         return;
     }
 
-    empty.hidden = true;
-    grid.innerHTML = list.map((tpl) => {
-        const chkItems = tpl.checklist_items || [];
-        const tags = tpl.tags_list || [];
+    if (wrap) wrap.hidden = false;
+    if (empty) empty.hidden = true;
 
-        return `
-            <div class="kd-card kd-glass rounded-2xl p-4 flex flex-col justify-between transition-all group hover:border-slate-700 relative shadow-sm" data-tpl-id="${tpl.id}">
-                <div>
-                    <div class="flex items-start justify-between gap-2 mb-2">
-                        <h3 class="font-bold text-sm text-white leading-snug line-clamp-2 group-hover:text-indigo-300 transition" title="${escapeHtml(tpl.title)}">
-                            ${escapeHtml(tpl.title)}
-                        </h3>
-                        ${tpl.estimated_minutes ? `
-                            <span class="kd-due text-[10px] whitespace-nowrap px-1.5 py-0.5 rounded-md flex-shrink-0" data-tone="soon" title="Tempo estimado">
-                                <i data-lucide="clock" class="w-3 h-3"></i> ${tpl.estimated_minutes}m
-                            </span>
-                        ` : ''}
-                    </div>
+    if (tableBody) {
+        tableBody.innerHTML = list.map((tpl) => {
+            const chkItems = tpl.checklist_items || [];
+            const tags = tpl.tags_list || [];
+            const initials = escapeHtml((tpl.title || 'M').substring(0, 2).toUpperCase());
 
-                    ${tpl.description ? `
-                        <p class="text-[11px] text-slate-400 mb-2 line-clamp-2 leading-relaxed">${escapeHtml(tpl.description)}</p>
-                    ` : '<p class="text-[11px] text-slate-500 italic mb-2">Sem descrição.</p>'}
-
-                    ${tags.length > 0 ? `
-                        <div class="kd-tags mb-2 gap-1">
-                            ${tags.map(t => `<span class="kd-tag text-[10px] py-0.5 px-2">${escapeHtml(t)}</span>`).join('')}
-                        </div>
-                    ` : ''}
-
-                    ${chkItems.length > 0 ? `
-                        <div class="p-2 rounded-xl mb-2 text-xs bg-slate-950/40 border border-slate-800/60">
-                            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                                <i data-lucide="check-square" class="w-3 h-3 text-indigo-400"></i>
-                                Checklist (${chkItems.length})
+            return `
+                <tr class="hover:bg-slate-800/30 transition group">
+                    <!-- Modelo & Descrição -->
+                    <td class="py-3 px-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-xl bg-indigo-600/15 border border-indigo-500/25 text-indigo-400 font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-inner">
+                                <i data-lucide="copy-check" class="w-4 h-4"></i>
                             </div>
-                            <ul class="space-y-0.5 text-slate-300 text-[11px]">
-                                ${chkItems.slice(0, 2).map(item => `
-                                    <li class="truncate flex items-center gap-1.5">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-slate-500 flex-shrink-0"></span>
-                                        <span class="truncate">${escapeHtml(item)}</span>
-                                    </li>
-                                `).join('')}
-                                ${chkItems.length > 2 ? `<li class="text-[10px] text-slate-500 italic">+${chkItems.length - 2} subtarefa(s)</li>` : ''}
-                            </ul>
+                            <div class="min-w-0">
+                                <button type="button" onclick="editTemplate(${tpl.id})" class="text-left font-bold text-sm text-white hover:text-indigo-300 hover:underline cursor-pointer transition block truncate max-w-md" title="Clique para editar: ${escapeHtml(tpl.title)}">
+                                    ${escapeHtml(tpl.title)}
+                                </button>
+                                ${tpl.description ? `
+                                    <p class="text-[11px] text-slate-400 line-clamp-1 leading-snug mt-0.5 max-w-lg">${escapeHtml(tpl.description)}</p>
+                                ` : '<p class="text-[11px] text-slate-500 italic mt-0.5">Sem descrição cadastrada.</p>'}
+                            </div>
                         </div>
-                    ` : ''}
-                </div>
+                    </td>
 
-                <div class="flex items-center justify-between gap-1.5 pt-2.5 mt-1 border-t border-slate-800/50">
-                    <button type="button" onclick="useTemplateToCreate(${tpl.id})" class="kd-btn kd-btn--primary text-xs flex-1 py-1.5 h-8 font-semibold shadow-sm justify-center">
-                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Usar Modelo
-                    </button>
-                    <button type="button" onclick="editTemplate(${tpl.id})" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition" title="Editar modelo">
-                        <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
-                    </button>
-                    <button type="button" onclick="deleteTemplateDirect(${tpl.id})" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition" title="Excluir modelo">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    }).join('');
+                    <!-- Tempo Estimado -->
+                    <td class="py-3 px-4 whitespace-nowrap">
+                        ${tpl.estimated_minutes ? `
+                            <span class="kd-due text-xs font-semibold px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1.5" data-tone="soon" title="Tempo estimado para conclusão">
+                                <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-400"></i>
+                                <span>${tpl.estimated_minutes} min</span>
+                            </span>
+                        ` : '<span class="text-slate-500 italic text-[11px]">Não estimado</span>'}
+                    </td>
+
+                    <!-- Subtarefas (Checklist) -->
+                    <td class="py-3 px-4 whitespace-nowrap">
+                        ${chkItems.length > 0 ? `
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20" title="${chkItems.length} subtarefa(s) pré-configurada(s)">
+                                <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+                                <span>${chkItems.length} subtarefa${chkItems.length === 1 ? '' : 's'}</span>
+                            </span>
+                        ` : '<span class="text-slate-500 italic text-[11px]">Nenhuma</span>'}
+                    </td>
+
+                    <!-- Etiquetas -->
+                    <td class="py-3 px-4">
+                        ${tags.length > 0 ? `
+                            <div class="flex flex-wrap gap-1 max-w-xs">
+                                ${tags.map(t => `<span class="kd-tag text-[10px] py-0.5 px-2">${escapeHtml(t)}</span>`).join('')}
+                            </div>
+                        ` : '<span class="text-slate-500 italic text-[11px]">—</span>'}
+                    </td>
+
+                    <!-- Ações -->
+                    <td class="py-3 px-4 text-right whitespace-nowrap">
+                        <div class="inline-flex items-center gap-1.5">
+                            <button type="button" onclick="useTemplateToCreate(${tpl.id})" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold text-xs transition inline-flex items-center gap-1.5 shadow-sm shadow-indigo-600/30 cursor-pointer">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                <span>Usar Modelo</span>
+                            </button>
+                            <button type="button" onclick="editTemplate(${tpl.id})" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition cursor-pointer" title="Editar modelo">
+                                <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button type="button" onclick="deleteTemplateDirect(${tpl.id})" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition cursor-pointer" title="Excluir modelo">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
 
     if (window.lucide) lucide.createIcons();
 }

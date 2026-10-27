@@ -61,7 +61,27 @@ view_header('Notas & Conhecimento');
 .ql-snow.ql-toolbar button:hover,
 .ql-snow .ql-toolbar button.ql-active { color: #818cf8; }
 .ql-editor.ql-blank::before { color: #64748b; font-style: normal; }
-.ql-editor { min-height: 160px; max-height: 340px; overflow-y: auto; line-height: 1.6; }
+.ql-editor { 
+    min-height: 160px; 
+    max-height: 340px; 
+    overflow-y: auto; 
+    line-height: 1.65; 
+    color: #f8fafc !important; /* Texto em branco contrastante com o fundo escuro por padrão */
+    font-size: 0.9375rem;
+}
+.ql-editor p { color: #f8fafc; }
+.ql-editor.ql-blank::before { color: #94a3b8 !important; font-style: normal; }
+.ql-snow .ql-stroke { stroke: #cbd5e1 !important; }
+.ql-snow .ql-fill { fill: #cbd5e1 !important; }
+.ql-snow .ql-picker { color: #cbd5e1 !important; }
+.ql-snow .ql-picker-options {
+    background-color: #0f172a !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    padding: 6px !important;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.6) !important;
+}
+.ql-snow .ql-picker-item:hover { border-color: #818cf8 !important; }
 .ql-editor h2, .ql-editor h3 { color: #ffffff; font-weight: 700; margin-top: 0.75rem; margin-bottom: 0.5rem; }
 .ql-editor h2 { font-size: 1.25rem; }
 .ql-editor h3 { font-size: 1.1rem; }
@@ -74,9 +94,9 @@ view_header('Notas & Conhecimento');
 /* Renderizacao de Conteudo Rico de Notas */
 .note-rich-content {
     line-height: 1.65;
-    color: #e2e8f0;
+    color: #f8fafc;
 }
-.note-rich-content p { margin-bottom: 0.75rem; }
+.note-rich-content p { margin-bottom: 0.75rem; color: #f8fafc; }
 .note-rich-content h1, .note-rich-content h2, .note-rich-content h3 { color: #fff; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
 .note-rich-content h2 { font-size: 1.25rem; }
 .note-rich-content h3 { font-size: 1.1rem; }
@@ -480,6 +500,7 @@ function initNoteQuill() {
         modules: {
             toolbar: [
                 [{ 'header': [2, 3, false] }],
+                [{ 'color': [] }, { 'background': [] }],
                 ['bold', 'italic', 'underline', 'strike'],
                 [{ 'list': 'ordered' }, { 'list': 'bullet' }],
                 ['blockquote', 'code-block'],

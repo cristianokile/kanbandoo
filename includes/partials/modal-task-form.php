@@ -58,11 +58,23 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center justify-between mb-1.5">
                         <label for="task_client_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Empresa / Cliente</label>
                         <button type="button" onclick="KD.toggleQuickAddClient()" class="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
                             <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
                             <span>Nova empresa</span>
+                        </button>
+                    </div>
+
+                    <div class="relative mb-2">
+                        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500 pointer-events-none"></i>
+                        <input type="text" id="task_client_search" placeholder="Digitar para filtrar empresa..." 
+                               oninput="KD.filterTaskClients(this.value)" 
+                               onkeydown="if(event.key==='Enter'){event.preventDefault();KD.selectFirstFilteredClient();}"
+                               class="kd-field text-xs pl-8 pr-7 py-1.5 bg-slate-900/90 border-slate-700/60 rounded-lg placeholder:text-slate-500 focus:border-indigo-500 w-full" 
+                               autocomplete="off" style="min-height:32px;">
+                        <button type="button" id="task_client_search_clear" onclick="KD.clearTaskClientFilter()" class="absolute right-2 top-2 text-slate-500 hover:text-white p-0.5" hidden title="Limpar filtro">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>
 

@@ -299,12 +299,58 @@ window.KD = window.KD || {};
         }
     };
 
+    KD.filterTaskClients = function (query) {
+        const select = el('task_client_id');
+        const clearBtn = el('task_client_search_clear');
+        if (!select) return;
+
+        const cleanQuery = (query || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (clearBtn) clearBtn.hidden = !cleanQuery;
+
+        for (let i = 0; i < select.options.length; i++) {
+            const opt = select.options[i];
+            if (!opt.value) {
+                opt.hidden = false;
+                opt.style.display = '';
+                continue;
+            }
+            const text = opt.text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const matches = !cleanQuery || text.includes(cleanQuery);
+            opt.hidden = !matches;
+            opt.style.display = matches ? '' : 'none';
+        }
+    };
+
+    KD.clearTaskClientFilter = function () {
+        const input = el('task_client_search');
+        if (input) input.value = '';
+        KD.filterTaskClients('');
+        if (input) input.focus();
+    };
+
+    KD.selectFirstFilteredClient = function () {
+        const select = el('task_client_id');
+        if (!select) return;
+        for (let i = 0; i < select.options.length; i++) {
+            const opt = select.options[i];
+            if (opt.value && !opt.hidden && opt.style.display !== 'none') {
+                select.value = opt.value;
+                KD.onTaskFormClientChange(select);
+                break;
+            }
+        }
+    };
+
     KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initialDueDate = null, isCalendarEvent = null) {
         try {
             const form = el('taskForm');
             if (!form) return;
 
             form.reset();
+            if (el('task_client_search')) {
+                el('task_client_search').value = '';
+                KD.filterTaskClients('');
+            }
             clearFormErrors();
             setupTagInput();
             setupFormChecklistInput();
@@ -2077,51 +2123,80 @@ window.KD = window.KD || {};
                         `;
                     }
                                 } else {
-                    if (list) {
+                                        if (list) {
+                        const totalNotes = taskClientNotesCache.length;
+                        const hasScroll = totalNotes > 2;
+
                         list.innerHTML = `
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                ${taskClientNotesCache.map(note => {
-                                    const grpColor = note.group_color || '#6366f1';
-                                    const dateStr = note.created_at ? new Date(note.created_at.replace(/-/g, '/')).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-                                    const cleanText = KD.stripHtml ? KD.stripHtml(note.content) : (note.content || '').replace(/<[^>]*>?/gm, ' ');
-                                    
-                                    return `
-                                        <div onclick="KD.viewTaskClientNote(${note.id})"
-                                             class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/60 hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col justify-between group shadow-sm ${note.is_pinned ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.03] to-transparent' : ''}"
-                                             title="Clique para ler anotação completa">
-                                            <div>
-                                                <div class="flex items-center justify-between gap-1.5 mb-1.5">
-                                                    <div class="flex items-center gap-1.5 min-w-0">
-                                                        ${note.is_pinned ? '<i data-lucide="pin" class="w-3 h-3 text-amber-400 flex-shrink-0" title="Nota Fixada"></i>' : ''}
-                                                        ${note.group_name ? `
-                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider truncate max-w-[120px]" style="background:${grpColor}20;color:${grpColor}">
-                                                                ${KD.escapeHtml(note.group_name)}
-                                                            </span>
-                                                        ` : ''}
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                                    <span class="font-medium text-slate-300">
+                                        ${totalNotes === 1 ? '1 nota cadastrada' : (hasScroll ? `Exibindo 2 de ${totalNotes} notas` : `${totalNotes} notas cadastradas`)}
+                                    </span>
+                                    ${hasScroll ? '<span class="text-indigo-400 font-medium flex items-center gap-1"><i data-lucide="arrow-left-right" class="w-3 h-3"></i> Use as setas para rolar</span>' : ''}
+                                </div>
+                                <div class="relative flex items-center gap-2">
+                                    <button type="button" id="btnNotesScrollPrev" onclick="KD.scrollTaskNotes(-1)"
+                                            class="w-8 h-8 rounded-full bg-slate-800/90 hover:bg-indigo-600 border border-slate-700/80 hover:border-indigo-500 text-slate-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-20 disabled:pointer-events-none flex-shrink-0 shadow-lg cursor-pointer ${hasScroll ? '' : 'hidden'}"
+                                            title="Notas mais recentes" aria-label="Notas mais recentes">
+                                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                    </button>
+
+                                    <div id="detailClientNotesSlider" onscroll="KD.updateNotesScrollButtons()"
+                                         class="flex-1 overflow-x-auto flex gap-3 scroll-smooth snap-x snap-mandatory py-1 px-0.5"
+                                         style="scrollbar-width: none; -ms-overflow-style: none;">
+                                        ${taskClientNotesCache.map(note => {
+                                            const grpColor = note.group_color || '#6366f1';
+                                            const dateStr = note.created_at ? new Date(note.created_at.replace(/-/g, '/')).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                                            const cleanText = KD.stripHtml ? KD.stripHtml(note.content) : (note.content || '').replace(/<[^>]*>?/gm, ' ');
+                                            
+                                            return `
+                                                <div onclick="KD.viewTaskClientNote(${note.id})"
+                                                     style="min-width: calc(50% - 0.375rem); max-width: calc(50% - 0.375rem);"
+                                                     class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/60 hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col justify-between group shadow-sm flex-shrink-0 snap-start ${note.is_pinned ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.03] to-transparent' : ''}"
+                                                     title="Clique para ler anotação completa">
+                                                    <div>
+                                                        <div class="flex items-center justify-between gap-1.5 mb-1.5">
+                                                            <div class="flex items-center gap-1.5 min-w-0">
+                                                                ${note.is_pinned ? '<i data-lucide="pin" class="w-3 h-3 text-amber-400 flex-shrink-0" title="Nota Fixada"></i>' : ''}
+                                                                ${note.group_name ? `
+                                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider truncate max-w-[120px]" style="background:${grpColor}20;color:${grpColor}">
+                                                                        ${KD.escapeHtml(note.group_name)}
+                                                                    </span>
+                                                                ` : ''}
+                                                            </div>
+                                                            <span class="text-[10px] text-slate-500 whitespace-nowrap flex-shrink-0">${dateStr}</span>
+                                                        </div>
+                                                        <h5 class="text-xs font-bold text-white group-hover:text-indigo-300 transition line-clamp-1 mb-1">
+                                                            ${KD.escapeHtml(note.title)}
+                                                        </h5>
+                                                        <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                                                            ${KD.escapeHtml(cleanText.trim() || 'Sem conteúdo adicional.')}
+                                                        </p>
                                                     </div>
-                                                    <span class="text-[10px] text-slate-500 whitespace-nowrap flex-shrink-0">${dateStr}</span>
+                                                    <div class="flex items-center justify-between pt-2 mt-2 border-t border-slate-800/60 text-[10px] text-slate-500">
+                                                        <span class="truncate">Por: ${KD.escapeHtml(note.author_name || 'Equipe')}</span>
+                                                        <span class="text-indigo-400 font-medium group-hover:translate-x-0.5 transition flex items-center gap-0.5">
+                                                            Ler nota <i data-lucide="chevron-right" class="w-3 h-3"></i>
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <h5 class="text-xs font-bold text-white group-hover:text-indigo-300 transition line-clamp-1 mb-1">
-                                                    ${KD.escapeHtml(note.title)}
-                                                </h5>
-                                                <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                                                    ${KD.escapeHtml(cleanText.trim() || 'Sem conteúdo adicional.')}
-                                                </p>
-                                            </div>
-                                            <div class="flex items-center justify-between pt-2 mt-2 border-t border-slate-800/60 text-[10px] text-slate-500">
-                                                <span class="truncate">Por: ${KD.escapeHtml(note.author_name || 'Equipe')}</span>
-                                                <span class="text-indigo-400 font-medium group-hover:translate-x-0.5 transition flex items-center gap-0.5">
-                                                    Ler nota <i data-lucide="chevron-right" class="w-3 h-3"></i>
-                                                </span>
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
+                                            `;
+                                        }).join('')}
+                                    </div>
+
+                                    <button type="button" id="btnNotesScrollNext" onclick="KD.scrollTaskNotes(1)"
+                                            class="w-8 h-8 rounded-full bg-slate-800/90 hover:bg-indigo-600 border border-slate-700/80 hover:border-indigo-500 text-slate-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-20 disabled:pointer-events-none flex-shrink-0 shadow-lg cursor-pointer ${hasScroll ? '' : 'hidden'}"
+                                            title="Notas mais antigas" aria-label="Notas mais antigas">
+                                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                         `;
                     }
                 }
                 KD.icons();
+                setTimeout(KD.updateNotesScrollButtons, 50);
             }
         } catch (err) {
             console.error('Erro ao buscar notas do cliente:', err);

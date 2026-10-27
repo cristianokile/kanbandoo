@@ -12,9 +12,23 @@ $pdo = get_pdo();
 $user = current_user();
 
 // Obter configurações de calendário do usuário
-$stmt = $pdo->prepare('SELECT google_calendar_url, outlook_calendar_url FROM users WHERE id = :id');
+$stmt = $pdo->prepare('SELECT google_calendar_url, outlook_calendar_url, public_token FROM users WHERE id = :id');
 $stmt->execute([':id' => $user['id']]);
 $userCalendar = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$publicToken = $userCalendar['public_token'] ?? '';
+if (empty($publicToken)) {
+    $publicToken = bin2hex(random_bytes(16));
+    $stmtUp = $pdo->prepare('UPDATE users SET public_token = :tok WHERE id = :id');
+    $stmtUp->execute([':tok' => $publicToken, ':id' => $user['id']]);
+}
+
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$publicAgendaUrl = url('/agenda/' . $publicToken);
+if (!str_starts_with($publicAgendaUrl, 'http')) {
+    $publicAgendaUrl = rtrim($protocol . $host, '/') . $publicAgendaUrl;
+}
 ?>
 
 <main id="conteudo" class="kd-calendar-main flex-1 w-full pt-4 px-4 lg:px-8 flex flex-col pb-20">
@@ -38,6 +52,10 @@ $userCalendar = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
         <!-- Ações do Topo -->
         <div class="flex items-center gap-2 flex-wrap">
+            <button type="button" onclick="copyPublicAgendaLink('<?= e($publicAgendaUrl) ?>')" class="kd-btn kd-glass flex items-center gap-2 text-xs font-semibold text-emerald-300 hover:text-white border-emerald-500/30 hover:border-emerald-500/60" title="Copiar link público para visualização somente leitura da agenda">
+                <i data-lucide="share-2" class="w-4 h-4 text-emerald-400"></i>
+                <span>Compartilhar Agenda</span>
+            </button>
             <button type="button" onclick="openCalendarSyncModal()" class="kd-btn kd-glass flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white">
                 <i data-lucide="refresh-cw" class="w-4 h-4 text-indigo-400"></i>
                 <span>Sincronizar Calendários</span>
@@ -491,6 +509,18 @@ $userCalendar = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
         } catch (e) {
             KD.toastError('Erro ao enviar arquivo.');
         }
+    }
+
+    function copyPublicAgendaLink(url) {
+        if (!url) {
+            KD.toastError('Link público não disponível.');
+            return;
+        }
+        navigator.clipboard.writeText(url).then(function() {
+            KD.toast('Link público da agenda copiado! Quem acessar verá a agenda em modo somente leitura.');
+        }).catch(function() {
+            prompt('Copie o link público da agenda:', url);
+        });
     }
 
     document.addEventListener('DOMContentLoaded', () => {

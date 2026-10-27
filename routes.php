@@ -29,6 +29,9 @@ $router->add('/portal/:token', 'pages/portal.php', ['auth' => false]);
 $router->add('/coordenadoria', 'pages/coordenadoria.php', ['auth' => false]);
 $router->add('/coordenadoria/:token', 'pages/coordenadoria.php', ['auth' => false]);
 $router->add('/api/coordenadoria', 'api/coordenadoria.php', ['auth' => false]);
+$router->add('/agenda',        'pages/agenda-publica.php', ['auth' => false]);
+$router->add('/agenda/:token', 'pages/agenda-publica.php', ['auth' => false]);
+$router->add('/api/agenda-publica', 'api/agenda-publica.php', ['auth' => false]);
 
 // -------- Conta --------
 $router->add('/entrar',    'pages/login.php',  ['auth' => false]);
