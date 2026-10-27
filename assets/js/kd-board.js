@@ -798,34 +798,83 @@ window.KD = window.KD || {};
     };
 
     /**
+     * Calcula o número exato de dias de atraso de uma tarefa em relação a todayStr.
+     * Retorna um número inteiro >= 0 (ex: 3 para 3 dias de atraso, 0 se não atrasada).
+     */
+    function getTaskOverdueDays(task, todayStr) {
+        if (!task || task.completed_at) return 0;
+
+        // 1. Se o backend já calculou no due_badge que está atrasada
+        const badge = task.due_badge;
+        if (badge && badge.is_overdue) {
+            const n = parseInt(badge.short, 10);
+            if (!isNaN(n) && n > 0) return n;
+            if (badge.text) {
+                const m = String(badge.text).match(/(\d+)\s*dia/i);
+                if (m) return parseInt(m[1], 10);
+            }
+        }
+
+        // 2. Se tem original_due_date e é anterior a todayStr
+        const origDate = task.original_due_date || (badge && badge.original_due_date);
+        if (origDate && origDate < todayStr) {
+            const pToday = todayStr.split('-').map(Number);
+            const pOrig = origDate.split('-').map(Number);
+            const dtToday = new Date(pToday[0], pToday[1] - 1, pToday[2]);
+            const dtOrig = new Date(pOrig[0], pOrig[1] - 1, pOrig[2]);
+            const diff = Math.round((dtToday.getTime() - dtOrig.getTime()) / (1000 * 60 * 60 * 24));
+            if (diff > 0) return diff;
+        }
+
+        // 3. Se due_date é anterior a todayStr
+        if (task.due_date && task.due_date < todayStr) {
+            const pToday = todayStr.split('-').map(Number);
+            const pDue = task.due_date.split('-').map(Number);
+            const dtToday = new Date(pToday[0], pToday[1] - 1, pToday[2]);
+            const dtDue = new Date(pDue[0], pDue[1] - 1, pDue[2]);
+            const diff = Math.round((dtToday.getTime() - dtDue.getTime()) / (1000 * 60 * 60 * 24));
+            if (diff > 0) return diff;
+        }
+
+        // 4. Se foi calculado pelo escalation
+        if (task.is_overdue && Number(task.days_overdue) > 0) {
+            return Number(task.days_overdue);
+        }
+
+        return 0;
+    }
+
+    /**
      * Ordenação Estrita do KanbanDoo:
      * 1. Concluídas sempre no final da coluna
      * 2. Tarefas Bomba acima de todas as tarefas (&&)
      * 3. Tarefas em Foco acima de tarefas mais antigas (&&)
-     * 4. Tarefas mais antigas acima de tarefas mais recentes (tarefas com mais dias de atraso têm prioridade acima das tarefas dos dias) (&&)
-     * 5. Tarefas A+ acima de tarefas A (&&)
-     * 6. Tarefas A acima de tarefas B (&&)
-     * 7. Tarefas B acima de tarefas C (&&)
-     * 8. Tarefas C acima de tarefas D
-     * Desempates na mesma data e mesma categoria:
-     * - Horário próximo nos próximos 60m
-     * - Prioridade cadastrada (Urgente > Alta > Média > Baixa)
-     * - Horário mais cedo (due_time)
-     * - Ordem manual (sort_order)
-     * - ID
+     * 4. Sequência das mais atrasadas mais por cima:
+     *    Tarefas com mais dias de atraso ficam acima de tarefas com menos atraso e das tarefas dos dias (&&)
+     * 5. Para tarefas do mesmo dia/mesmo atraso:
+     *    Tarefas A+ acima de tarefas A (&&)
+     *    Tarefas A acima de tarefas B (&&)
+     *    Tarefas B acima de tarefas C (&&)
+     *    Tarefas C acima de tarefas D
+     * 6. Desempates na mesma data e mesma categoria:
+     *    - Horário próximo nos próximos 60m
+     *    - Prioridade cadastrada (Urgente > Alta > Média > Baixa)
+     *    - Horário mais cedo (due_time)
+     *    - Ordem manual (sort_order)
+     *    - ID
      */
     function sortTasksForColumn(tasks, isTodayColumn, todayStr) {
         todayStr = todayStr || getTodayString();
 
-        // Identifica até 3 tarefas em foco prioritárias na coluna por categoria de empresa (A+, A, B, C, D) e antiguidade
+        // Identifica até 3 tarefas em foco prioritárias na coluna por categoria de empresa (A+, A, B, C, D) e atraso
         const focusCandidates = tasks.filter((t) => !t.completed_at && Number(t.is_bomb) !== 1 && Number(t.in_focus) === 1);
         focusCandidates.sort((a, b) => {
             const wA = CAT_WEIGHT[getClientCategory(a)] || 5;
             const wB = CAT_WEIGHT[getClientCategory(b)] || 5;
             if (wA !== wB) return wA - wB;
-            const dateA = a.due_date || '9999-99-99';
-            const dateB = b.due_date || '9999-99-99';
-            if (dateA !== dateB) return dateA.localeCompare(dateB);
+            const odA = getTaskOverdueDays(a, todayStr);
+            const odB = getTaskOverdueDays(b, todayStr);
+            if (odA !== odB) return odB - odA;
             if (a.due_time && b.due_time && a.due_time !== b.due_time) {
                 return a.due_time.localeCompare(b.due_time);
             }
@@ -844,41 +893,47 @@ window.KD = window.KD || {};
             const bBomb = Number(b.is_bomb) === 1;
             if (aBomb !== bBomb) return aBomb ? -1 : 1;
             if (aBomb && bBomb) {
-                // Entre bombas: mais antiga primeiro, depois categoria A+ a D
-                const dateA = a.due_date || '9999-99-99';
-                const dateB = b.due_date || '9999-99-99';
-                if (dateA !== dateB) return dateA.localeCompare(dateB);
+                const odA = getTaskOverdueDays(a, todayStr);
+                const odB = getTaskOverdueDays(b, todayStr);
+                if (odA !== odB) return odB - odA;
                 const catA = CAT_WEIGHT[getClientCategory(a)] || 5;
                 const catB = CAT_WEIGHT[getClientCategory(b)] || 5;
                 if (catA !== catB) return catA - catB;
                 return (Number(a.id) || 0) - (Number(b.id) || 0);
             }
 
-            // 3. Tarefas em Foco acima de tarefas mais antigas
+            // 3. Tarefas em Foco acima de tarefas mais antigas e normais
             const aFocus = topFocusIds.has(Number(a.id));
             const bFocus = topFocusIds.has(Number(b.id));
             if (aFocus !== bFocus) return aFocus ? -1 : 1;
             if (aFocus && bFocus) {
-                // Entre tarefas em foco: categoria A+ a D, depois mais antiga
                 const catA = CAT_WEIGHT[getClientCategory(a)] || 5;
                 const catB = CAT_WEIGHT[getClientCategory(b)] || 5;
                 if (catA !== catB) return catA - catB;
-                const dateA = a.due_date || '9999-99-99';
-                const dateB = b.due_date || '9999-99-99';
-                if (dateA !== dateB) return dateA.localeCompare(dateB);
+                const odA = getTaskOverdueDays(a, todayStr);
+                const odB = getTaskOverdueDays(b, todayStr);
+                if (odA !== odB) return odB - odA;
                 return (Number(a.id) || 0) - (Number(b.id) || 0);
             }
 
-            // 4. Tarefas mais antigas acima de tarefas mais recentes
-            // (Tarefas com mais dias de atraso têm prioridade acima das tarefas dos dias)
-            // due_date mais antiga no passado fica no topo. Tarefas sem data ficam por último.
-            const dateA = a.due_date || '9999-99-99';
-            const dateB = b.due_date || '9999-99-99';
-            if (dateA !== dateB) {
-                return dateA.localeCompare(dateB);
+            // 4. Sequência das mais atrasadas mais por cima:
+            // Tarefas com mais dias de atraso ficam acima de tarefas com menos atraso e das tarefas dos dias
+            const odA = getTaskOverdueDays(a, todayStr);
+            const odB = getTaskOverdueDays(b, todayStr);
+            if (odA !== odB) {
+                return odB - odA;
             }
 
-            // 5. Para tarefas da mesma data / mesmo atraso:
+            // Se nenhuma das duas estiver atrasada (ambas 0 dias de atraso), ordenar por data futura se houver
+            if (odA === 0 && odB === 0) {
+                const dateA = a.due_date || '9999-99-99';
+                const dateB = b.due_date || '9999-99-99';
+                if (dateA !== dateB) {
+                    return dateA.localeCompare(dateB);
+                }
+            }
+
+            // 5. Para tarefas do mesmo dia / mesmo atraso:
             // Tarefas A+ acima de tarefas A &&
             // Tarefas A acima de tarefas B &&
             // Tarefas B acima de tarefas C &&
