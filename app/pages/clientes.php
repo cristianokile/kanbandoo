@@ -18,6 +18,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $action = $_POST['action'] ?? '';
 
+    // Atualização rápida de Categoria direto da tabela ou card
+    if ($action === 'quick_update_category') {
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        $category = trim((string)($_POST['category'] ?? 'C'));
+        if (!in_array($category, ['A+', 'A', 'B', 'C', 'D'])) {
+            $category = 'C';
+        }
+        if ($clientId > 0) {
+            $pdo->prepare("UPDATE clients SET category = :cat, updated_at = NOW() WHERE id = :id")->execute([':cat' => $category, ':id' => $clientId]);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'category' => $category]);
+            exit;
+        }
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Empresa inválida.'], 400);
+        exit;
+    }
+
     // Salvar / Editar Cliente
     if ($action === 'save_client') {
         $clientId = !empty($_POST['client_id']) ? (int)$_POST['client_id'] : 0;
@@ -363,6 +381,7 @@ view_header('Clientes & Empresas');
                     <thead>
                         <tr class="border-b border-slate-800 bg-slate-950/40 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                             <th class="py-3 px-4">Empresa & Contato</th>
+                            <th class="py-3 px-4">Categoria</th>
                             <th class="py-3 px-4">E-mail & Telefone</th>
                             <th class="py-3 px-4">Status</th>
                             <th class="py-3 px-4">Atividades</th>
@@ -784,6 +803,52 @@ function addClientLinkRow(title = '', url = '', type = 'other') {
         </button>
     `;
     listEl.appendChild(div);
+}
+
+async function updateClientCategory(clientId, category, selectEl) {
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
+    const originalValue = selectEl.getAttribute('data-prev-val') || category;
+    
+    // Atualização visual imediata das classes
+    const classMap = {
+        'A+': 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+        'A':  'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+        'B':  'bg-sky-500/15 text-sky-300 border-sky-500/30',
+        'C':  'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+        'D':  'bg-slate-500/15 text-slate-300 border-slate-500/30',
+    };
+    
+    // Remove classes anteriores
+    Object.values(classMap).forEach(cls => {
+        cls.split(' ').forEach(c => selectEl.classList.remove(c));
+    });
+    // Adiciona novas classes
+    (classMap[category] || classMap['C']).split(' ').forEach(c => selectEl.classList.add(c));
+
+    try {
+        const formData = new FormData();
+        formData.append('action', 'quick_update_category');
+        formData.append('csrf_token', csrfToken);
+        formData.append('client_id', clientId);
+        formData.append('category', category);
+
+        const resp = await fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+        });
+        const res = await resp.json();
+        if (res.success) {
+            selectEl.setAttribute('data-prev-val', category);
+            if (window.KD && KD.toast) {
+                KD.toast(`Categoria atualizada para ${category}!`, { tone: 'success' });
+            }
+        } else {
+            throw new Error(res.error || 'Erro ao atualizar.');
+        }
+    } catch (e) {
+        alert(e.message || 'Falha ao atualizar categoria.');
+        selectEl.value = originalValue;
+    }
 }
 
 function escapeHtml(str) {
