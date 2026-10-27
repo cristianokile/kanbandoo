@@ -14,7 +14,7 @@ require __DIR__ . '/routes.php';
 $path = current_path();
 
 // Quem não está autenticado vai para o login, exceto na própria tela de login.
-if (!is_logged_in() && !in_array($path, ['/entrar', '/login.php'], true) && !str_starts_with($path, '/portal') && !str_starts_with($path, '/coordenadoria') && !str_starts_with($path, '/api/')) {
+if (!is_logged_in() && !in_array($path, ['/entrar', '/login.php'], true) && !str_starts_with($path, '/portal') && !str_starts_with($path, '/coordenadoria') && !str_starts_with($path, '/agenda') && !str_starts_with($path, '/api/')) {
     redirect(url('/entrar'));
 }
 
