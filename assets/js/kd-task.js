@@ -271,8 +271,7 @@ window.KD = window.KD || {};
     // Abrir Formulário de Tarefa
     // ---------------------------------------------------------------
 
-    
-    // Estilos visuais unificados por categoria da empresa
+        // Estilos visuais unificados por categoria da empresa
     const CATEGORY_STYLES = {
         'A+': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
         'A':  'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
@@ -736,7 +735,7 @@ window.KD = window.KD || {};
             }
         }
 
-        // Cliente e Categoria da Empresa
+        // Cliente e Categoria
         const chip = el('detailClientChip');
         if (chip) {
             if (task.client_company) {
@@ -750,7 +749,7 @@ window.KD = window.KD || {};
         const catBadge = el('detailClientCategoryBadge');
         const catSelect = el('detailHeaderClientCategorySelect');
         if (catBadge && catSelect) {
-            if (task.client_company && (task.client_id || task.client?.id)) {
+            if (task.client_company && (task.client_id || (task.client && task.client.id))) {
                 catBadge.hidden = false;
                 const cat = task.client_category || 'C';
                 catSelect.value = cat;
@@ -855,12 +854,7 @@ window.KD = window.KD || {};
         const email = el('clientEmail');
         if (email) {
             email.textContent = task.client_email || 'Não informado';
-            email.href = task.client_email ? `mailto:${task.client_email
-        const tabCatSelect = el('detailTabClientCategorySelect');
-        if (tabCatSelect) {
-            tabCatSelect.value = task.client_category || 'C';
-        }
-}` : '#';
+            email.href = task.client_email ? `mailto:${task.client_email}` : '#';
         }
 
         const phone = el('clientPhone');
@@ -870,6 +864,11 @@ window.KD = window.KD || {};
         }
 
         setText('clientNotes', task.client_notes || 'Nenhuma anotação cadastrada para este cliente.');
+
+        const tabCatSelect = el('detailTabClientCategorySelect');
+        if (tabCatSelect) {
+            tabCatSelect.value = task.client_category || 'C';
+        }
     }
 
     // ---------------------------------------------------------------
@@ -1621,10 +1620,10 @@ window.KD = window.KD || {};
             btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Cadastrando...';
         }
 
-        try {
-            const catInput = el('quick_client_category');
-            const quickCategory = catInput ? catInput.value : 'C';
+        const catInput = el('quick_client_category');
+        const quickCategory = catInput ? catInput.value : 'C';
 
+        try {
             const resp = await KD.api.tasks({
                 action: 'quick_create_client',
                 company_name: companyName,
@@ -2252,14 +2251,7 @@ window.KD = window.KD || {};
         KD.icons();
     };
 
-    KD.closeTaskNoteReadModal = function() {
-        KD.closeModal('taskNoteReadModal');
-    };
-
-})(window.KD);
-
-
-    KD.updateDetailClientCategory = async function (newCat) {
+        KD.updateDetailClientCategory = async function (newCat) {
         if (!activeTask) return;
         const clientId = activeTask.client_id || (activeTask.client && activeTask.client.id);
         if (!clientId) {
@@ -2319,3 +2311,9 @@ window.KD = window.KD || {};
             KD.toast('Erro na requisição ao atualizar categoria.', { tone: 'danger' });
         }
     };
+
+    KD.closeTaskNoteReadModal = function() {
+        KD.closeModal('taskNoteReadModal');
+    };
+
+})(window.KD);
