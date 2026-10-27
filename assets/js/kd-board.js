@@ -790,59 +790,42 @@ window.KD = window.KD || {};
         return diff >= -15 && diff <= 60;
     }
 
-    function getTaskStrictRank(task, todayStr, topFocusIds) {
-        if (task.completed_at) return 9999;
+    const PRIORITY_WEIGHT = {
+        'urgent': 1,
+        'high': 2,
+        'medium': 3,
+        'low': 4
+    };
 
-        // 1. Tarefas bombas sempre em primeiro
-        if (Number(task.is_bomb) === 1) {
-            const cat = getClientCategory(task);
-            return 100 + (CAT_WEIGHT[cat] || 5);
-        }
-
-        // 2. Tarefas em foco (limite de 3, em descendente de A+, A, B, C e D)
-        const taskId = Number(task.id);
-        if (topFocusIds && topFocusIds.has(taskId)) {
-            const cat = getClientCategory(task);
-            return 200 + (CAT_WEIGHT[cat] || 5);
-        }
-
-        const priority = task.priority || 'medium';
-        const cat = getClientCategory(task);
-        const catWeight = CAT_WEIGHT[cat] || 5;
-
-        // 3. Tarefas Urgentes (A+, A, B, C, D)
-        if (priority === 'urgent') {
-            return 300 + catWeight;
-        }
-
-        // 4. Detalhe: Tarefas com horário próximo (pelos próximos 60m sobem para as primeiras posições, ficando abaixo apenas da tarefa bomba e das urgentes)
-        if (isNearDueTime(task, todayStr)) {
-            return 400 + catWeight;
-        }
-
-        // 5. Tarefas Altas (A+, A, B, C, D)
-        if (priority === 'high') {
-            return 500 + catWeight;
-        }
-
-        // 6. Tarefas Média (A+, A, B, C, D)
-        if (priority === 'medium') {
-            return 600 + catWeight;
-        }
-
-        // 7. Tarefas Baixa (A+, A, B, C, D)
-        return 700 + catWeight;
-    }
-
+    /**
+     * Ordenação Estrita do KanbanDoo:
+     * 1. Concluídas sempre no final da coluna
+     * 2. Tarefas Bomba acima de todas as tarefas (&&)
+     * 3. Tarefas em Foco acima de tarefas mais antigas (&&)
+     * 4. Tarefas mais antigas acima de tarefas mais recentes (tarefas com mais dias de atraso têm prioridade acima das tarefas dos dias) (&&)
+     * 5. Tarefas A+ acima de tarefas A (&&)
+     * 6. Tarefas A acima de tarefas B (&&)
+     * 7. Tarefas B acima de tarefas C (&&)
+     * 8. Tarefas C acima de tarefas D
+     * Desempates na mesma data e mesma categoria:
+     * - Horário próximo nos próximos 60m
+     * - Prioridade cadastrada (Urgente > Alta > Média > Baixa)
+     * - Horário mais cedo (due_time)
+     * - Ordem manual (sort_order)
+     * - ID
+     */
     function sortTasksForColumn(tasks, isTodayColumn, todayStr) {
         todayStr = todayStr || getTodayString();
 
-        // Identifica até 3 tarefas em foco prioritárias na coluna por categoria de empresa (A+, A, B, C, D)
+        // Identifica até 3 tarefas em foco prioritárias na coluna por categoria de empresa (A+, A, B, C, D) e antiguidade
         const focusCandidates = tasks.filter((t) => !t.completed_at && Number(t.is_bomb) !== 1 && Number(t.in_focus) === 1);
         focusCandidates.sort((a, b) => {
             const wA = CAT_WEIGHT[getClientCategory(a)] || 5;
             const wB = CAT_WEIGHT[getClientCategory(b)] || 5;
             if (wA !== wB) return wA - wB;
+            const dateA = a.due_date || '9999-99-99';
+            const dateB = b.due_date || '9999-99-99';
+            if (dateA !== dateB) return dateA.localeCompare(dateB);
             if (a.due_time && b.due_time && a.due_time !== b.due_time) {
                 return a.due_time.localeCompare(b.due_time);
             }
@@ -851,33 +834,80 @@ window.KD = window.KD || {};
         const topFocusIds = new Set(focusCandidates.slice(0, 3).map((t) => Number(t.id)));
 
         return [...tasks].sort((a, b) => {
-            // 1. Concluídas sempre no final da coluna
+            // 1. Concluídas sempre no final absoluto da coluna
             const aDone = Boolean(a.completed_at);
             const bDone = Boolean(b.completed_at);
             if (aDone !== bDone) return aDone ? 1 : -1;
 
-            // 2. Classificação de Prioridade Estrita do KanbanDoo
-            const aRank = getTaskStrictRank(a, todayStr, topFocusIds);
-            const bRank = getTaskStrictRank(b, todayStr, topFocusIds);
-
-            if (aRank !== bRank) {
-                return aRank - bRank;
+            // 2. Tarefas Bomba acima de todas as tarefas
+            const aBomb = Number(a.is_bomb) === 1;
+            const bBomb = Number(b.is_bomb) === 1;
+            if (aBomb !== bBomb) return aBomb ? -1 : 1;
+            if (aBomb && bBomb) {
+                // Entre bombas: mais antiga primeiro, depois categoria A+ a D
+                const dateA = a.due_date || '9999-99-99';
+                const dateB = b.due_date || '9999-99-99';
+                if (dateA !== dateB) return dateA.localeCompare(dateB);
+                const catA = CAT_WEIGHT[getClientCategory(a)] || 5;
+                const catB = CAT_WEIGHT[getClientCategory(b)] || 5;
+                if (catA !== catB) return catA - catB;
+                return (Number(a.id) || 0) - (Number(b.id) || 0);
             }
 
-            // Desempates dentro da mesma faixa e categoria:
-            // Horário de entrega mais cedo tem preferência
+            // 3. Tarefas em Foco acima de tarefas mais antigas
+            const aFocus = topFocusIds.has(Number(a.id));
+            const bFocus = topFocusIds.has(Number(b.id));
+            if (aFocus !== bFocus) return aFocus ? -1 : 1;
+            if (aFocus && bFocus) {
+                // Entre tarefas em foco: categoria A+ a D, depois mais antiga
+                const catA = CAT_WEIGHT[getClientCategory(a)] || 5;
+                const catB = CAT_WEIGHT[getClientCategory(b)] || 5;
+                if (catA !== catB) return catA - catB;
+                const dateA = a.due_date || '9999-99-99';
+                const dateB = b.due_date || '9999-99-99';
+                if (dateA !== dateB) return dateA.localeCompare(dateB);
+                return (Number(a.id) || 0) - (Number(b.id) || 0);
+            }
+
+            // 4. Tarefas mais antigas acima de tarefas mais recentes
+            // (Tarefas com mais dias de atraso têm prioridade acima das tarefas dos dias)
+            // due_date mais antiga no passado fica no topo. Tarefas sem data ficam por último.
+            const dateA = a.due_date || '9999-99-99';
+            const dateB = b.due_date || '9999-99-99';
+            if (dateA !== dateB) {
+                return dateA.localeCompare(dateB);
+            }
+
+            // 5. Para tarefas da mesma data / mesmo atraso:
+            // Tarefas A+ acima de tarefas A &&
+            // Tarefas A acima de tarefas B &&
+            // Tarefas B acima de tarefas C &&
+            // Tarefas C acima de tarefas D
+            const catA = CAT_WEIGHT[getClientCategory(a)] || 5;
+            const catB = CAT_WEIGHT[getClientCategory(b)] || 5;
+            if (catA !== catB) {
+                return catA - catB;
+            }
+
+            // 6. Desempates dentro da mesma data e mesma categoria:
+            // 6.1 Horário próximo nos próximos 60 minutos
+            const aNear = isNearDueTime(a, todayStr);
+            const bNear = isNearDueTime(b, todayStr);
+            if (aNear !== bNear) return aNear ? -1 : 1;
+
+            // 6.2 Prioridade cadastrada (Urgente > Alta > Média > Baixa)
+            const pA = PRIORITY_WEIGHT[a.priority] || 3;
+            const pB = PRIORITY_WEIGHT[b.priority] || 3;
+            if (pA !== pB) return pA - pB;
+
+            // 6.3 Horário de entrega mais cedo (due_time)
             if (a.due_time && b.due_time && a.due_time !== b.due_time) {
                 return a.due_time.localeCompare(b.due_time);
             }
             if (a.due_time && !b.due_time) return -1;
             if (!a.due_time && b.due_time) return 1;
 
-            // Tarefa mais atrasada tem preferência
-            if (a.due_date && b.due_date && a.due_date !== b.due_date) {
-                return a.due_date.localeCompare(b.due_date);
-            }
-
-            // Ordem manual do usuário se existir dentro da mesma faixa
+            // 6.4 Ordem manual do usuário se existir dentro da mesma faixa
             const aOrder = Number(a.sort_order || 0);
             const bOrder = Number(b.sort_order || 0);
             if (aOrder > 0 && bOrder > 0 && aOrder !== bOrder) {
@@ -888,7 +918,7 @@ window.KD = window.KD || {};
         });
     }
 
-function isDoneTask(t) {
+    function isDoneTask(t) {
         if (!t) return false;
         if (Boolean(t.completed_at)) return true;
         const stg = board.stages.find((s) => Number(s.id) === Number(t.stage_id));
