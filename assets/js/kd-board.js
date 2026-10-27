@@ -28,7 +28,7 @@ window.KD = window.KD || {};
         showArchived: false,
         allTags: [],
         viewMode: 'status', // 'status' ou 'weekdays'
-        weekStartMode: localStorage.getItem('kanbandoo_week_start') || 'today', // 'today' (comeÃ§a em hoje) ou 'monday'
+        weekStartMode: localStorage.getItem('kanbandoo_week_start') || 'today', // 'today' (começa em hoje) ou 'monday'
         weekdayDaysCount: parseInt(localStorage.getItem('kanbandoo_weekday_days_count') || '5', 10),
         weekOffset: 0,
         tagVisibility: 'hover', // 'hover', 'always', 'hidden'
@@ -59,7 +59,7 @@ window.KD = window.KD || {};
     KD.sortTasksForColumn = sortTasksForColumn;
 
     // ---------------------------------------------------------------
-    // PreferÃªncias locais de visualizaÃ§Ã£o
+    // Preferências locais de visualização
     // ---------------------------------------------------------------
 
     function loadViewPrefs() {
@@ -110,7 +110,7 @@ window.KD = window.KD || {};
                     board.weekdayDaysCount = parsed;
                 }
             }
-        } catch (e) { /* localStorage indisponÃ­vel */ }
+        } catch (e) { /* localStorage indisponível */ }
     }
 
     function saveViewPrefs() {
@@ -126,7 +126,7 @@ window.KD = window.KD || {};
                 status: Array.from(board.hiddenColumns.status),
                 weekdays: Array.from(board.hiddenColumns.weekdays),
             }));
-        } catch (e) { /* localStorage indisponÃ­vel */ }
+        } catch (e) { /* localStorage indisponível */ }
     }
 
     function applyTagVisibility() {
@@ -163,7 +163,7 @@ window.KD = window.KD || {};
         saveViewPrefs();
         applyCardVisualPrefs();
         render();
-        KD.toast(board.showCardAvatar ? 'Avatares visÃ­veis nos cards.' : 'Avatares ocultados nos cards.');
+        KD.toast(board.showCardAvatar ? 'Avatares visíveis nos cards.' : 'Avatares ocultados nos cards.');
     };
 
     KD.toggleCardStatusBar = function () {
@@ -171,7 +171,7 @@ window.KD = window.KD || {};
         saveViewPrefs();
         applyCardVisualPrefs();
         render();
-        KD.toast(board.showCardStatusBar ? 'Barra de status visÃ­vel nos cards.' : 'Barra de status ocultada nos cards.');
+        KD.toast(board.showCardStatusBar ? 'Barra de status visível nos cards.' : 'Barra de status ocultada nos cards.');
     };
 
     KD.setTagVisibility = function (mode) {
@@ -182,15 +182,15 @@ window.KD = window.KD || {};
         updateTagMenuCheckmarks();
 
         const messages = {
-            hover: 'Etiquetas serÃ£o exibidas ao passar o mouse sobre o cartÃ£o.',
-            always: 'Etiquetas sempre visÃ­veis nos cartÃµes.',
-            hidden: 'Etiquetas ocultadas nos cartÃµes.',
+            hover: 'Etiquetas serão exibidas ao passar o mouse sobre o cartão.',
+            always: 'Etiquetas sempre visíveis nos cartões.',
+            hidden: 'Etiquetas ocultadas nos cartões.',
         };
-        KD.toast(messages[mode] || 'PreferÃªncia salva.');
+        KD.toast(messages[mode] || 'Preferência salva.');
     };
 
     // ---------------------------------------------------------------
-    // Filtros: lidos do formulÃ¡rio e refletidos na URL (link compartilhÃ¡vel)
+    // Filtros: lidos do formulário e refletidos na URL (link compartilhável)
     // ---------------------------------------------------------------
 
     function el(id) {
@@ -268,7 +268,7 @@ window.KD = window.KD || {};
         if (calBtn) {
             calBtn.setAttribute('aria-pressed', String(board.showCalendarEvents));
             calBtn.classList.toggle('kd-btn--active', board.showCalendarEvents);
-            calBtn.title = board.showCalendarEvents ? 'Ocultar eventos do calendÃ¡rio no quadro' : 'Exibir eventos do calendÃ¡rio no quadro';
+            calBtn.title = board.showCalendarEvents ? 'Ocultar eventos do calendário no quadro' : 'Exibir eventos do calendário no quadro';
         }
         const calCheck = el('calendarEventsInKanbanCheck');
         if (calCheck) {
@@ -293,10 +293,10 @@ window.KD = window.KD || {};
             compactBtn.classList.toggle('text-slate-400', !board.compactMode);
             compactBtn.title = board.compactMode
                 ? 'Modo Compacto Ativo (clique para modo normal)'
-                : 'Modo Compacto (estilo Trello: apenas tÃ­tulo e detalhes essenciais)';
+                : 'Modo Compacto (estilo Trello: apenas título e detalhes essenciais)';
         }
 
-        // Modo de visÃ£o (Status vs Semana)
+        // Modo de visão (Status vs Semana)
         const isWeek = board.viewMode === 'weekdays';
         const btnStatus = el('btnViewStatus');
         const btnWeek = el('btnViewWeekdays');
@@ -324,10 +324,10 @@ window.KD = window.KD || {};
             colBadge.hidden = hiddenCount === 0;
         }
 
-        // RÃ³tulo do botÃ£o de expediente
+        // Rótulo do botão de expediente
         if (el('workHoursLabel') && board.workHours) {
             const h = Math.round((board.workHours.capacityMinutes || 480) / 60);
-            el('workHoursLabel').textContent = `${(board.workHours.start || '09:00').slice(0, 2)}hâ${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h)`;
+            el('workHoursLabel').textContent = `${(board.workHours.start || '09:00').slice(0, 2)}h–${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h)`;
         }
 
         const count = activeFilterCount();
@@ -376,7 +376,7 @@ window.KD = window.KD || {};
             if (board.viewMode !== 'weekdays') {
                 KD.setViewMode('weekdays');
             }
-            KD.toast('Focado na visÃ£o de dias da semana (Hoje).', { tone: 'info' });
+            KD.toast('Focado na visão de dias da semana (Hoje).', { tone: 'info' });
         } else if (type === 'overdue') {
             showFilterBar(true);
             const searchInput = el('filterSearch');
@@ -400,7 +400,7 @@ window.KD = window.KD || {};
         updateToolbarState();
         render();
         if (typeof lucide !== 'undefined') lucide.createIcons();
-        KD.toast(board.showCalendarEvents ? 'Eventos do calendÃ¡rio visÃ­veis no quadro.' : 'Eventos do calendÃ¡rio ocultados do quadro.');
+        KD.toast(board.showCalendarEvents ? 'Eventos do calendário visíveis no quadro.' : 'Eventos do calendário ocultados do quadro.');
     };
 
     KD.toggleGroupByClient = function () {
@@ -480,7 +480,7 @@ window.KD = window.KD || {};
     };
 
     // ---------------------------------------------------------------
-    // RenderizaÃ§Ã£o
+    // Renderização
     // ---------------------------------------------------------------
 
     function renderSkeleton() {
@@ -566,10 +566,10 @@ window.KD = window.KD || {};
         if (Array.isArray(task.tags)) {
             return task.tags.some(function (t) {
                 var name = (typeof t === 'string') ? t : (t && t.name ? t.name : '');
-                return /google calendar|outlook|calendÃ¡rio|calendario|ical/i.test(name);
+                return /google calendar|outlook|calendário|calendario|ical/i.test(name);
             });
         }
-        if (typeof task.tags === 'string' && /google calendar|outlook|calendÃ¡rio|calendario|ical/i.test(task.tags)) {
+        if (typeof task.tags === 'string' && /google calendar|outlook|calendário|calendario|ical/i.test(task.tags)) {
             return true;
         }
         return false;
@@ -595,8 +595,8 @@ window.KD = window.KD || {};
             tone = 'danger'; // Vermelho: extrapola o limite de horas do dia
             label = 'Extrapolou a capacidade do expediente!';
         } else if (ratio >= 0.8) {
-            tone = 'warning'; // Amarelo: prÃ³ximo de extrapolar o horÃ¡rio
-            label = 'PrÃ³ximo de extrapolar a capacidade do expediente';
+            tone = 'warning'; // Amarelo: próximo de extrapolar o horário
+            label = 'Próximo de extrapolar a capacidade do expediente';
         }
 
         return {
@@ -613,11 +613,11 @@ window.KD = window.KD || {};
     const WEEKDAY_DEFS = [
         { dayIndex: 0, id: 'sun', name: 'Domingo', short: 'Dom', color: '#ec4899' },
         { dayIndex: 1, id: 'mon', name: 'Segunda', short: 'Seg', color: '#6366f1' },
-        { dayIndex: 2, id: 'tue', name: 'TerÃ§a', short: 'Ter', color: '#3b82f6' },
+        { dayIndex: 2, id: 'tue', name: 'Terça', short: 'Ter', color: '#3b82f6' },
         { dayIndex: 3, id: 'wed', name: 'Quarta', short: 'Qua', color: '#06b6d4' },
         { dayIndex: 4, id: 'thu', name: 'Quinta', short: 'Qui', color: '#10b981' },
         { dayIndex: 5, id: 'fri', name: 'Sexta', short: 'Sex', color: '#f59e0b' },
-        { dayIndex: 6, id: 'sat', name: 'SÃ¡bado', short: 'SÃ¡b', color: '#8b5cf6' },
+        { dayIndex: 6, id: 'sat', name: 'Sábado', short: 'Sáb', color: '#8b5cf6' },
     ];
 
     function getWeekDays() {
@@ -631,11 +631,11 @@ window.KD = window.KD || {};
 
         const days = [];
 
-        // InÃ­cio da semana: 'monday' (comeÃ§a na Segunda-feira) ou 'today' (comeÃ§a no dia de Hoje)
+        // Início da semana: 'monday' (começa na Segunda-feira) ou 'today' (começa no dia de Hoje)
         const isMondayStart = (board.weekStartMode === 'monday');
         let cursor;
         if (isMondayStart) {
-            const dayOfWeek = now.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = SÃ¡bado
+            const dayOfWeek = now.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
             const diffToMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
             cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday);
         } else {
@@ -684,11 +684,11 @@ window.KD = window.KD || {};
             isToday: false,
         });
 
-        // Coluna para tarefas concluÃ­dos no modo semana
+        // Coluna para tarefas concluídos no modo semana
         days.push({
             id: 'done',
             dayIndex: 99,
-            name: 'ConcluÃ­dos',
+            name: 'Concluídos',
             short: 'Concl',
             color: '#10b981',
             dateString: '',
@@ -709,9 +709,9 @@ window.KD = window.KD || {};
     }
 
     /**
-     * EscalaÃ§Ã£o automÃ¡tica de prioridade para tarefas atrasadas:
-     * - Tarefas de ontem sobem de grau (baixa -> mÃ©dia, mÃ©dia -> alta, alta -> urgente)
-     * - Tarefas com 2+ dias de atraso sobem proporcionalmente atÃ© urgente
+     * Escalação automática de prioridade para tarefas atrasadas:
+     * - Tarefas de ontem sobem de grau (baixa -> média, média -> alta, alta -> urgente)
+     * - Tarefas com 2+ dias de atraso sobem proporcionalmente até urgente
      */
     function applyOverdueEscalationToTask(t, todayStr) {
         if (!t.due_date || t.completed_at || t.due_date >= todayStr) {
@@ -739,17 +739,17 @@ window.KD = window.KD || {};
     }
 
             /**
-     * OrdenaÃ§Ã£o de tarefas para cada coluna:
-     * 1. ConcluÃ­das sempre no final da coluna.
+     * Ordenação de tarefas para cada coluna:
+     * 1. Concluídas sempre no final da coluna.
      * 2. Tarefa bomba sempre no topo absoluto.
-     * 3. Se houver ordenaÃ§Ã£o manual ativa entre as tarefas (sort_order > 0), a ordem manual sobrepÃµe!
-     * 4. Por padrÃ£o (sem ordenaÃ§Ã£o manual / sort_order == 0) ou ao reordenar:
-     *    - 1Âº: Tarefa bomba
-     *    - 2Âº: Tarefa atrasada por ordem de mais atrasadas primeiro (due_date ASC)
-     *    - 3Âº: Tarefa de prioridade urgente
-     *    - 4Âº: Tarefa de prioridade alta
-     *    - 5Âº: Tarefa de prioridade mÃ©dia
-     *    - 6Âº: Tarefa de prioridade baixa
+     * 3. Se houver ordenação manual ativa entre as tarefas (sort_order > 0), a ordem manual sobrepõe!
+     * 4. Por padrão (sem ordenação manual / sort_order == 0) ou ao reordenar:
+     *    - 1º: Tarefa bomba
+     *    - 2º: Tarefa atrasada por ordem de mais atrasadas primeiro (due_date ASC)
+     *    - 3º: Tarefa de prioridade urgente
+     *    - 4º: Tarefa de prioridade alta
+     *    - 5º: Tarefa de prioridade média
+     *    - 6º: Tarefa de prioridade baixa
      */
         function getClientCategory(task) {
         if (task && task.client_category && ['A+', 'A', 'B', 'C', 'D'].includes(task.client_category)) {
@@ -898,7 +898,7 @@ function isDoneTask(t) {
     function tasksOfWeekday(day) {
         const todayStr = getTodayString();
 
-        // 1. Coluna de Tarefas ConcluÃ­das no modo semana
+        // 1. Coluna de Tarefas Concluídas no modo semana
         if (day.id === 'done') {
             const list = board.tasks.filter((t) => {
                 if (!board.showCalendarEvents && isCalendarTask(t)) return false;
@@ -951,7 +951,7 @@ function isDoneTask(t) {
     function destroySortables() {
         while (sortables.length) {
             const instance = sortables.pop();
-            try { instance.destroy(); } catch (e) { /* jÃ¡ removido do DOM */ }
+            try { instance.destroy(); } catch (e) { /* já removido do DOM */ }
         }
     }
 
@@ -959,7 +959,7 @@ function isDoneTask(t) {
         const container = el('kanbanBoard');
         if (!container) return;
 
-        // Guarda a rolagem de cada coluna para nÃ£o "pular" a cada atualizaÃ§Ã£o.
+        // Guarda a rolagem de cada coluna para não "pular" a cada atualização.
         const scrollMemory = {};
         container.querySelectorAll('.kd-col__body').forEach((body) => {
             const key = body.dataset.stageId || body.dataset.weekdayId;
@@ -975,12 +975,12 @@ function isDoneTask(t) {
             const visibleDays = days.filter((d) => !board.hiddenColumns.weekdays.has(d.id));
             container.innerHTML = visibleDays.length > 0
                 ? visibleDays.map(columnWeekdayHtml).join('')
-                : `<div class="p-8 text-center text-slate-400 text-sm">Todas as colunas deste modo estÃ£o ocultas. <button type="button" class="text-indigo-400 underline font-semibold ml-1" onclick="KD.resetVisibleColumns()">Restaurar colunas</button></div>`;
+                : `<div class="p-8 text-center text-slate-400 text-sm">Todas as colunas deste modo estão ocultas. <button type="button" class="text-indigo-400 underline font-semibold ml-1" onclick="KD.resetVisibleColumns()">Restaurar colunas</button></div>`;
         } else {
             const visibleStages = board.stages.filter((s) => !board.hiddenColumns.status.has(String(s.id)));
             container.innerHTML = visibleStages.length > 0
                 ? visibleStages.map(columnHtml).join('')
-                : `<div class="p-8 text-center text-slate-400 text-sm">Todas as colunas deste modo estÃ£o ocultas. <button type="button" class="text-indigo-400 underline font-semibold ml-1" onclick="KD.resetVisibleColumns()">Restaurar colunas</button></div>`;
+                : `<div class="p-8 text-center text-slate-400 text-sm">Todas as colunas deste modo estão ocultas. <button type="button" class="text-indigo-400 underline font-semibold ml-1" onclick="KD.resetVisibleColumns()">Restaurar colunas</button></div>`;
         }
 
         // Restaura rolagem, foco e reativa o arrastar
@@ -1013,7 +1013,7 @@ function isDoneTask(t) {
         if (!stage) return false;
         const slug = String(stage.slug || '').trim().toLowerCase();
         const name = String(stage.name || '').trim().toLowerCase();
-        return slug === 'mentions' || name === 'menÃ§Ãµes' || name === 'mencoes' || name.startsWith('menÃ§') || name.startsWith('menc');
+        return slug === 'mentions' || name === 'menções' || name === 'mencoes' || name.startsWith('menç') || name.startsWith('menc');
     }
 
     function columnHtml(stage) {
@@ -1037,14 +1037,14 @@ function isDoneTask(t) {
                             </span>
                         </div>
 
-                        <!-- 2. Quantidade de cards embaixo do tÃ­tulo -->
+                        <!-- 2. Quantidade de cards embaixo do título -->
                         <div class="kd-col-collapsed__count-wrap">
                             <span class="kd-col-collapsed__count ${overLimit ? 'kd-col__count--over' : ''}" title="${tasks.length} tarefa(s)">
                                 ${countLabel}
                             </span>
                         </div>
 
-                        <!-- 3. BotÃ£o para restaurar o tamanho da coluna embaixo do nÃºmero -->
+                        <!-- 3. Botão para restaurar o tamanho da coluna embaixo do número -->
                         <button type="button" class="kd-icon-btn kd-col-collapsed__restore-btn"
                                 data-action="toggle-collapse" data-stage-id="${stage.id}"
                                 title="Restaurar tamanho da coluna ${KD.escapeHtml(stage.name)}"
@@ -1086,7 +1086,7 @@ function isDoneTask(t) {
 
                             <div class="kd-menu-wrap kd-col__menu-wrap">
                                 <button type="button" class="kd-icon-btn" data-action="toggle-column-menu" data-stage-id="${stage.id}"
-                                        aria-haspopup="menu" aria-expanded="false" aria-label="OpÃ§Ãµes da coluna ${KD.escapeHtml(stage.name)}">
+                                        aria-haspopup="menu" aria-expanded="false" aria-label="Opções da coluna ${KD.escapeHtml(stage.name)}">
                                     <i data-lucide="more-horizontal" class="w-4 h-4"></i>
                                 </button>
                                 ${columnMenuHtml(stage, tasks.length)}
@@ -1101,7 +1101,7 @@ function isDoneTask(t) {
                                 <span>Tempo:</span>
                                 <strong class="font-mono text-slate-200 text-xs">${timeInfo.formattedTotal}</strong>
                             </span>
-                            <span class="kd-time-pill kd-time-pill--${timeInfo.tone} text-[10px]" title="Capacidade diÃ¡ria: ${timeInfo.formattedCapacity} (${timeInfo.label})">
+                            <span class="kd-time-pill kd-time-pill--${timeInfo.tone} text-[10px]" title="Capacidade diária: ${timeInfo.formattedCapacity} (${timeInfo.label})">
                                 ${Math.round(timeInfo.ratio * 100)}% da jornada
                             </span>
                         </div>
@@ -1114,7 +1114,7 @@ function isDoneTask(t) {
                             <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0"></i>
                             <span class="truncate">Acima do limite de ${stage.wip_limit} tarefa(s)</span>
                         </span>
-                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('stage_wip_${stage.id}')" title="Fechar aviso nesta sessÃ£o">
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('stage_wip_${stage.id}')" title="Fechar aviso nesta sessão">
                             <i data-lucide="x" class="w-3 h-3"></i>
                         </button>
                     </p>
@@ -1124,9 +1124,9 @@ function isDoneTask(t) {
                     <p class="kd-col__wip flex items-center justify-between gap-1.5" style="color:var(--danger)">
                         <span class="flex items-center gap-1.5 flex-1 min-w-0">
                             <i data-lucide="alert-circle" class="w-3.5 h-3.5 flex-shrink-0"></i>
-                            <span class="truncate">Tarefas extrapolaram o limite diÃ¡rio de ${timeInfo.formattedCapacity}</span>
+                            <span class="truncate">Tarefas extrapolaram o limite diário de ${timeInfo.formattedCapacity}</span>
                         </span>
-                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('stage_${stage.id}')" title="Fechar aviso nesta sessÃ£o">
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('stage_${stage.id}')" title="Fechar aviso nesta sessão">
                             <i data-lucide="x" class="w-3 h-3"></i>
                         </button>
                     </p>
@@ -1134,9 +1134,9 @@ function isDoneTask(t) {
                     <p class="kd-col__wip flex items-center justify-between gap-1.5" style="color:var(--warning)">
                         <span class="flex items-center gap-1.5 flex-1 min-w-0">
                             <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0"></i>
-                            <span class="truncate">PrÃ³ximo de extrapolar capacidade (${Math.round(timeInfo.ratio * 100)}%)</span>
+                            <span class="truncate">Próximo de extrapolar capacidade (${Math.round(timeInfo.ratio * 100)}%)</span>
                         </span>
-                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('stage_${stage.id}')" title="Fechar aviso nesta sessÃ£o">
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('stage_${stage.id}')" title="Fechar aviso nesta sessão">
                             <i data-lucide="x" class="w-3 h-3"></i>
                         </button>
                     </p>
@@ -1148,7 +1148,7 @@ function isDoneTask(t) {
 
                 ${stage.is_done && board.doneHidden > 0 ? `
                     <p class="kd-col__empty" style="margin-top:0.5rem">
-                        ${board.doneHidden} tarefa(s) concluÃ­da(s) hÃ¡ mais de ${board.doneVisibleDays} dias saÃ­ram do quadro.
+                        ${board.doneHidden} tarefa(s) concluída(s) há mais de ${board.doneVisibleDays} dias saíram do quadro.
                     </p>
                 ` : ''}
 
@@ -1178,14 +1178,14 @@ function isDoneTask(t) {
                             </span>
                         </div>
 
-                        <!-- 2. Quantidade de cards embaixo do tÃ­tulo -->
+                        <!-- 2. Quantidade de cards embaixo do título -->
                         <div class="kd-col-collapsed__count-wrap">
                             <span class="kd-col-collapsed__count" title="${tasks.length} tarefa(s)">
                                 ${tasks.length}
                             </span>
                         </div>
 
-                        <!-- 3. BotÃ£o para restaurar o tamanho da coluna embaixo do nÃºmero -->
+                        <!-- 3. Botão para restaurar o tamanho da coluna embaixo do número -->
                         <button type="button" class="kd-icon-btn kd-col-collapsed__restore-btn"
                                 data-action="toggle-collapse-weekday" data-weekday-id="${day.id}"
                                 title="Restaurar tamanho da coluna ${KD.escapeHtml(day.name)}"
@@ -1215,7 +1215,7 @@ function isDoneTask(t) {
                         <div class="flex items-center gap-1 flex-shrink-0">
                             <div class="kd-menu-wrap kd-col__menu-wrap">
                                 <button type="button" class="kd-icon-btn" data-action="toggle-column-menu"
-                                        aria-haspopup="menu" aria-expanded="false" aria-label="OpÃ§Ãµes do dia ${KD.escapeHtml(day.name)}">
+                                        aria-haspopup="menu" aria-expanded="false" aria-label="Opções do dia ${KD.escapeHtml(day.name)}">
                                     <i data-lucide="more-horizontal" class="w-4 h-4"></i>
                                 </button>
                                 <div class="kd-menu kd-glass kd-glass--raised" role="menu" hidden>
@@ -1265,9 +1265,9 @@ function isDoneTask(t) {
                     <p class="kd-col__wip flex items-center justify-between gap-1.5" style="color:var(--danger)">
                         <span class="flex items-center gap-1.5 flex-1 min-w-0">
                             <i data-lucide="alert-circle" class="w-3.5 h-3.5 flex-shrink-0"></i>
-                            <span class="truncate">Tarefas extrapolaram o limite diÃ¡rio de ${timeInfo.formattedCapacity}</span>
+                            <span class="truncate">Tarefas extrapolaram o limite diário de ${timeInfo.formattedCapacity}</span>
                         </span>
-                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('day_${day.id}')" title="Fechar aviso nesta sessÃ£o">
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('day_${day.id}')" title="Fechar aviso nesta sessão">
                             <i data-lucide="x" class="w-3 h-3"></i>
                         </button>
                     </p>
@@ -1275,9 +1275,9 @@ function isDoneTask(t) {
                     <p class="kd-col__wip flex items-center justify-between gap-1.5" style="color:var(--warning)">
                         <span class="flex items-center gap-1.5 flex-1 min-w-0">
                             <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0"></i>
-                            <span class="truncate">PrÃ³ximo de extrapolar capacidade (${Math.round(timeInfo.ratio * 100)}%)</span>
+                            <span class="truncate">Próximo de extrapolar capacidade (${Math.round(timeInfo.ratio * 100)}%)</span>
                         </span>
-                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('day_${day.id}')" title="Fechar aviso nesta sessÃ£o">
+                        <button type="button" class="p-0.5 rounded hover:bg-white/10 opacity-70 hover:opacity-100 transition flex-shrink-0" onclick="this.closest('.kd-col__wip').remove(); KD.dismissColumnAlert('day_${day.id}')" title="Fechar aviso nesta sessão">
                             <i data-lucide="x" class="w-3 h-3"></i>
                         </button>
                     </p>
@@ -1330,7 +1330,7 @@ function isDoneTask(t) {
                 ${stage.is_done && count > 0 ? `
                     <div class="kd-menu__sep"></div>
                     <button type="button" class="kd-menu__item" role="menuitem" data-action="archive-done">
-                        <i data-lucide="archive" class="w-4 h-4"></i> Arquivar concluÃ­das
+                        <i data-lucide="archive" class="w-4 h-4"></i> Arquivar concluídas
                     </button>
                 ` : ''}
                 <div class="kd-menu__sep"></div>
@@ -1351,9 +1351,9 @@ function isDoneTask(t) {
             return `<p class="kd-col__empty">Nenhuma tarefa nesta coluna com os filtros atuais.</p>`;
         }
         if (stage.is_done) {
-            return `<p class="kd-col__empty">Nada concluÃ­do por aqui ainda.<br>Arraste um card atÃ© esta coluna para fechÃ¡-lo.</p>`;
+            return `<p class="kd-col__empty">Nada concluído por aqui ainda.<br>Arraste um card até esta coluna para fechá-lo.</p>`;
         }
-        return `<p class="kd-col__empty">Coluna vazia.<br>Use <strong>Adicionar tarefa</strong> abaixo ou arraste um card para cÃ¡.</p>`;
+        return `<p class="kd-col__empty">Coluna vazia.<br>Use <strong>Adicionar tarefa</strong> abaixo ou arraste um card para cá.</p>`;
     }
 
     function cardsHtml(tasks, stage) {
@@ -1361,7 +1361,7 @@ function isDoneTask(t) {
             return tasks.map((task) => cardHtml(task, stage)).join('');
         }
 
-        // Agrupamento por cliente: rÃ³tulo discreto separando os blocos.
+        // Agrupamento por cliente: rótulo discreto separando os blocos.
         const groups = new Map();
         tasks.forEach((task) => {
             const key = task.client_company || 'Sem cliente';
@@ -1405,7 +1405,7 @@ function isDoneTask(t) {
         const assignees = task.assignees || [];
         const primaryUser = assignees[0] || null;
 
-        // DeterminaÃ§Ã£o unificada da cor de status (border-bottom, botÃ£o de play/timer e texto tracking-wide)
+        // Determinação unificada da cor de status (border-bottom, botão de play/timer e texto tracking-wide)
         let statusColor = '#eab308';
         if (isDone) {
             statusColor = '#10b981';
@@ -1427,7 +1427,7 @@ function isDoneTask(t) {
             statusColor = stage.color;
         }
 
-        // 1. Avatar do responsÃ¡vel em primeiro (topo Ã  esquerda) - 1.5rem
+        // 1. Avatar do responsável em primeiro (topo à esquerda) - 1.5rem
         let avatarHtml = '';
         if (primaryUser && primaryUser.avatar) {
             avatarHtml = `<img src="${primaryUser.avatar}" alt="${KD.escapeHtml(primaryUser.name || '')}" class="rounded-full object-cover border border-slate-600/80 shadow-sm" style="width: 1.5rem; height: 1.5rem;" title="${KD.escapeHtml(primaryUser.name || '')}">`;
@@ -1435,7 +1435,7 @@ function isDoneTask(t) {
             const initial = (primaryUser.initial || primaryUser.name?.charAt(0) || 'U').toUpperCase();
             avatarHtml = `<div class="rounded-full bg-slate-700/80 border border-slate-600/80 text-white font-bold text-[10px] flex items-center justify-center shadow-sm" style="width: 1.5rem; height: 1.5rem;" title="${KD.escapeHtml(primaryUser.name || '')}">${KD.escapeHtml(initial)}</div>`;
         } else {
-            avatarHtml = `<div class="rounded-full bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center" style="width: 1.5rem; height: 1.5rem;" title="Sem responsÃ¡vel"><i data-lucide="user" class="w-3 h-3"></i></div>`;
+            avatarHtml = `<div class="rounded-full bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center" style="width: 1.5rem; height: 1.5rem;" title="Sem responsável"><i data-lucide="user" class="w-3 h-3"></i></div>`;
         }
 
         // 2. Etapas / Subtarefas (ex: 01 de 02)
@@ -1444,14 +1444,14 @@ function isDoneTask(t) {
             const donePad = String(checklistDone).padStart(2, '0');
             const totalPad = String(checklistTotal).padStart(2, '0');
             stepsHtml = `
-                <div class="kd-card__steps" title="${donePad} de ${totalPad} etapas concluÃ­das">
+                <div class="kd-card__steps" title="${donePad} de ${totalPad} etapas concluídas">
                     <i data-lucide="check-square" class="w-3.5 h-3.5 text-slate-400"></i>
                     <span>${donePad} de ${totalPad}</span>
                 </div>
             `;
         }
 
-        // 3. Prazo no rodapÃ© Ã  esquerda (texto do tracking-wide na mesma cor do status)
+        // 3. Prazo no rodapé à esquerda (texto do tracking-wide na mesma cor do status)
         let dueHtml = '';
         const timeBadge = task.due_time ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-xs"><i data-lucide="clock" class="w-3 h-3"></i>${KD.escapeHtml(task.due_time.substring(0, 5))}</span>` : '';
         if (due.text) {
@@ -1460,7 +1460,7 @@ function isDoneTask(t) {
             dueHtml = `<span class="text-xs font-mono font-bold tracking-wide leading-tight flex items-center gap-1.5" style="color: var(--card-status-color);">#${task.id} ${timeBadge}</span>`;
         }
 
-        // 4. BotÃ£o Play / Timer Expandido (toggle suave)
+        // 4. Botão Play / Timer Expandido (toggle suave)
         const isPaused = !isRunning && board.pausedTimers && board.pausedTimers.has(Number(task.id));
         const isTimerActive = isRunning || isPaused;
 
@@ -1502,22 +1502,22 @@ function isDoneTask(t) {
                 <!-- Barra superior de cor sutil (se houver status/cliente) -->
                 <div class="kd-card__compact-bar" style="background-color: var(--card-status-color);"></div>
 
-                <!-- TÃ­tulo da tarefa (estilo Trello) -->
+                <!-- Título da tarefa (estilo Trello) -->
                 <div class="kd-card__title kd-card__title--compact" data-action="open" data-task-id="${task.id}" role="button" tabindex="0">
                     ${Number(task.is_private) === 1 ? `<i data-lucide="lock" class="w-3 h-3 text-amber-400 inline-block mr-1"></i>` : ""}${KD.escapeHtml(task.title)}
                 </div>
 
-                <!-- Linha inferior: Ãcones discretos (descriÃ§Ã£o, checklist, recorrÃªncia, bomba) e Avatares -->
+                <!-- Linha inferior: Ícones discretos (descrição, checklist, recorrência, bomba) e Avatares -->
                 <div class="kd-card__compact-footer flex items-center justify-between gap-1.5 border-t border-slate-800/40 text-slate-400 text-[11px]">
                     <div class="flex items-center gap-2 flex-wrap min-w-0">
                         ${task.description && task.description.trim() ? `
-                            <span title="Possui descriÃ§Ã£o" class="text-slate-400 hover:text-slate-200 transition">
+                            <span title="Possui descrição" class="text-slate-400 hover:text-slate-200 transition">
                                 <i data-lucide="align-left" class="w-3.5 h-3.5"></i>
                             </span>
                         ` : ''}
 
                         ${checklistTotal > 0 ? `
-                            <span class="flex items-center gap-1 font-medium ${checklistDone === checklistTotal ? 'text-emerald-400' : 'text-slate-400'}" title="${checklistDone} de ${checklistTotal} subtarefas concluÃ­das">
+                            <span class="flex items-center gap-1 font-medium ${checklistDone === checklistTotal ? 'text-emerald-400' : 'text-slate-400'}" title="${checklistDone} de ${checklistTotal} subtarefas concluídas">
                                 <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
                                 <span>${checklistDone}/${checklistTotal}</span>
                             </span>
@@ -1542,7 +1542,7 @@ function isDoneTask(t) {
                         ` : ''}
                     </div>
 
-                    <!-- Avatares compactos Ã  direita -->
+                    <!-- Avatares compactos à direita -->
                     <div class="flex items-center -space-x-1.5 flex-shrink-0">
                         ${assignees.length > 0 ? assignees.slice(0, 2).map((u) => {
                             if (u.avatar) {
@@ -1551,7 +1551,7 @@ function isDoneTask(t) {
                             const initial = (u.initial || u.name?.charAt(0) || 'U').toUpperCase();
                             return `<div class="w-5 h-5 rounded-full bg-slate-700 border border-slate-600 text-white font-bold text-[9px] flex items-center justify-center shadow-xs" title="${KD.escapeHtml(u.name || '')}">${KD.escapeHtml(initial)}</div>`;
                         }).join('') : `
-                            <div class="w-5 h-5 rounded-full bg-slate-800/80 border border-slate-700/80 text-slate-500 flex items-center justify-center" title="Sem responsÃ¡vel">
+                            <div class="w-5 h-5 rounded-full bg-slate-800/80 border border-slate-700/80 text-slate-500 flex items-center justify-center" title="Sem responsável">
                                 <i data-lucide="user" class="w-2.5 h-2.5"></i>
                             </div>
                         `}
@@ -1578,15 +1578,15 @@ function isDoneTask(t) {
                      style="--card-status-color: ${statusColor};"
                      aria-label="${KD.escapeHtml(task.title)}">
 
-                <!-- Topo: Avatar do responsÃ¡vel (com hover que revela botÃ£o de Concluir) e menu â® Ã  direita -->
+                <!-- Topo: Avatar do responsável (com hover que revela botão de Concluir) e menu ⋮ à direita -->
                 <div class="kd-card__top flex items-center justify-between gap-3 w-full">
                     <div class="kd-card__avatar-wrap flex items-center gap-1.5 min-w-0">
                         <button type="button"
                                 class="kd-card__check-trigger"
                                 data-action="${isDone ? 'reopen' : 'complete'}"
                                 data-task-id="${task.id}"
-                                title="${isDone ? 'ConcluÃ­da (clique para reabrir)' : 'Concluir tarefa'}"
-                                aria-label="${isDone ? 'ConcluÃ­da (clique para reabrir)' : 'Concluir tarefa'}">
+                                title="${isDone ? 'Concluída (clique para reabrir)' : 'Concluir tarefa'}"
+                                aria-label="${isDone ? 'Concluída (clique para reabrir)' : 'Concluir tarefa'}">
                             <span class="kd-card__thumb-view">
                                 ${avatarHtml}
                             </span>
@@ -1600,12 +1600,12 @@ function isDoneTask(t) {
                             </span>
                         ` : ''}
                         ${isBomb ? `
-                            <span class="text-rose-500 flex items-center justify-center opacity-90 hover:opacity-100 transition" title="Tarefa Bomba (UrgÃªncia CrÃ­tica)" style="line-height:0">
+                            <span class="text-rose-500 flex items-center justify-center opacity-90 hover:opacity-100 transition" title="Tarefa Bomba (Urgência Crítica)" style="line-height:0">
                                 <i data-lucide="bomb" class="w-3.5 h-3.5"></i>
                             </span>
                         ` : ''}
                         ${Number(task.is_private) === 1 ? `
-                            <span class="text-amber-400 flex items-center justify-center opacity-90 hover:opacity-100 transition" title="Tarefa Particular (nÃ£o visÃ­vel em links pÃºblicos)" style="line-height:0">
+                            <span class="text-amber-400 flex items-center justify-center opacity-90 hover:opacity-100 transition" title="Tarefa Particular (não visível em links públicos)" style="line-height:0">
                                 <i data-lucide="lock" class="w-3 h-3"></i>
                             </span>
                         ` : ''}
@@ -1616,7 +1616,7 @@ function isDoneTask(t) {
                             <button type="button" class="w-7 h-7 rounded-lg text-slate-400 hover:text-white flex items-center justify-center transition"
                                     data-action="toggle-card-menu" data-task-id="${task.id}"
                                     aria-haspopup="menu" aria-expanded="false"
-                                    aria-label="AÃ§Ãµes da tarefa ${KD.escapeHtml(task.title)}">
+                                    aria-label="Ações da tarefa ${KD.escapeHtml(task.title)}">
                                 <i data-lucide="more-vertical" class="w-4 h-4"></i>
                             </button>
                             ${cardMenuHtml(task, inFocus, isBomb, isDone)}
@@ -1624,12 +1624,12 @@ function isDoneTask(t) {
                     </div>
                 </div>
 
-                <!-- SubtÃ­tulo: Nome do cliente (12px, tom cinza) -->
+                <!-- Subtítulo: Nome do cliente (12px, tom cinza) -->
                 <div class="kd-card__client truncate" title="${KD.escapeHtml(task.client_company || 'Sem cliente')}">
                     ${KD.escapeHtml(task.client_company || 'Sem cliente')}
                 </div>
 
-                <!-- TÃ­tulo da tarefa (18px, branco) -->
+                <!-- Título da tarefa (18px, branco) -->
                 <div class="kd-card__title" data-action="open" data-task-id="${task.id}" role="button" tabindex="0">
                     ${KD.escapeHtml(task.title)}
                 </div>
@@ -1651,16 +1651,16 @@ function isDoneTask(t) {
 
                 ${(inFocus || isBomb || isMention || (task.is_overdue && !isDone)) ? `
                     <div class="flex items-center gap-1.5 flex-wrap">
-                        ${isCalendarTask(task) ? '<span class="kd-flag kd-flag--calendar" style="background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);font-weight:600" title="Evento sincronizado do calendÃ¡rio"><i data-lucide="calendar" class="w-3 h-3"></i>CalendÃ¡rio</span>' : ''}
+                        ${isCalendarTask(task) ? '<span class="kd-flag kd-flag--calendar" style="background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);font-weight:600" title="Evento sincronizado do calendário"><i data-lucide="calendar" class="w-3 h-3"></i>Calendário</span>' : ''}
                         
                         
-                        ${(task.is_overdue && !isDone) ? `<span class="kd-flag kd-flag--overdue" style="background:rgba(239,68,68,0.22);color:#ef4444;border:1px solid rgba(239,68,68,0.45);font-weight:700" title="Atrasada em ${task.days_overdue || 1} dia(s). Prioridade escalada para ${KD.escapeHtml(task.priority || 'urgente')}."><i data-lucide="alert-triangle" class="w-3 h-3"></i>Atrasada${task.priority_escalated ? ' Â· ' + (task.priority === 'urgent' ? 'Urgente' : 'Alta') : ''}</span>` : ''}
+                        ${(task.is_overdue && !isDone) ? `<span class="kd-flag kd-flag--overdue" style="background:rgba(239,68,68,0.22);color:#ef4444;border:1px solid rgba(239,68,68,0.45);font-weight:700" title="Atrasada em ${task.days_overdue || 1} dia(s). Prioridade escalada para ${KD.escapeHtml(task.priority || 'urgente')}."><i data-lucide="alert-triangle" class="w-3 h-3"></i>Atrasada${task.priority_escalated ? ' · ' + (task.priority === 'urgent' ? 'Urgente' : 'Alta') : ''}</span>` : ''}
                         ${inFocus ? '<span class="kd-flag kd-flag--focus"><i data-lucide="target" class="w-3 h-3"></i>Foco</span>' : ''}
                         ${isMention ? `<span class="kd-flag kd-flag--mention"><i data-lucide="message-circle" class="w-3 h-3"></i>${KD.escapeHtml(task.mentioned_by ? '@' + task.mentioned_by : 'WhatsApp')}</span>` : ''}
                     </div>
                 ` : ''}
 
-                <!-- RodapÃ©: Prazo Ã  esquerda e BotÃ£o Play/Timer Ã  direita -->
+                <!-- Rodapé: Prazo à esquerda e Botão Play/Timer à direita -->
                 <div class="kd-card__footer flex items-center justify-between gap-3 mt-auto">
                     <div>
                         ${dueHtml}
@@ -1671,14 +1671,14 @@ function isDoneTask(t) {
                     </div>
                 </div>
 
-                <!-- Barra de status colorida no rodapÃ© -->
+                <!-- Barra de status colorida no rodapé -->
                 <div class="kd-card__status-bar" aria-hidden="true"></div>
             </article>
         `;
     }
 
     function cardMenuHtml(task, inFocus, isBomb, isDone) {
-        // Bomba nÃ£o muda de coluna: o menu nÃ£o oferece o caminho.
+        // Bomba não muda de coluna: o menu não oferece o caminho.
         const moveOptions = isBomb ? '' : board.stages
             .filter((stage) => Number(stage.id) !== Number(task.stage_id))
             .map((stage) => `
@@ -1697,7 +1697,7 @@ function isDoneTask(t) {
                 </button>
                 <button type="button" class="kd-menu__item" role="menuitem" data-action="${isDone ? 'reopen' : 'complete'}" data-task-id="${task.id}">
                     <i data-lucide="${isDone ? 'rotate-ccw' : 'check-circle-2'}" class="w-4 h-4"></i>
-                    ${isDone ? 'Reabrir tarefa' : 'Marcar como concluÃ­da'}
+                    ${isDone ? 'Reabrir tarefa' : 'Marcar como concluída'}
                 </button>
                 <button type="button" class="kd-menu__item" role="menuitem" data-action="focus" data-task-id="${task.id}">
                     <i data-lucide="target" class="w-4 h-4"></i> ${inFocus ? 'Tirar do foco' : 'Colocar em foco'}
@@ -1709,7 +1709,7 @@ function isDoneTask(t) {
                 <div class="kd-menu__sep"></div>
                 ${moveOptions
                     ? `<p class="kd-group-label" style="padding:0.25rem 0.6rem">Mover para</p>${moveOptions}<div class="kd-menu__sep"></div>`
-                    : `<p class="kd-group-label" style="padding:0.25rem 0.6rem;color:var(--danger)">Presa atÃ© ser resolvida</p><div class="kd-menu__sep"></div>`}
+                    : `<p class="kd-group-label" style="padding:0.25rem 0.6rem;color:var(--danger)">Presa até ser resolvida</p><div class="kd-menu__sep"></div>`}
 
                 <button type="button" class="kd-menu__item" role="menuitem" data-action="adjust-card-time" data-task-id="${task.id}">
                     <i data-lucide="clock" class="w-4 h-4 text-indigo-400"></i> Ajustar tempo (+ / -)
@@ -1794,7 +1794,7 @@ function isDoneTask(t) {
     function initSortable(bodyEl) {
         if (!window.Sortable) return;
 
-        // Enquanto o quadro estÃ¡ agrupado por cliente, a ordem manual nÃ£o faz
+        // Enquanto o quadro está agrupado por cliente, a ordem manual não faz
         // sentido dentro da coluna: mover entre colunas continua pelo menu.
         if (board.groupByClient) return;
 
@@ -1805,7 +1805,7 @@ function isDoneTask(t) {
             chosenClass: 'sortable-chosen',
             dragClass: 'sortable-drag',
             draggable: '.kd-card',
-            // Tarefas bomba e controles interativos nÃ£o iniciam arrasto
+            // Tarefas bomba e controles interativos não iniciam arrasto
             filter: '.kd-card[data-bomb="1"], .kd-card__check-trigger, .kd-menu-wrap, .kd-timer-toggle, .kd-play-btn, .kd-tag, input, select, textarea',
             preventOnFilter: false,
             delay: 0,
@@ -1828,7 +1828,7 @@ function isDoneTask(t) {
                 KD.closeMenus();
             },
             
-            // Rede de seguranÃ§a: nem arrastar bomba nem soltar card acima de uma bomba
+            // Rede de segurança: nem arrastar bomba nem soltar card acima de uma bomba
             onMove: (event) => {
                 if (event.dragged && event.dragged.dataset && event.dragged.dataset.bomb === '1') return false;
                 if (event.related && event.related.dataset && event.related.dataset.bomb === '1' && event.willInsertAfter === false) return false;
@@ -1867,15 +1867,15 @@ function isDoneTask(t) {
                     return;
                 }
 
-                // 1. Arrastou PARA a coluna "ConcluÃ­dos"
+                // 1. Arrastou PARA a coluna "Concluídos"
                 if (targetWeekdayId === 'done') {
                     const result = await KD.api.tasks({ action: 'complete_task', task_id: taskId });
                     await KD.loadBoard({ silent: true });
-                    KD.toast('Tarefa concluÃ­da.', { undo: () => undoMove(result.undo) });
+                    KD.toast('Tarefa concluída.', { undo: () => undoMove(result.undo) });
                     return;
                 }
 
-                // 2. Arrastou DE "ConcluÃ­dos" para outra coluna da semana
+                // 2. Arrastou DE "Concluídos" para outra coluna da semana
                 if (fromWeekdayId === 'done') {
                     await KD.api.tasks({ action: 'uncomplete_task', task_id: taskId });
                     if (newDueDate) {
@@ -1968,7 +1968,7 @@ function isDoneTask(t) {
 
                 const orderedIds = Array.from(targetBody.querySelectorAll('.kd-card:not(.sortable-ghost):not(.sortable-fallback)')).map((node) => Number(node.dataset.taskId)).filter((id) => id > 0);
 
-                // AtualizaÃ§Ã£o otimista imediata no cache local
+                // Atualização otimista imediata no cache local
                 orderedIds.forEach((id, idx) => {
                     const t = board.tasks.find((task) => Number(task.id) === id);
                     if (t) {
@@ -1988,7 +1988,7 @@ function isDoneTask(t) {
 
                 const stage = board.stages.find((s) => Number(s.id) === stageId);
                 if (stage && stage.is_done) {
-                    KD.toast('Tarefa concluÃ­da.', {
+                    KD.toast('Tarefa concluída.', {
                         undo: () => undoMove(result.undo),
                     });
                 } else if (stageId === fromStageId) {
@@ -1999,7 +1999,7 @@ function isDoneTask(t) {
             }
         } catch (error) {
             card.classList.remove('is-busy');
-            KD.toastError(error.message || 'NÃ£o foi possÃ­vel mover a tarefa. O quadro foi restaurado.');
+            KD.toastError(error.message || 'Não foi possível mover a tarefa. O quadro foi restaurado.');
             await KD.loadBoard({ silent: true });
         }
     }
@@ -2009,14 +2009,14 @@ function isDoneTask(t) {
         try {
             await KD.api.tasks(undo);
             await KD.loadBoard({ silent: true });
-            KD.toast('MovimentaÃ§Ã£o desfeita.', { tone: 'info' });
+            KD.toast('Movimentação desfeita.', { tone: 'info' });
         } catch (error) {
             KD.toastError(error.message);
         }
     }
 
     // ---------------------------------------------------------------
-    // AÃ§Ãµes do quadro (delegaÃ§Ã£o de eventos â um Ãºnico listener)
+    // Ações do quadro (delegação de eventos — um único listener)
     // ---------------------------------------------------------------
 
     async function runAction(action, node) {
@@ -2085,7 +2085,7 @@ function isDoneTask(t) {
                 });
                 render();
                 await KD.api.tasks({ action: 'reset_stage_order', stage_id: stgId });
-                KD.toast('Coluna reordenada pelo padrÃ£o de prioridades.');
+                KD.toast('Coluna reordenada pelo padrão de prioridades.');
                 await KD.loadBoard({ silent: true });
                 break;
             }
@@ -2140,7 +2140,7 @@ function isDoneTask(t) {
                 const on = action === 'focus' ? result.in_focus : result.is_bomb;
                 KD.toast(action === 'focus'
                     ? (on ? 'Tarefa colocada em foco.' : 'Tarefa retirada do foco.')
-                    : (on ? 'Tarefa marcada como bomba.' : 'MarcaÃ§Ã£o de bomba removida.'));
+                    : (on ? 'Tarefa marcada como bomba.' : 'Marcação de bomba removida.'));
                 await KD.loadBoard({ silent: true });
                 break;
             }
@@ -2149,7 +2149,7 @@ function isDoneTask(t) {
                 KD.closeMenus();
                 const result = await KD.api.tasks({ action: 'complete_task', task_id: taskId });
                 await KD.loadBoard({ silent: true });
-                KD.toast('Tarefa concluÃ­da.', { undo: () => undoMove(result.undo) });
+                KD.toast('Tarefa concluída.', { undo: () => undoMove(result.undo) });
                 break;
             }
 
@@ -2223,7 +2223,7 @@ function isDoneTask(t) {
                 KD.closeMenus();
                 const stage = board.stages.find((s) => Number(s.id) === stageId);
                 const answer = window.prompt(
-                    `Limite de tarefas simultÃ¢neas em "${stage ? stage.name : 'coluna'}".\nDeixe vazio para nÃ£o ter limite.`,
+                    `Limite de tarefas simultâneas em "${stage ? stage.name : 'coluna'}".\nDeixe vazio para não ter limite.`,
                     stage && stage.wip_limit ? String(stage.wip_limit) : ''
                 );
                 if (answer === null) break;
@@ -2268,7 +2268,7 @@ function isDoneTask(t) {
         const palette = [
             '#5c52d6', // Roxo ClickUp (Em Progresso)
             '#7c3aed', // Violeta
-            '#6366f1', // Ãndigo
+            '#6366f1', // Índigo
             '#3b82f6', // Azul
             '#0ea5e9', // Ciano / Sky
             '#00b884', // Verde ClickUp (Feito)
@@ -2387,9 +2387,9 @@ function isDoneTask(t) {
             }
 
             await KD.loadBoard({ silent: true });
-            KD.toast(result.is_running ? 'CronÃ´metro iniciado. Tarefa em andamento.' : 'CronÃ´metro pausado. Tarefa continua em andamento.', { tone: 'info' });
+            KD.toast(result.is_running ? 'Cronômetro iniciado. Tarefa em andamento.' : 'Cronômetro pausado. Tarefa continua em andamento.', { tone: 'info' });
             if (result.is_running && result.paused_tasks && result.paused_tasks.length > 0) {
-                KD.toast('O cronÃ´metro da outra tarefa foi pausado.', { tone: 'info' });
+                KD.toast('O cronômetro da outra tarefa foi pausado.', { tone: 'info' });
             }
         } catch (error) {
             KD.toastError(error.message);
@@ -2409,7 +2409,7 @@ function isDoneTask(t) {
 
             const p = KD.api.tasks({ action: 'stop_timer', task_id: numId });
 
-            // Aguarda a animaÃ§Ã£o suave de recolhimento antes de re-renderizar o quadro
+            // Aguarda a animação suave de recolhimento antes de re-renderizar o quadro
             await Promise.all([
                 p,
                 new Promise((resolve) => setTimeout(resolve, 240))
@@ -2425,7 +2425,7 @@ function isDoneTask(t) {
     document.addEventListener('click', (event) => {
         const node = event.target.closest('[data-action]');
         if (!node) return;
-        // O menu aberto Ã© movido para o body, entÃ£o tambÃ©m conta como Ã¡rea do quadro.
+        // O menu aberto é movido para o body, então também conta como área do quadro.
         if (!node.closest('#kanbanBoard') && !node.closest('#kanbanStageTabs') && !node.closest('.kd-menu')) return;
 
         event.preventDefault();
@@ -2445,7 +2445,7 @@ function isDoneTask(t) {
         // Atalhos globais do quadro
         const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable;
 
-        // Acessibilidade: Enter ou EspaÃ§o no tÃ­tulo abre a tarefa
+        // Acessibilidade: Enter ou Espaço no título abre a tarefa
         if ((event.key === 'Enter' || event.key === ' ') && event.target?.matches?.('.kd-card__title[data-action="open"]')) {
             event.preventDefault();
             const taskId = Number(event.target.dataset.taskId);
@@ -2537,7 +2537,7 @@ function isDoneTask(t) {
             event.preventDefault();
 
             if (card.dataset.bomb === '1') {
-                KD.toastError('Tarefa bomba nÃ£o muda de coluna. Resolva-a ou desmarque a bomba.');
+                KD.toastError('Tarefa bomba não muda de coluna. Resolva-a ou desmarque a bomba.');
                 return;
             }
 
@@ -2557,7 +2557,7 @@ function isDoneTask(t) {
     });
 
     // ---------------------------------------------------------------
-    // CronÃ´metros em execuÃ§Ã£o e atualizaÃ§Ã£o periÃ³dica
+    // Cronômetros em execução e atualização periódica
     // ---------------------------------------------------------------
 
     function startTicker() {
@@ -2583,7 +2583,7 @@ function isDoneTask(t) {
     }
 
     // ---------------------------------------------------------------
-    // Controle de Modo de VisÃ£o e Colunas VisÃ­veis
+    // Controle de Modo de Visão e Colunas Visíveis
     // ---------------------------------------------------------------
 
     KD.getTaskById = function (taskId) {
@@ -2697,7 +2697,7 @@ function isDoneTask(t) {
         try { localStorage.setItem(WEEKDAY_DAYS_COUNT_KEY, String(val)); } catch (e) {}
         KD.renderColumnsMenu();
         render();
-        KD.toast(`VisÃ£o configurada para exibir ${val} dia(s).`);
+        KD.toast(`Visão configurada para exibir ${val} dia(s).`);
     };
 
     KD.stepWeekdayDaysCount = function (step) {
@@ -2709,7 +2709,7 @@ function isDoneTask(t) {
         const list = el('columnsMenuList');
         if (!list) return;
 
-        // ConfiguraÃ§Ãµes especÃ­ficas da VisÃ£o por Dias (InÃ­cio da semana e Quantidade de dias)
+        // Configurações específicas da Visão por Dias (Início da semana e Quantidade de dias)
         const isWeekView = (board.viewMode === 'weekdays');
         const weekdayConfig = el('weekdayConfigSection');
         if (weekdayConfig) {
@@ -2799,7 +2799,7 @@ function isDoneTask(t) {
         updateToolbarState();
         render();
         KD.syncPrefHiddenColumns();
-        KD.toast('Todas as colunas estÃ£o visÃ­veis.');
+        KD.toast('Todas as colunas estão visíveis.');
     };
 
     KD.syncPrefHiddenColumns = async function () {
@@ -2843,17 +2843,17 @@ function isDoneTask(t) {
         let hasMoved = false;
 
         boardEl.addEventListener('mousedown', (e) => {
-            // Apenas botÃ£o esquerdo do mouse
+            // Apenas botão esquerdo do mouse
             if (e.button !== 0) return;
 
-            // Se estiver arrastando card (Sortable), nÃ£o faz pan do board
+            // Se estiver arrastando card (Sortable), não faz pan do board
             if (board.dragging) return;
 
             // Ignora se o clique for sobre a barra de rolagem nativa do board
             const rect = boardEl.getBoundingClientRect();
             if (e.clientY >= rect.bottom - 14) return;
 
-            // NÃ£o inicia arrasto de tela se o clique foi em cartÃµes, botÃµes, inputs, links ou menus
+            // Não inicia arrasto de tela se o clique foi em cartões, botões, inputs, links ou menus
             if (e.target.closest('.kd-card, button, input, select, textarea, a, label, [data-action], .kd-menu, .kd-color-popover, .tag-opt-check')) {
                 return;
             }
@@ -2872,7 +2872,7 @@ function isDoneTask(t) {
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
 
-            // Limiar de 3px para nÃ£o bloquear cliques normais
+            // Limiar de 3px para não bloquear cliques normais
             if (!hasMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
                 hasMoved = true;
                 document.body.classList.add('kd-board-panning');
@@ -2894,7 +2894,7 @@ function isDoneTask(t) {
             if (hasMoved) {
                 document.body.classList.remove('kd-board-panning');
 
-                // Evita disparar cliques acidentais em elementos ao soltar o mouse apÃ³s arrastar
+                // Evita disparar cliques acidentais em elementos ao soltar o mouse após arrastar
                 const captureClick = (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
@@ -2915,7 +2915,7 @@ function isDoneTask(t) {
     }
 
     // ---------------------------------------------------------------
-    // InÃ­cio
+    // Início
     // ---------------------------------------------------------------
 
     document.addEventListener('DOMContentLoaded', () => {

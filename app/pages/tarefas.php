@@ -73,7 +73,7 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                 </button>
             </div>
 
-            <!-- Navegação de Semanas (apenas Visão por Dias da Semana) -->
+            <!-- NavegaÃ§Ã£o de Semanas (apenas VisÃ£o por Dias da Semana) -->
             <div id="weekNavControls" class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/80" style="display: none;">
                 <button type="button" onclick="KD.navigateWeek(-1)"
                         class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-slate-800"
@@ -88,7 +88,7 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                 </button>
                 <button type="button" onclick="KD.navigateWeek(1)"
                         class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-slate-800"
-                        title="Próxima Semana" aria-label="Próxima Semana">
+                        title="PrÃ³xima Semana" aria-label="PrÃ³xima Semana">
                     <i data-lucide="chevron-right" class="w-4 h-4"></i>
                 </button>
             </div>
