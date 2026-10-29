@@ -1,2495 +1,2573 @@
-/**
- * KanbanDoo - Modais de tarefa: formulário de criação/edição e painel de detalhes.
- */
-window.KD = window.KD || {};
-
-(function (KD) {
-    'use strict';
-
-    let activeTask = null;
-    let detailTimerInterval = null;
-    let formTags = [];
-    let formChecklistItems = [];
-
-    function el(id) {
-        return document.getElementById(id);
-    }
-
-    // ===============================================================
-    // Formulário de Nova / Editar Tarefa
-    // ===============================================================
-
-    function clearFormErrors() {
-        document.querySelectorAll('#taskForm .kd-inline-error').forEach((node) => { node.hidden = true; });
-        document.querySelectorAll('#taskForm .kd-field-invalid').forEach((node) => {
-            node.classList.remove('kd-field-invalid');
-            node.removeAttribute('aria-invalid');
-        });
-    }
-
-    function showFormError(field, message) {
-        const input = el(`task_${field}`);
-        const error = el(`error_${field}`);
-
-        if (error) {
-            error.textContent = message;
-            error.hidden = false;
-        }
-        if (input) {
-            input.classList.add('kd-field-invalid');
-            input.setAttribute('aria-invalid', 'true');
-            input.focus();
-        }
-        if (!error && !input) KD.toastError(message);
-    }
-
-    // ---------------------------------------------------------------
-    // Etiquetas do formulário
-    // ---------------------------------------------------------------
-
-    function renderFormTags() {
-        const editor = el('taskTagsEditor');
-        const input = el('task_tags_input');
-        if (!editor || !input) return;
-
-        editor.querySelectorAll('.kd-tag').forEach((node) => node.remove());
-
-        formTags.forEach((tag, index) => {
-            const chip = document.createElement('span');
-            chip.className = 'kd-tag';
-            chip.textContent = tag;
-
-            const remove = document.createElement('button');
-            remove.type = 'button';
-            remove.className = 'kd-tag__remove';
-            remove.setAttribute('aria-label', `Remover etiqueta ${tag}`);
-            remove.textContent = '×';
-            remove.addEventListener('click', () => {
-                formTags.splice(index, 1);
-                renderFormTags();
-                input.focus();
-            });
-
-            chip.appendChild(remove);
-            editor.insertBefore(chip, input);
-        });
-
-        input.placeholder = formTags.length >= 8 ? 'Limite de 8 etiquetas' : 'Digite e pressione Enter';
-        input.disabled = formTags.length >= 8;
-    }
-
-    function addFormTag(raw) {
-        const value = String(raw || '').replace(/\s+/g, ' ').trim().replace(/^#|,$/g, '').trim();
-        if (!value || formTags.length >= 8) return;
-        if (formTags.some((t) => t.toLowerCase() === value.toLowerCase())) return;
-
-        formTags.push(value.slice(0, 24));
-        renderFormTags();
-    }
-
-    function setupTagInput() {
-        const input = el('task_tags_input');
-        if (!input || input.dataset.ready === '1') return;
-        input.dataset.ready = '1';
-
-        input.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' || event.key === ',') {
-                event.preventDefault();
-                addFormTag(input.value);
-                input.value = '';
-                return;
-            }
-            if (event.key === 'Backspace' && input.value === '' && formTags.length > 0) {
-                formTags.pop();
-                renderFormTags();
-            }
-        });
-
-        // Ao escolher uma sugestão do datalist o campo é preenchido de uma vez
-        input.addEventListener('input', () => {
-            if (input.value.endsWith(',')) {
-                addFormTag(input.value);
-                input.value = '';
-            }
-        });
-
-        input.addEventListener('blur', () => {
-            addFormTag(input.value);
-            input.value = '';
-        });
-    }
-
-    /** Sugestões vindas do que já existe no quadro. */
-    function renderTagSuggestions() {
-        const list = el('tagSuggestions');
-        if (!list || !KD.board) return;
-        list.innerHTML = (KD.board.allTags || [])
-            .map((tag) => `<option value="${KD.escapeHtml(tag.name)}"></option>`)
-            .join('');
-    }
-
-    // ---------------------------------------------------------------
-    // Checklist do formulário
-    // ---------------------------------------------------------------
-
-    function renderFormChecklist() {
-        const container = el('formChecklistContainer');
-        const count = el('formChecklistCount');
-        if (!container) return;
-
-        if (count) {
-            count.textContent = `${formChecklistItems.length} ite${formChecklistItems.length === 1 ? 'm' : 'ns'}`;
-        }
-
-        if (formChecklistItems.length === 0) {
-            container.innerHTML = '<p class="text-slate-500 text-xs text-center py-1.5 italic" id="formChecklistEmpty">Nenhuma subtarefa adicionada.</p>';
-            return;
-        }
-
-        container.innerHTML = formChecklistItems.map((item, idx) => `
-            <div class="flex items-center justify-between gap-2 p-1.5 px-2.5 rounded-lg bg-slate-800/40 border border-slate-700/30 text-xs">
-                <span class="truncate flex items-center gap-1.5 text-slate-200">
-                    <i data-lucide="check" class="w-3.5 h-3.5 text-indigo-400 flex-shrink-0"></i>
-                    ${KD.escapeHtml(item)}
-                </span>
-                <button type="button" onclick="KD.removeFormChecklistItem(${idx})" class="text-slate-400 hover:text-rose-400 transition" title="Remover subtarefa">
-                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                </button>
-            </div>
-        `).join('');
-
-        if (window.lucide) lucide.createIcons();
-    }
-
-    KD.addFormChecklistItem = function () {
-        const input = el('formNewChecklistItem');
-        if (!input) return;
-        const text = input.value.trim();
-        if (!text) return;
-        formChecklistItems.push(text);
-        input.value = '';
-        renderFormChecklist();
-        input.focus();
-    };
-
-    KD.removeFormChecklistItem = function (idx) {
-        formChecklistItems.splice(idx, 1);
-        renderFormChecklist();
-    };
-
-    function setupFormChecklistInput() {
-        const input = el('formNewChecklistItem');
-        if (!input || input.dataset.ready === '1') return;
-        input.dataset.ready = '1';
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                KD.addFormChecklistItem();
-            }
-        });
-    }
-
-    // ---------------------------------------------------------------
-    // Recorrência
-    // ---------------------------------------------------------------
-
-    KD.toggleRecurrenceOptions = function (checked) {
-        const fields = el('recurrenceFields');
-        if (fields) fields.hidden = !checked;
-    };
-
-    KD.onRecurrenceTypeChange = function (type) {
-        const customWrap = el('recurrenceCustomWrap');
-        if (customWrap) customWrap.hidden = (type !== 'custom');
-    };
-
-    KD.toggleCustomRecurrenceMode = function (mode) {
-        const weekdaysWrap = el('customWeekdaysWrap');
-        const monthdayWrap = el('customMonthdayWrap');
-        if (weekdaysWrap) weekdaysWrap.hidden = (mode !== 'weekdays');
-        if (monthdayWrap) monthdayWrap.hidden = (mode !== 'monthday');
-    };
-
-    KD.toggleWeekdayBtn = function (btn) {
-        btn.classList.toggle('is-active');
-    };
-
-    function getSelectedWeekdays() {
-        const btns = document.querySelectorAll('#recurrenceWeekdaysList .kd-day-btn.is-active');
-        return Array.from(btns).map((b) => Number(b.dataset.day));
-    }
-
-    // ---------------------------------------------------------------
-    // Modelos de Tarefa
-    // ---------------------------------------------------------------
-
-    KD.applyTemplateToForm = async function (templateId, templateData = null) {
-        if (!templateId && !templateData) return;
-
-        let tpl = templateData;
-        if (!tpl && templateId) {
-            try {
-                const res = await fetch(`${KD.url('/api/modelos')}?id=${templateId}`);
-                const data = await res.json();
-                if (data.success) tpl = data.template;
-            } catch (e) {
-                console.error('Erro ao carregar modelo:', e);
-            }
-        }
-
-        if (!tpl) return;
-
-        if (tpl.title) el('task_title').value = tpl.title;
-        if (tpl.estimated_minutes && el('task_estimated_minutes')) el('task_estimated_minutes').value = tpl.estimated_minutes;
-        if (tpl.description) el('task_description').value = tpl.description;
-
-        // Tags
-        let tags = [];
-        if (Array.isArray(tpl.tags_list)) {
-            tags = tpl.tags_list;
-        } else if (typeof tpl.tags === 'string') {
-            try { tags = JSON.parse(tpl.tags); } catch (e) { tags = tpl.tags.split(',').map((s) => s.trim()).filter(Boolean); }
-        } else if (Array.isArray(tpl.tags)) {
-            tags = tpl.tags;
-        }
-        formTags = [];
-        tags.forEach((tag) => addFormTag(tag));
-
-        // Checklist
-        const checklist = tpl.checklist_items || (typeof tpl.checklist === 'string' ? JSON.parse(tpl.checklist || '[]') : (tpl.checklist || []));
-        formChecklistItems = [];
-        checklist.forEach((item) => {
-            const itemText = typeof item === 'object' ? (item.title || '') : String(item);
-            if (itemText.trim()) formChecklistItems.push(itemText.trim());
-        });
-        renderFormChecklist();
-
-        KD.toast(`Modelo "${tpl.title}" aplicado!`);
-    };
-
-    // ---------------------------------------------------------------
-    // Abrir Formulário de Tarefa
-    // ---------------------------------------------------------------
-
-        // Estilos visuais unificados por categoria da empresa
-    const CATEGORY_STYLES = {
-        'A+': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-        'A':  'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
-        'B':  'bg-sky-500/20 text-sky-300 border-sky-500/40',
-        'C':  'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-        'D':  'bg-slate-500/20 text-slate-300 border-slate-500/40'
-    };
-
-    function applyCategoryBadgeStyle(element, cat) {
-        if (!element) return;
-        Object.values(CATEGORY_STYLES).forEach(cls => {
-            cls.split(' ').forEach(c => element.classList.remove(c));
-        });
-        const style = CATEGORY_STYLES[cat] || CATEGORY_STYLES['C'];
-        style.split(' ').forEach(c => element.classList.add(c));
-    }
-
-        // ---------------------------------------------------------------
-    // Combobox / Dropdown com Busca Live de Empresa no Modal de Tarefa
-    // ---------------------------------------------------------------
-
-    KD.toggleTaskClientDropdown = function (force) {
-        const panel = el('taskClientDropdownPanel');
-        const chevron = el('taskClientChevronIcon');
-        if (!panel) return;
-
-        let shouldOpen;
-        if (typeof force === 'boolean') {
-            shouldOpen = force;
-        } else if (force && force.stopPropagation) {
-            force.stopPropagation();
-            shouldOpen = panel.hidden;
-        } else {
-            shouldOpen = panel.hidden;
-        }
-
-        panel.hidden = !shouldOpen;
-        if (chevron) {
-            chevron.style.transform = shouldOpen ? 'rotate(180deg)' : 'rotate(0deg)';
-        }
-
-        if (shouldOpen) {
-            const searchInput = el('task_client_live_search');
-            if (searchInput) {
-                setTimeout(() => searchInput.focus(), 60);
-            }
-        }
-    };
-
-    KD.filterTaskClientDropdown = function (query) {
-        const cleanQuery = (query || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-        const items = document.querySelectorAll('.task-client-opt');
-        const clearBtn = el('task_client_live_search_clear');
-        const notFound = el('taskClientOptionsNotFound');
-        let visibleCount = 0;
-
-        if (clearBtn) clearBtn.hidden = !cleanQuery;
-
-        items.forEach(item => {
-            const name = (item.getAttribute('data-client-name') || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const cat = (item.getAttribute('data-client-cat') || '').toLowerCase();
-            const matches = !cleanQuery || name.includes(cleanQuery) || cat.includes(cleanQuery);
-            item.hidden = !matches;
-            if (matches) visibleCount++;
-        });
-
-        if (notFound) {
-            notFound.hidden = visibleCount > 0;
-        }
-    };
-
-    KD.clearTaskClientDropdownSearch = function (event) {
-        if (event && event.stopPropagation) event.stopPropagation();
-        const input = el('task_client_live_search');
-        if (input) {
-            input.value = '';
-            KD.filterTaskClientDropdown('');
-            input.focus();
-        }
-    };
-
-    KD.selectFirstVisibleClient = function () {
-        const first = document.querySelector('.task-client-opt:not([hidden])');
-        if (first) {
-            first.click();
-        }
-    };
-
-    KD.selectTaskClient = function (clientId, clientName, clientCategory) {
-        const hiddenId = el('task_client_id');
-        const label = el('taskClientSelectedLabel');
-        const catSelect = el('task_client_category');
-
-        if (hiddenId) hiddenId.value = clientId || '';
-        if (label) {
-            label.textContent = clientName || 'Sem empresa vinculada';
-            if (clientId) {
-                label.className = 'truncate font-semibold text-xs sm:text-sm text-white';
-            } else {
-                label.className = 'truncate font-normal text-xs sm:text-sm text-slate-400';
-            }
-        }
-
-        if (catSelect && clientCategory) {
-            catSelect.value = clientCategory;
-        }
-
-        // Atualizar estado ativo na lista
-        const items = document.querySelectorAll('.task-client-opt');
-        items.forEach(item => {
-            const isMatch = String(item.getAttribute('data-client-id') || '') === String(clientId || '');
-            const check = item.querySelector('.opt-check');
-            if (isMatch) {
-                item.classList.add('bg-indigo-600/20', 'text-indigo-200');
-                if (check) check.hidden = false;
-            } else {
-                item.classList.remove('bg-indigo-600/20', 'text-indigo-200');
-                if (check) check.hidden = true;
-            }
-        });
-
-        KD.toggleTaskClientDropdown(false);
-    };
-
-    // Fechar dropdown de empresa ao clicar fora
-    if (!window._taskClientDropdownListenerAdded) {
-        document.addEventListener('click', function (e) {
-            const container = document.getElementById('taskClientComboboxContainer');
-            if (container && !container.contains(e.target)) {
-                KD.toggleTaskClientDropdown(false);
-            }
-        });
-        window._taskClientDropdownListenerAdded = true;
-    }
-
-KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initialDueDate = null, isCalendarEvent = null) {
-        try {
-            const form = el('taskForm');
-            if (!form) return;
-
-            form.reset();
-            if (el('task_client_live_search')) {
-                el('task_client_live_search').value = '';
-                KD.filterTaskClientDropdown('');
-            }
-            KD.toggleTaskClientDropdown(false);
-            KD.selectTaskClient('', 'Sem empresa vinculada', 'C');
-            clearFormErrors();
-            setupTagInput();
-            setupFormChecklistInput();
-            renderTagSuggestions();
-            formTags = [];
-            renderFormTags();
-            formChecklistItems = [];
-            renderFormChecklist();
-
-            el('task_id').value = '';
-            if (el('task_estimated_minutes')) el('task_estimated_minutes').value = '';
-            if (el('task_has_time')) el('task_has_time').checked = false;
-            if (el('task_time_wrap')) el('task_time_wrap').hidden = true;
-            if (el('task_due_time')) el('task_due_time').value = '';
-
-            const isCalPage = (typeof isCalendarEvent !== 'undefined' && isCalendarEvent !== null) ? Boolean(isCalendarEvent) : window.location.pathname.includes('/calendario');
-            if (el('task_is_calendar_event')) el('task_is_calendar_event').value = isCalPage ? '1' : '0';
-            if (el('showInKanbanWrap')) el('showInKanbanWrap').hidden = !isCalPage;
-            if (el('task_show_in_kanban')) el('task_show_in_kanban').checked = true;
-            KD.updateEstimatedPreview('');
-            document.querySelectorAll('.task-assignee-checkbox').forEach((box) => { box.checked = false; });
-            el('btnDeleteTask').hidden = true;
-
-            // Resetar opções de recorrência
-            const recBox = el('task_is_recurring');
-            if (recBox) {
-                recBox.checked = false;
-                KD.toggleRecurrenceOptions(false);
-            }
-            const recType = el('task_recurrence_type');
-            if (recType) recType.value = 'weekly';
-            KD.onRecurrenceTypeChange('weekly');
-            const modeWeekdays = el('mode_weekdays');
-            if (modeWeekdays) modeWeekdays.checked = true;
-            KD.toggleCustomRecurrenceMode('weekdays');
-            document.querySelectorAll('#recurrenceWeekdaysList .kd-day-btn').forEach(b => b.classList.remove('is-active'));
-            const monthdayInput = el('recurrence_monthday');
-            if (monthdayInput) monthdayInput.value = '1';
-
-            const templateWrap = el('taskTemplateSelectWrap');
-            const templateSelect = el('task_template_id');
-
-            if (!taskId) {
-                el('taskModalTitle').textContent = isCalPage ? 'Novo evento no calendário' : 'Nova tarefa';
-                // Coluna padrão: A FAZER se não foi especificada outra
-                if (stageId) {
-                    el('task_stage_id').value = stageId;
-                } else {
-                    const stageSel = el('task_stage_id');
-                    if (stageSel) {
-                        for (let opt of stageSel.options) {
-                            if (/a\s*fazer|to\s*do/i.test(opt.text)) {
-                                stageSel.value = opt.value;
-                                break;
-                            }
-                        }
-                    }
-                }
-                // Prioridade padrão: baixa
-                if (el('task_priority')) el('task_priority').value = 'low';
-                // Responsável padrão: usuário da conta logado
-                if (window.KD_CURRENT_USER_ID) {
-                    document.querySelectorAll('.task-assignee-checkbox').forEach((box) => {
-                        box.checked = (Number(box.value) === Number(window.KD_CURRENT_USER_ID));
-                    });
-                }
-                if (initialDueDate && el('task_due_date')) el('task_due_date').value = initialDueDate;
-                if (el('task_is_private')) el('task_is_private').checked = false;
-                if (el('task_client_category')) el('task_client_category').value = 'C';
-                if (templateWrap) templateWrap.hidden = false;
-                if (templateSelect) templateSelect.value = '';
-
-                if (initialTemplate) {
-                    if (templateSelect && initialTemplate.id) templateSelect.value = initialTemplate.id;
-                    await KD.applyTemplateToForm(initialTemplate.id, initialTemplate);
-                }
-
-                KD.openModal('taskModal', { focus: '#task_title' });
-                return;
-            }
-
-            if (templateWrap) templateWrap.hidden = true;
-
-            const data = await KD.api.get(`${KD.url('/api/tarefas')}?id=${taskId}`);
-            const task = data.task;
-
-            el('task_id').value = task.id;
-            el('task_title').value = task.title || '';
-            el('task_client_id').value = task.client_id || '';
-            if (el('task_client_category')) el('task_client_category').value = task.client_category || 'C';
-
-            // Sincronizar Combobox de Empresa
-            if (task.client_id) {
-                const optEl = document.querySelector(`.task-client-opt[data-client-id="${task.client_id}"]`);
-                const compName = optEl ? (optEl.querySelector('.opt-name')?.textContent || task.client_company) : (task.client_company || 'Empresa Vinculada');
-                const compCat = optEl ? (optEl.getAttribute('data-client-cat')?.toUpperCase() || task.client_category || 'C') : (task.client_category || 'C');
-                KD.selectTaskClient(task.client_id, compName, compCat);
-            } else {
-                KD.selectTaskClient('', 'Sem empresa vinculada', 'C');
-            }
-            el('task_stage_id').value = task.stage_id || '';
-            const isExistingCal = Number(task.is_calendar_event) === 1;
-            if (el('task_is_private')) el('task_is_private').checked = Boolean(Number(task.is_private) === 1);
-            if (el('task_is_calendar_event')) el('task_is_calendar_event').value = isExistingCal ? '1' : '0';
-            if (el('showInKanbanWrap')) el('showInKanbanWrap').hidden = !isExistingCal;
-            if (el('task_show_in_kanban')) el('task_show_in_kanban').checked = (Number(task.show_in_kanban ?? 1) === 1);
-            el('task_priority').value = task.priority || 'medium';
-            el('task_due_date').value = task.due_date || '';
-            if (task.due_time) {
-                if (el('task_has_time')) el('task_has_time').checked = true;
-                if (el('task_time_wrap')) el('task_time_wrap').hidden = false;
-                if (el('task_due_time')) el('task_due_time').value = task.due_time.substring(0, 5);
-            } else {
-                if (el('task_has_time')) el('task_has_time').checked = false;
-                if (el('task_time_wrap')) el('task_time_wrap').hidden = true;
-                if (el('task_due_time')) el('task_due_time').value = '';
-            }
-            el('task_description').value = task.description || '';
-            if (el('task_estimated_minutes')) el('task_estimated_minutes').value = task.estimated_minutes || '';
-
-            // Recorrência existente
-            const isRec = Number(task.is_recurring) === 1;
-            if (recBox) {
-                recBox.checked = isRec;
-                KD.toggleRecurrenceOptions(isRec);
-            }
-            if (recType && task.recurrence_type) {
-                recType.value = task.recurrence_type;
-                KD.onRecurrenceTypeChange(task.recurrence_type);
-            }
-            if (task.recurrence_config) {
-                try {
-                    const cfg = typeof task.recurrence_config === 'string' ? JSON.parse(task.recurrence_config) : task.recurrence_config;
-                    if (cfg && cfg.type === 'weekdays' && Array.isArray(cfg.days)) {
-                        if (modeWeekdays) modeWeekdays.checked = true;
-                        KD.toggleCustomRecurrenceMode('weekdays');
-                        document.querySelectorAll('#recurrenceWeekdaysList .kd-day-btn').forEach(b => {
-                            b.classList.toggle('is-active', cfg.days.includes(Number(b.dataset.day)));
-                        });
-                    } else if (cfg && cfg.type === 'monthday' && cfg.day) {
-                        const modeMonthday = el('mode_monthday');
-                        if (modeMonthday) modeMonthday.checked = true;
-                        KD.toggleCustomRecurrenceMode('monthday');
-                        if (monthdayInput) monthdayInput.value = cfg.day;
-                    }
-                } catch (e) {}
-            }
-
-            formTags = (task.tags || []).map((tag) => tag.name);
-            renderFormTags();
-
-            const assigned = (task.assignees || []).map((a) => Number(a.id));
-            document.querySelectorAll('.task-assignee-checkbox').forEach((box) => {
-                box.checked = assigned.includes(Number(box.value));
-            });
-
-            el('taskModalTitle').textContent = 'Editar tarefa';
-            el('btnDeleteTask').hidden = false;
-
-            KD.openModal('taskModal', { focus: '#task_title' });
-        } catch (error) {
-            console.error('Erro ao abrir formulário de tarefa:', error);
-            KD.toastError(error.message || 'Erro ao abrir formulário');
-        }
-    };
-
-    KD.closeTaskForm = function () {
-        KD.closeModal('taskModal');
-    };
-
-    /**
-     * Exibe modal para escolher o escopo de alteração/exclusão de tarefas recorrentes:
-     * - Apenas este evento
-     * - Apenas eventos futuros
-     * - Todos da série
-     * @param {'edit'|'delete'} mode
-     * @returns {Promise<'single'|'future'|'all'|null>}
-     */
-    KD.promptRecurrenceScope = function (mode = 'edit') {
-        return new Promise((resolve) => {
-            const isDelete = mode === 'delete';
-            const title = isDelete ? 'Excluir Tarefa Recorrente' : 'Salvar Tarefa Recorrente';
-            const desc = isDelete
-                ? 'Esta tarefa faz parte de uma série recorrente. O que você deseja excluir?'
-                : 'Esta tarefa faz parte de uma série recorrente. Quais eventos você deseja alterar?';
-
-            const modalHtml = `
-                <div id="kdRecurrenceModal" class="fixed inset-0 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" style="z-index:999999;">
-                    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl ${isDelete ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'} flex items-center justify-center flex-shrink-0">
-                                <i data-lucide="${isDelete ? 'trash-2' : 'repeat'}" class="w-5 h-5"></i>
-                            </div>
-                            <div>
-                                <h3 class="text-base font-bold text-white">${title}</h3>
-                                <p class="text-xs text-slate-400">${desc}</p>
-                            </div>
-                        </div>
-
-                        <div class="space-y-2 pt-2">
-                            <button type="button" data-scope="single" class="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500 text-left transition flex items-center justify-between group cursor-pointer">
-                                <div>
-                                    <div class="text-xs font-bold text-white group-hover:text-indigo-300">Apenas este evento</div>
-                                    <div class="text-[11px] text-slate-400">Aplica a alteração somente na ocorrência selecionada</div>
-                                </div>
-                                <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
-                            </button>
-
-                            <button type="button" data-scope="future" class="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500 text-left transition flex items-center justify-between group cursor-pointer">
-                                <div>
-                                    <div class="text-xs font-bold text-white group-hover:text-indigo-300">Apenas eventos futuros</div>
-                                    <div class="text-[11px] text-slate-400">Aplica a este evento e a todas as ocorrências posteriores</div>
-                                </div>
-                                <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
-                            </button>
-
-                            <button type="button" data-scope="all" class="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500 text-left transition flex items-center justify-between group cursor-pointer">
-                                <div>
-                                    <div class="text-xs font-bold text-white group-hover:text-indigo-300">Todos da série</div>
-                                    <div class="text-[11px] text-slate-400">Aplica a todas as ocorrências existentes da série</div>
-                                </div>
-                                <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
-                            </button>
-                        </div>
-
-                        <div class="pt-2 flex justify-end">
-                            <button type="button" data-scope="cancel" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition cursor-pointer">
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            const wrap = document.createElement('div');
-            wrap.innerHTML = modalHtml;
-            const modalEl = wrap.firstElementChild;
-            document.body.appendChild(modalEl);
-            if (window.lucide && typeof lucide.createIcons === 'function') {
-                lucide.createIcons({ root: modalEl });
-            }
-
-            modalEl.addEventListener('click', (e) => {
-                const btn = e.target.closest('[data-scope]');
-                if (!btn) return;
-                const scope = btn.dataset.scope;
-                modalEl.remove();
-                if (scope === 'cancel') {
-                    resolve(null);
-                } else {
-                    resolve(scope);
-                }
-            });
-        });
-    };
-
-    KD.submitTaskForm = async function (event) {
-        event.preventDefault();
-        clearFormErrors();
-
-        const taskId = Number(el('task_id').value || 0);
-        let recurrenceScope = 'single';
-        if (taskId > 0 && activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
-            const scope = await KD.promptRecurrenceScope('edit');
-            if (!scope) return;
-            recurrenceScope = scope;
-        }
-
-        const title = el('task_title').value.trim();
-        if (!title) {
-            showFormError('title', 'Informe um título para a tarefa.');
-            return;
-        }
-
-        const assignees = Array.from(document.querySelectorAll('.task-assignee-checkbox:checked'))
-            .map((box) => Number(box.value));
-
-        const isRecurring = el('task_is_recurring')?.checked ? 1 : 0;
-        const isPrivate = el('task_is_private')?.checked ? 1 : 0;
-        let recurrenceType = null;
-        let recurrenceConfig = null;
-
-        if (isRecurring) {
-            recurrenceType = el('task_recurrence_type')?.value || 'weekly';
-            if (recurrenceType === 'custom') {
-                const mode = document.querySelector('input[name="recurrence_custom_mode"]:checked')?.value || 'weekdays';
-                if (mode === 'weekdays') {
-                    recurrenceConfig = JSON.stringify({ type: 'weekdays', days: getSelectedWeekdays() });
-                } else {
-                    recurrenceConfig = JSON.stringify({ type: 'monthday', day: Number(el('recurrence_monthday')?.value || 1) });
-                }
-            }
-        }
-
-        const payload = {
-            action: 'save',
-            id: el('task_id').value || null,
-            title,
-            client_id: el('task_client_id').value || null,
-            client_category: el('task_client_category')?.value || 'C',
-            stage_id: el('task_stage_id').value,
-            priority: el('task_priority').value,
-            due_date: el('task_due_date').value || null,
-            due_time: (el('task_has_time')?.checked && el('task_due_time')?.value) ? el('task_due_time').value : null,
-            is_calendar_event: Number(el('task_is_calendar_event')?.value || 0),
-            show_in_kanban: el('task_show_in_kanban')?.checked ? 1 : 0,
-            estimated_minutes: el('task_estimated_minutes')?.value || null,
-            description: el('task_description').value,
-            assignees,
-            tags: formTags,
-            is_recurring: isRecurring,
-            is_private: isPrivate,
-            recurrence_type: recurrenceType,
-            recurrence_config: recurrenceConfig,
-            initial_checklist: formChecklistItems,
-            recurrence_scope: recurrenceScope,
-        };
-
-        const saveBtn = el('btnSaveTask');
-        saveBtn.disabled = true;
-        saveBtn.dataset.label = saveBtn.textContent;
-        saveBtn.textContent = 'Salvando...';
-
-        try {
-            const result = await KD.api.tasks(payload);
-            KD.closeTaskForm();
-            await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-            KD.toast(result.created ? 'Tarefa criada.' : 'Alterações salvas.');
-        } catch (error) {
-            if (error.field) showFormError(error.field, error.message);
-            else KD.toastError(error.message);
-        } finally {
-            saveBtn.disabled = false;
-            saveBtn.textContent = saveBtn.dataset.label || 'Salvar tarefa';
-        }
-    };
-
-    KD.deleteFromForm = async function () {
-        const taskId = Number(el('task_id').value || 0);
-        if (!taskId) return;
-
-        let recurrenceScope = 'single';
-        if (activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
-            const scope = await KD.promptRecurrenceScope('delete');
-            if (!scope) return;
-            recurrenceScope = scope;
-        }
-
-        try {
-            const result = await KD.api.tasks({ action: 'delete', task_id: taskId, recurrence_scope: recurrenceScope });
-            KD.closeTaskForm();
-            await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-            KD.toast(`"${result.title || 'Tarefa'}" excluída.`, {
-                undo: async () => {
-                    await KD.api.tasks({ action: 'undelete', task_id: taskId });
-                    await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-                    KD.toast('Exclusão desfeita.', { tone: 'info' });
-                },
-            });
-        } catch (error) {
-            KD.toastError(error.message);
-        }
-    };
-
-    // ===============================================================
-    // Painel de Detalhes
-    // ===============================================================
-
-    KD.openTaskDetail = async function (taskId) {
-        try {
-            const cached = KD.getTaskById ? KD.getTaskById(taskId) : null;
-            if (cached) {
-                activeTask = { ...cached };
-                renderDetail(activeTask);
-                KD.openModal('taskDetailModal');
-                startDetailTimer();
-            }
-
-            const data = await KD.api.get(`${KD.url('/api/tarefas')}?id=${taskId}`);
-            activeTask = data.task;
-            renderDetail(activeTask);
-            if (!cached) {
-                KD.openModal('taskDetailModal');
-                startDetailTimer();
-            }
-        } catch (error) {
-            KD.toastError(error.message);
-        }
-    };
-
-    KD.closeTaskDetail = function () {
-        stopDetailTimer();
-        KD.closeModal('taskDetailModal');
-        activeTask = null;
-    };
-
-    function setText(id, value) {
-        const node = el(id);
-        if (node) node.textContent = value;
-    }
-
-    function renderDetail(task) {
-        setText('detailTitle', task.title || '');
-        setText('detailIdBadge', `#${task.id}`);
-
-        const description = el('detailDescription');
-        if (description) {
-            description.textContent = task.description || 'Sem descrição.';
-            description.classList.toggle('italic', !task.description);
-        }
-
-        // Particular
-        const privBadge = el('detailPrivateBadge');
-        if (privBadge) {
-            privBadge.hidden = Number(task.is_private) !== 1;
-        }
-
-        // Recorrencia
-        const recBadge = el('detailRecurringBadge');
-        const isRec = Number(task.is_recurring) === 1;
-        if (recBadge) {
-            recBadge.hidden = !isRec;
-            if (isRec) {
-                const recText = el('detailRecurringText');
-                const recMap = {
-                    daily: 'Diária',
-                    weekly: 'Semanal',
-                    biweekly: 'Quinzenal',
-                    monthly: 'Mensal',
-                    yearly: 'Anual',
-                    custom: 'Personalizada'
-                };
-                const rLabel = recMap[task.recurrence_type] || 'Recorrente';
-                if (recText) recText.textContent = `Recorrente (${rLabel})`;
-            }
-        }
-
-        // Cliente e Categoria
-        const chip = el('detailClientChip');
-        if (chip) {
-            if (task.client_company) {
-                chip.hidden = false;
-                chip.textContent = task.client_company;
-            } else {
-                chip.hidden = true;
-            }
-        }
-
-        const catBadge = el('detailClientCategoryBadge');
-        const catSelect = el('detailHeaderClientCategorySelect');
-        if (catBadge && catSelect) {
-            if (task.client_company && (task.client_id || (task.client && task.client.id))) {
-                catBadge.hidden = false;
-                const cat = task.client_category || 'C';
-                catSelect.value = cat;
-                applyCategoryBadgeStyle(catBadge, cat);
-            } else {
-                catBadge.hidden = true;
-            }
-        }
-
-        // Etiquetas
-        const tagsEl = el('detailTags');
-        if (tagsEl) {
-            const tags = task.tags || [];
-            tagsEl.hidden = tags.length === 0;
-            tagsEl.innerHTML = tags.map((tag) => `
-                <span class="kd-tag">${KD.escapeHtml(tag.name)}</span>
-            `).join('');
-        }
-
-        // Prioridade, coluna e prazo
-        const priority = el('detailPriority');
-        if (priority) {
-            priority.textContent = (task.priority_info && task.priority_info.label) || 'Média';
-            priority.dataset.tone = (task.priority_info && task.priority_info.tone) || 'medium';
-        }
-        setText('detailStage', task.stage_name || '—');
-
-        const dueEl = el('detailDue');
-        if (dueEl) {
-            const due = task.due_badge || {};
-            dueEl.textContent = task.due_date ? `${KD.formatDate(task.due_date)}${task.due_time ? ' às ' + task.due_time.substring(0, 5) : ''}${due.tone === 'overdue' ? ` · ${due.text}` : ''}` : 'Sem prazo definido';
-            dueEl.dataset.tone = due.tone || 'none';
-        }
-
-        setText('detailCreated', task.created_at ? KD.formatRelative(task.created_at) : '—');
-        setText('detailCompleted', task.completed_at ? KD.formatRelative(task.completed_at) : 'Em aberto');
-
-        // Responsáveis
-        const assignees = el('detailAssignees');
-        if (assignees) {
-            const list = task.assignees || [];
-            assignees.innerHTML = list.length
-                ? list.map((user) => `<span class="kd-avatar" title="${KD.escapeHtml(user.full_name)}">${KD.escapeHtml((user.full_name || '?').charAt(0).toUpperCase())}</span>`).join('')
-                : '<span class="text-slate-400" style="font-size:0.75rem">Ninguém atribuído</span>';
-        }
-
-        // Cronômetro e Tempo Estimado
-        const estMinutes = Number(task.estimated_minutes || 0);
-        setText('detailEstimated', estMinutes > 0 ? KD.formatMinutes(estMinutes) : 'Não informado');
-        setText('detailTimer', KD.formatSeconds(task.effective_seconds));
-        updateDetailPlayButton(Boolean(task.is_running));
-
-        // Botões de estado
-        const focusBtn = el('detailFocusBtn');
-        if (focusBtn) focusBtn.setAttribute('aria-pressed', String(Number(task.in_focus) === 1));
-        const bombBtn = el('detailBombBtn');
-        if (bombBtn) bombBtn.setAttribute('aria-pressed', String(Number(task.is_bomb) === 1));
-
-        const completeBtn = el('detailCompleteBtn');
-        if (completeBtn) {
-            const isDone = Boolean(task.completed_at);
-            completeBtn.dataset.detailAction = isDone ? 'reopen' : 'complete';
-            completeBtn.title = isDone ? 'Reabrir tarefa' : 'Concluir tarefa';
-            completeBtn.classList.toggle('kd-complete-pill--reopen', isDone);
-            const icon = completeBtn.querySelector('i');
-            if (icon) {
-                icon.setAttribute('data-lucide', isDone ? 'rotate-ccw' : 'check-circle-2');
-            }
-            const span = completeBtn.querySelector('span');
-            if (span) span.textContent = isDone ? 'Reabrir' : 'Concluir';
-        }
-
-        // Menção do WhatsApp
-        const isMention = task.source === 'whatsapp_mention' || Boolean(task.group_name || task.mentioned_by);
-        const mentionBox = el('detailMentionBox');
-        if (mentionBox) {
-            mentionBox.hidden = !isMention;
-            if (isMention) {
-                setText('detailMentionGroup', task.group_name || 'Grupo do WhatsApp');
-                setText('detailMentionAuthor', task.mentioned_by ? `Mencionado por @${task.mentioned_by}` : 'Menção recebida no grupo');
-                const link = el('detailMentionLink');
-                if (link) link.href = KD.safeUrl(task.whatsapp_url, 'https://web.whatsapp.com');
-            }
-        }
-
-        renderChecklist(task.checklists || []);
-        renderComments(task.comments || []);
-        renderClientLinks(task.client_links_json);
-        renderClientActivities(task.client_recent_tasks || []);
-        renderClientProfile(task);
-        renderDetailHistory(task.history || []);
-        renderTaskClientNotes(task);
-
-        switchTab('details');
-        KD.icons();
-    }
-
-    function renderClientProfile(task) {
-        setText('clientName', task.client_company || 'Sem cliente vinculado');
-        setText('clientContact', task.client_contact || 'Contato não informado');
-
-        const email = el('clientEmail');
-        if (email) {
-            email.textContent = task.client_email || 'Não informado';
-            email.href = task.client_email ? `mailto:${task.client_email}` : '#';
-        }
-
-        const phone = el('clientPhone');
-        if (phone) {
-            phone.textContent = task.client_phone || 'Não informado';
-            phone.href = task.client_phone ? `https://wa.me/55${String(task.client_phone).replace(/\D/g, '')}` : '#';
-        }
-
-        setText('clientNotes', task.client_notes || 'Nenhuma anotação cadastrada para este cliente.');
-
-        const tabCatSelect = el('detailTabClientCategorySelect');
-        if (tabCatSelect) {
-            tabCatSelect.value = task.client_category || 'C';
-        }
-    }
-
-    // ---------------------------------------------------------------
-    // Abas
-    // ---------------------------------------------------------------
-
-    const TABS = ['details', 'comments', 'links', 'client', 'history', 'notes'];
-
-    function switchTab(name) {
-        TABS.forEach((tab) => {
-            const button = el(`tabBtn-${tab}`);
-            const panel = el(`tabPanel-${tab}`);
-            const selected = tab === name;
-            if (button) button.setAttribute('aria-selected', String(selected));
-            if (panel) panel.hidden = !selected;
-        });
-        const body = document.querySelector('.kd-detail-body');
-        if (body) body.scrollTop = 0;
-        KD.icons();
-    }
-
-    KD.switchDetailTab = switchTab;
-
-    // ---------------------------------------------------------------
-    // Cronômetro do painel
-    // ---------------------------------------------------------------
-
-    function updateDetailPlayButton(isRunning) {
-        const button = el('detailPlayBtn');
-        if (!button) return;
-        button.dataset.running = isRunning ? '1' : '0';
-        button.setAttribute('aria-label', isRunning ? 'Pausar cronômetro' : 'Iniciar cronômetro');
-        button.innerHTML = `<i data-lucide="${isRunning ? 'pause' : 'play'}" class="w-3.5 h-3.5"></i>`;
-        KD.icons();
-    }
-
-    function startDetailTimer() {
-        stopDetailTimer();
-        if (!activeTask || !activeTask.is_running) return;
-
-        let seconds = Number(activeTask.effective_seconds || 0);
-        detailTimerInterval = window.setInterval(() => {
-            seconds += 1;
-            setText('detailTimer', KD.formatSeconds(seconds));
-        }, 1000);
-    }
-
-    function stopDetailTimer() {
-        if (detailTimerInterval) {
-            window.clearInterval(detailTimerInterval);
-            detailTimerInterval = null;
-        }
-    }
-
-    // ---------------------------------------------------------------
-    // Subtarefas (Visualização com checklist interativo)
-    // ---------------------------------------------------------------
-
-    function renderChecklist(items) {
-        const list = el('detailChecklist');
-        if (!list) return;
-
-        const total = items.length;
-        const done = items.filter((item) => Number(item.is_completed) === 1).length;
-        const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-
-        setText('detailChecklistProgress', total > 0 ? `${done}/${total} · ${percent}%` : 'Nenhuma subtarefa');
-        const bar = el('detailProgressBar');
-        if (bar) {
-            bar.style.width = `${percent}%`;
-            bar.parentElement.setAttribute('aria-valuenow', String(percent));
-        }
-
-        if (total === 0) {
-            list.innerHTML = '<p class="text-xs text-slate-500 italic p-3 text-center">Nenhuma subtarefa vinculada. Para adicionar ou gerenciar subtarefas, clique no botão de editar acima.</p>';
-            return;
-        }
-
-        list.innerHTML = items.map((item) => {
-            const checked = Number(item.is_completed) === 1;
-            return `
-                <div class="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/60 transition hover:border-slate-700/60">
-                    <input type="checkbox" id="chk-${item.id}" ${checked ? 'checked' : ''}
-                           data-detail-action="toggle-checklist" data-item-id="${item.id}"
-                           class="w-4 h-4 rounded cursor-pointer accent-indigo-500">
-                    <label for="chk-${item.id}" class="flex-1 text-xs cursor-pointer select-none ${checked ? 'line-through text-slate-500' : 'text-slate-200'}">
-                        ${KD.escapeHtml(item.title)}
-                    </label>
-                </div>
-            `;
-        }).join('');
-    }
-
-    // ---------------------------------------------------------------
-    // Comentários: Feed (50%) e Editor CRUD (50%)
-    // ---------------------------------------------------------------
-
-    function renderComments(comments) {
-        const container = el('detailComments');
-        if (!container) return;
-
-        setText('detailCommentsCount', String(comments.length));
-        setText('detailCommentsTabBadge', String(comments.length));
-
-        KD.cancelEditComment();
-
-        if (comments.length === 0) {
-            container.innerHTML = '<p class="text-xs text-slate-500 italic p-4 text-center">Nenhum comentário registrado ainda. Utilize o editor ao lado para enviar uma mensagem.</p>';
-            return;
-        }
-
-        container.innerHTML = comments.map((comment) => `
-            <div class="p-3 rounded-xl bg-slate-900/50 border border-slate-800/80 space-y-2 group">
-                <div class="flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2">
-                        <span class="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-300 font-bold text-[10px] flex items-center justify-center border border-indigo-500/30">
-                            ${KD.escapeHtml((comment.user_name || 'U').charAt(0).toUpperCase())}
-                        </span>
-                        <span class="text-xs font-bold text-slate-200">${KD.escapeHtml(comment.user_name || 'Usuário')}</span>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-[10px] text-slate-500">${KD.escapeHtml(KD.formatRelative(comment.created_at))}</span>
-                        <button type="button" class="p-1 text-slate-400 hover:text-indigo-300 transition"
-                                data-detail-action="edit-comment"
-                                data-comment-id="${comment.id}"
-                                title="Editar comentário">
-                            <i data-lucide="pencil" class="w-3 h-3"></i>
-                        </button>
-                        <button type="button" class="p-1 text-slate-400 hover:text-rose-400 transition"
-                                data-detail-action="delete-comment"
-                                data-comment-id="${comment.id}"
-                                title="Excluir comentário">
-                            <i data-lucide="trash-2" class="w-3 h-3"></i>
-                        </button>
-                    </div>
-                </div>
-                <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap pl-1" id="comment-text-${comment.id}">${KD.escapeHtml(comment.comment_text)}</p>
-            </div>
-        `).join('');
-
-        KD.icons();
-    }
-
-    KD.submitComment = async function (event) {
-        event.preventDefault();
-        const input = el('newCommentInput');
-        const text = input.value.trim();
-        if (!text || !activeTask) return;
-
-        const editId = el('editingCommentId').value;
-        const btn = el('btnSubmitComment');
-        btn.disabled = true;
-
-        try {
-            if (editId) {
-                await KD.api.tasks({
-                    action: 'update_comment',
-                    comment_id: Number(editId),
-                    task_id: activeTask.id,
-                    comment_text: text,
-                });
-                KD.toast('Comentário atualizado.');
-            } else {
-                await KD.api.tasks({
-                    action: 'add_comment',
-                    task_id: activeTask.id,
-                    comment_text: text,
-                });
-                KD.toast('Comentário enviado.');
-            }
-            KD.cancelEditComment();
-            await refreshDetail();
-        } catch (error) {
-            KD.toastError(error.message);
-        } finally {
-            btn.disabled = false;
-        }
-    };
-
-    KD.editComment = function (commentId) {
-        const textEl = el(`comment-text-${commentId}`);
-        if (!textEl) return;
-
-        el('editingCommentId').value = commentId;
-        el('newCommentInput').value = textEl.innerText || textEl.textContent || '';
-        el('commentEditingIndicator').hidden = false;
-        el('btnCancelEditComment').hidden = false;
-        setText('btnSubmitCommentLabel', 'Salvar alteração');
-        el('commentEditorHeading').innerHTML = '<i data-lucide="pencil" class="w-4 h-4 text-amber-400"></i> Editar Comentário';
-        el('newCommentInput').focus();
-        KD.icons();
-    };
-
-    KD.cancelEditComment = function () {
-        if (el('editingCommentId')) el('editingCommentId').value = '';
-        if (el('newCommentInput')) el('newCommentInput').value = '';
-        if (el('commentEditingIndicator')) el('commentEditingIndicator').hidden = true;
-        if (el('btnCancelEditComment')) el('btnCancelEditComment').hidden = true;
-        setText('btnSubmitCommentLabel', 'Enviar comentário');
-        if (el('commentEditorHeading')) {
-            el('commentEditorHeading').innerHTML = '<i data-lucide="edit-3" class="w-4 h-4 text-emerald-400"></i> Novo Comentário';
-        }
-        KD.icons();
-    };
-
-    KD.deleteComment = async function (commentId) {
-        if (!confirm('Deseja realmente excluir este comentário?')) return;
-        if (!activeTask) return;
-
-        try {
-            await KD.api.tasks({
-                action: 'delete_comment',
-                comment_id: Number(commentId),
-                task_id: activeTask.id,
-            });
-            KD.toast('Comentário excluído.');
-            await refreshDetail();
-        } catch (error) {
-            KD.toastError(error.message);
-        }
-    };
-
-    // ---------------------------------------------------------------
-    // Histórico da Tarefa (Activity Log)
-    // ---------------------------------------------------------------
-
-    const HISTORY_ACTION_MAP = {
-        task_created: { icon: 'plus-circle', color: 'text-emerald-400', label: 'Tarefa criada' },
-        task_updated: { icon: 'edit', color: 'text-blue-400', label: 'Tarefa editada' },
-        stage_changed: { icon: 'arrow-right-circle', color: 'text-indigo-400', label: 'Coluna alterada' },
-        due_date_changed: { icon: 'calendar', color: 'text-amber-400', label: 'Prazo alterado' },
-        timer_started: { icon: 'play', color: 'text-emerald-400', label: 'Cronômetro iniciado' },
-        timer_stopped: { icon: 'pause', color: 'text-amber-400', label: 'Cronômetro pausado' },
-        task_completed: { icon: 'check-circle-2', color: 'text-emerald-400', label: 'Tarefa concluída' },
-        task_reopened: { icon: 'rotate-ccw', color: 'text-amber-400', label: 'Tarefa reaberta' },
-        comment_added: { icon: 'message-square', color: 'text-indigo-400', label: 'Comentário adicionado' },
-        comment_updated: { icon: 'edit-2', color: 'text-indigo-400', label: 'Comentário editado' },
-        comment_deleted: { icon: 'trash-2', color: 'text-rose-400', label: 'Comentário excluído' },
-        checklist_toggle: { icon: 'check-square', color: 'text-emerald-400', label: 'Subtarefa atualizada' },
-        focus_toggled: { icon: 'target', color: 'text-amber-400', label: 'Foco alterado' },
-        bomb_toggled: { icon: 'flame', color: 'text-rose-400', label: 'Urgência alterada' },
-    };
-
-    function renderDetailHistory(history) {
-        const container = el('detailHistoryTimeline');
-        if (!container) return;
-
-        if (!history || history.length === 0) {
-            container.innerHTML = '<p class="text-xs text-slate-500 italic p-4 text-center">Nenhuma atividade registrada no histórico desta tarefa.</p>';
-            return;
-        }
-
-        container.innerHTML = history.map((item) => {
-            const meta = HISTORY_ACTION_MAP[item.action] || { icon: 'activity', color: 'text-slate-400', label: item.action };
-            return `
-                <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-900/40 border border-slate-800/60">
-                    <div class="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0 ${meta.color}">
-                        <i data-lucide="${meta.icon}" class="w-4 h-4"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center justify-between gap-2 mb-0.5">
-                            <span class="text-xs font-bold text-slate-200">${meta.label}</span>
-                            <span class="text-[10px] text-slate-500 flex-shrink-0">${KD.escapeHtml(KD.formatRelative(item.created_at))}</span>
-                        </div>
-                        ${item.details ? `<p class="text-xs text-slate-400 leading-relaxed">${KD.escapeHtml(item.details)}</p>` : ''}
-                        <span class="text-[10px] text-slate-500 mt-1 block">Por: ${KD.escapeHtml(item.user_name || 'Sistema')}</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        KD.icons();
-    }
-
-    // ---------------------------------------------------------------
-    // Links úteis do cliente
-    // ---------------------------------------------------------------
-
-    const LINK_ICONS = {
-        site: 'globe',
-        meta_bm: 'layout',
-        google_mcc: 'bar-chart-2',
-        instagram: 'camera',
-        facebook: 'thumbs-up',
-        drive: 'folder',
-        outro: 'external-link',
-    };
-
-    function parseLinks(value) {
-        try {
-            return typeof value === 'string' ? JSON.parse(value || '[]') : (value || []);
-        } catch (e) {
-            return [];
-        }
-    }
-
-    function renderClientLinks(value) {
-        const list = el('detailLinks');
-        if (!list) return;
-
-        const links = parseLinks(value);
-        if (links.length === 0) {
-            list.innerHTML = '<p class="kd-col__empty" style="grid-column:1/-1">Nenhum atalho cadastrado para este cliente.<br>Cadastre em Clientes &rsaquo; Editar.</p>';
-            return;
-        }
-
-        list.innerHTML = links.map((link) => {
-            const href = KD.safeUrl(link.url, '#');
-            return `
-                <a href="${KD.escapeHtml(href)}" target="_blank" rel="noopener noreferrer"
-                   class="p-3 rounded-xl flex items-center gap-3 min-w-0"
-                   style="background:var(--surface-1);border:1px solid var(--border)">
-                    <i data-lucide="${LINK_ICONS[link.type] || LINK_ICONS.outro}" class="w-4 h-4" style="color:var(--brand-strong);flex-shrink:0"></i>
-                    <span class="min-w-0 flex-1">
-                        <span style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-strong)" class="truncate">${KD.escapeHtml(link.title)}</span>
-                        <span style="display:block;font-size:0.6875rem;color:var(--text-faint)" class="truncate">${KD.escapeHtml(link.url)}</span>
-                    </span>
-                    <i data-lucide="arrow-up-right" class="w-3.5 h-3.5" style="color:var(--text-faint);flex-shrink:0"></i>
-                </a>
-            `;
-        }).join('');
-    }
-
-    // ---------------------------------------------------------------
-    // Outras demandas do mesmo cliente
-    // ---------------------------------------------------------------
-
-    function renderClientActivities(tasks) {
-        const list = el('detailClientActivities');
-        if (!list) return;
-
-        setText('detailClientActivitiesCount', `${tasks.length} demanda(s)`);
-
-        if (tasks.length === 0) {
-            list.innerHTML = '<p class="kd-col__empty">Nenhuma outra demanda registrada para este cliente.</p>';
-            return;
-        }
-
-        list.innerHTML = tasks.map((task) => {
-            const done = Boolean(task.completed_at);
-            return `
-                <button type="button" class="w-full flex items-center justify-between gap-2 p-2.5 rounded-xl text-left"
-                        style="background:var(--surface-1);border:1px solid var(--border)"
-                        data-detail-action="open-task" data-task-id="${task.id}">
-                    <span class="flex items-center gap-2 min-w-0">
-                        <span class="kd-col__dot" style="background:${done ? 'var(--success)' : 'var(--brand)'}"></span>
-                        <span class="truncate" style="font-size:0.75rem;${done ? 'text-decoration:line-through;color:var(--text-faint)' : 'color:var(--text)'}">
-                            ${KD.escapeHtml(task.title)}
-                        </span>
-                    </span>
-                    <span style="font-size:0.625rem;color:var(--text-faint);flex-shrink:0">${KD.escapeHtml(task.stage_name || '')}</span>
-                </button>
-            `;
-        }).join('');
-    }
-
-    // ---------------------------------------------------------------
-    // Ações do painel (delegação)
-    // ---------------------------------------------------------------
-
-    async function refreshDetail() {
-        if (!activeTask) return;
-        const data = await KD.api.get(`${KD.url('/api/tarefas')}?id=${activeTask.id}`);
-        activeTask = data.task;
-        renderDetail(activeTask);
-        KD.loadBoard({ silent: true });
-    }
-
-    async function runDetailAction(action, node) {
-        if (!activeTask && action !== 'close') return;
-
-        switch (action) {
-            case 'close':
-                KD.closeTaskDetail();
-                break;
-
-            case 'edit': {
-                const id = activeTask.id;
-                const isCal = Number(activeTask.is_calendar_event || 0) === 1;
-                KD.closeTaskDetail();
-                KD.openTaskForm(id, null, null, null, isCal);
-                break;
-            }
-
-            case 'timer': {
-                const result = await KD.api.tasks({ action: 'toggle_timer', task_id: activeTask.id });
-                activeTask.is_running = result.is_running;
-                activeTask.effective_seconds = result.total_seconds;
-                updateDetailPlayButton(result.is_running);
-                setText('detailTimer', KD.formatSeconds(result.total_seconds));
-                if (result.is_running) {
-                    startDetailTimer();
-                } else {
-                    stopDetailTimer();
-                }
-                if (result.stage_name) {
-                    activeTask.stage_id = result.stage_id;
-                    activeTask.stage_name = result.stage_name;
-                    setText('detailStage', result.stage_name);
-                }
-                KD.loadBoard({ silent: true });
-                KD.toast(result.is_running ? 'Cronômetro iniciado. Tarefa em andamento.' : 'Cronômetro pausado. Tarefa continua em andamento.', { tone: 'info' });
-                break;
-            }
-
-            case 'stop_timer':
-            case 'timer-stop': {
-                const result = await KD.api.tasks({ action: 'stop_timer', task_id: activeTask.id });
-                activeTask.is_running = false;
-                activeTask.effective_seconds = result.total_seconds;
-                updateDetailPlayButton(false);
-                setText('detailTimer', KD.formatSeconds(result.total_seconds));
-                stopDetailTimer();
-                if (result.stage_name) {
-                    activeTask.stage_id = result.stage_id;
-                    activeTask.stage_name = result.stage_name;
-                    setText('detailStage', result.stage_name);
-                }
-                KD.loadBoard({ silent: true });
-                KD.toast('Tarefa parada e movida de volta para A Fazer.', { tone: 'info' });
-                break;
-            }
-
-            case 'focus':
-            case 'bomb': {
-                const result = await KD.api.tasks({
-                    action: action === 'focus' ? 'toggle_focus' : 'toggle_bomb',
-                    task_id: activeTask.id,
-                });
-                node.setAttribute('aria-pressed', String(Boolean(action === 'focus' ? result.in_focus : result.is_bomb)));
-                if (action === 'focus') activeTask.in_focus = result.in_focus;
-                else activeTask.is_bomb = result.is_bomb;
-                KD.loadBoard({ silent: true });
-                break;
-            }
-
-            case 'complete': {
-                const result = await KD.api.tasks({ action: 'complete_task', task_id: activeTask.id });
-                const undo = result.undo;
-                KD.closeTaskDetail();
-                await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-                KD.toast('Tarefa concluída.', {
-                    undo: async () => {
-                        await KD.api.tasks(undo);
-                        await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-                        KD.toast('Conclusão desfeita.', { tone: 'info' });
-                    },
-                });
-                break;
-            }
-
-            case 'reopen':
-                await KD.api.tasks({ action: 'uncomplete_task', task_id: activeTask.id });
-                await refreshDetail();
-                KD.toast('Tarefa reaberta.', { tone: 'info' });
-                break;
-
-            case 'duplicate': {
-                const result = await KD.api.tasks({ action: 'duplicate_task', task_id: activeTask.id });
-                KD.closeTaskDetail();
-                await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-                KD.toast('Tarefa duplicada.', {
-                    undo: async () => {
-                        await KD.api.tasks(result.undo);
-                        await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-                    },
-                });
-                break;
-            }
-
-            case 'delete': {
-                const taskId = activeTask.id;
-                const taskTitle = activeTask.title || 'Tarefa';
-                let recurrenceScope = 'single';
-                if (activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
-                    const scope = await KD.promptRecurrenceScope('delete');
-                    if (!scope) break;
-                    recurrenceScope = scope;
-                }
-                const result = await KD.api.tasks({ action: 'delete', task_id: taskId, recurrence_scope: recurrenceScope });
-                KD.closeTaskDetail();
-                await KD.loadBoard({ silent: true });
-                if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-                KD.toast(`"${taskTitle}" movida para a lixeira.`, {
-                    undo: result && result.undo ? async () => {
-                        await KD.api.tasks(result.undo);
-                        await KD.loadBoard({ silent: true });
-                        if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-                        KD.toast('Tarefa restaurada.', { tone: 'info' });
-                    } : null,
-                });
-                break;
-            }
-
-            case 'copy-link': {
-                const url = `${window.location.origin}${window.location.pathname}?task=${activeTask.id}`;
-                try {
-                    await navigator.clipboard.writeText(url);
-                    KD.toast('Link da tarefa copiado.');
-                } catch (e) {
-                    window.prompt('Copie o link da tarefa:', url);
-                }
-                break;
-            }
-
-            case 'toggle-checklist':
-                await KD.api.tasks({
-                    action: 'toggle_checklist',
-                    item_id: Number(node.dataset.itemId),
-                    is_completed: node.checked ? 1 : 0,
-                });
-                await refreshDetail();
-                break;
-
-            case 'delete-checklist': {
-                const itemId = Number(node.dataset.itemId);
-                await KD.api.tasks({ action: 'delete_checklist', item_id: itemId });
-                await refreshDetail();
-                break;
-            }
-
-            case 'edit-comment':
-                KD.editComment(Number(node.dataset.commentId));
-                break;
-
-            case 'delete-comment':
-                await KD.deleteComment(Number(node.dataset.commentId));
-                break;
-
-            case 'open-task':
-                await KD.openTaskDetail(Number(node.dataset.taskId));
-                break;
-
-            case 'tab':
-                switchTab(node.dataset.tab);
-                break;
-
-            default:
-                break;
-        }
-    }
-
-    function handleDetailEvent(event) {
-        const node = event.target.closest('[data-detail-action]');
-        if (!node) return;
-
-        if (node.tagName !== 'INPUT') event.preventDefault();
-
-        Promise.resolve(runDetailAction(node.dataset.detailAction, node))
-            .catch((error) => KD.toastError(error.message));
-    }
-
-    document.addEventListener('click', (event) => {
-        if (!event.target.closest('#taskDetailModal')) return;
-        handleDetailEvent(event);
-    });
-
-    async function addQuickSubtask() {
-        const input = el('detailQuickSubtaskInput');
-        if (!input || !activeTask) return;
-        const title = input.value.trim();
-        if (!title) return;
-
-        input.disabled = true;
-        try {
-            await KD.api.tasks({
-                action: 'add_checklist',
-                task_id: activeTask.id,
-                title: title
-            });
-            input.value = '';
-            await refreshDetail();
-            if (KD.loadBoard) KD.loadBoard({ silent: true });
-        } catch (err) {
-            KD.toastError(err.message || 'Erro ao adicionar subtarefa');
-        } finally {
-            input.disabled = false;
-            input.focus();
-        }
-    }
-
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' && event.target && event.target.id === 'detailQuickSubtaskInput') {
-            event.preventDefault();
-            addQuickSubtask();
-        }
-    });
-
-    document.addEventListener('click', (event) => {
-        if (event.target && event.target.closest('#detailQuickSubtaskBtn')) {
-            event.preventDefault();
-            addQuickSubtask();
-        }
-    });
-
-    // ---------------------------------------------------------------
-    // Helpers de Tempo Estimado e Expediente
-    // ---------------------------------------------------------------
-
-    KD.formatMinutes = function (totalMinutes) {
-        const mins = Math.max(0, Number(totalMinutes || 0));
-        if (mins === 0) return '0 min';
-        const h = Math.floor(mins / 60);
-        const m = mins % 60;
-        if (h === 0) return `${m}m`;
-        if (m === 0) return `${h}h`;
-        return `${h}h ${m}m`;
-    };
-
-    KD.updateEstimatedPreview = function (val) {
-        const preview = el('task_estimated_preview');
-        if (!preview) return;
-        const mins = Number(val || 0);
-        if (mins > 0) {
-            preview.textContent = `= ${KD.formatMinutes(mins)}`;
-            preview.hidden = false;
-        } else {
-            preview.hidden = true;
-        }
-    };
-
-    KD.setEstimatedMinutes = function (val) {
-        const input = el('task_estimated_minutes');
-        if (input) {
-            input.value = val;
-            KD.updateEstimatedPreview(val);
-            input.focus();
-        }
-    };
-
-    KD.openWorkHoursModal = async function () {
-        const startInput = el('work_start_time_input');
-        const endInput = el('work_end_time_input');
-
-        if (KD.board && KD.board.workHours) {
-            if (startInput) startInput.value = KD.board.workHours.start || '09:00';
-            if (endInput) endInput.value = KD.board.workHours.end || '17:00';
-        } else {
-            try {
-                const res = await fetch(KD.url('/api/preferencias'));
-                const data = await res.json();
-                if (data.success) {
-                    if (startInput) startInput.value = data.work_start_time || '09:00';
-                    if (endInput) endInput.value = data.work_end_time || '17:00';
-                }
-            } catch (e) {}
-        }
-
-        KD.calculateWorkHoursPreview();
-        KD.openModal('workHoursModal', { focus: '#work_start_time_input' });
-    };
-
-    KD.calculateWorkHoursPreview = function () {
-        const start = el('work_start_time_input')?.value || '09:00';
-        const end = el('work_end_time_input')?.value || '17:00';
-        const calcEl = el('workHoursCalculated');
-        if (!calcEl) return;
-
-        const startParts = start.split(':').map(Number);
-        const endParts = end.split(':').map(Number);
-        const startM = (startParts[0] || 0) * 60 + (startParts[1] || 0);
-        const endM = (endParts[0] || 0) * 60 + (endParts[1] || 0);
-        const diff = Math.max(0, endM - startM);
-
-        calcEl.textContent = `${KD.formatMinutes(diff)} (${diff} min)`;
-        if (diff <= 0) {
-            calcEl.classList.add('text-rose-400');
-            calcEl.classList.remove('text-indigo-400');
-        } else {
-            calcEl.classList.remove('text-rose-400');
-            calcEl.classList.add('text-indigo-400');
-        }
-    };
-
-    KD.submitWorkHoursForm = async function (event) {
-        event.preventDefault();
-        const start = el('work_start_time_input')?.value || '09:00';
-        const end = el('work_end_time_input')?.value || '17:00';
-
-        try {
-            const res = await fetch(KD.url('/api/preferencias'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ work_start_time: start, work_end_time: end }),
-            });
-            const data = await res.json();
-            if (!data.success) throw new Error(data.error || 'Erro ao salvar expediente.');
-
-            if (KD.board) {
-                KD.board.workHours = {
-                    start: data.work_start_time,
-                    end: data.work_end_time,
-                    capacityMinutes: data.work_capacity_minutes,
-                };
-                if (el('workHoursLabel')) {
-                    const h = Math.round(data.work_capacity_minutes / 60);
-                    el('workHoursLabel').textContent = `${data.work_start_time.slice(0, 2)}h–${data.work_end_time.slice(0, 2)}h (${h}h)`;
-                }
-                KD.renderBoard();
-            }
-
-            KD.closeModal('workHoursModal');
-            KD.toast('Horário de expediente salvo com sucesso!');
-        } catch (err) {
-            KD.toastError(err.message);
-        }
-    };
-
-    // ---------------------------------------------------------------
-    // Cadastro Rápido de Empresa no Modal de Tarefa
-    // ---------------------------------------------------------------
-
-    KD.toggleQuickAddClient = function (force) {
-        const wrap = el('quickAddClientWrap');
-        if (!wrap) return;
-        const isHidden = (typeof force === 'boolean') ? !force : !wrap.hidden;
-        wrap.hidden = isHidden;
-        if (!isHidden) {
-            const input = el('quick_client_company');
-            if (input) {
-                input.value = '';
-                input.focus();
-            }
-            if (el('quick_client_contact')) el('quick_client_contact').value = '';
-            if (el('quick_client_phone')) el('quick_client_phone').value = '';
-            KD.icons();
-        }
-    };
-
-    KD.submitQuickClient = async function () {
-        const compInput = el('quick_client_company');
-        const contactInput = el('quick_client_contact');
-        const phoneInput = el('quick_client_phone');
-        const btn = el('btnSubmitQuickClient');
-
-        const companyName = compInput ? compInput.value.trim() : '';
-        if (!companyName) {
-            KD.toast('Digite o nome da empresa.', { tone: 'danger' });
-            if (compInput) compInput.focus();
-            return;
-        }
-
-        // Validação imediata: se já existe empresa com este nome cadastrada
-        const compLower = companyName.toLowerCase();
-        let alreadyExists = false;
-        document.querySelectorAll('.task-client-opt').forEach(opt => {
-            if ((opt.getAttribute('data-client-name') || '').toLowerCase() === compLower) {
-                alreadyExists = true;
-            }
-        });
-        if (alreadyExists) {
-            KD.toast(`Já existe uma empresa cadastrada com o nome "${companyName}".`, { tone: 'danger' });
-            if (compInput) compInput.focus();
-            return;
-        }
-
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Cadastrando...';
-        }
-
-        const catInput = el('quick_client_category');
-        const quickCategory = catInput ? catInput.value : 'C';
-
-        try {
-            const resp = await KD.api.tasks({
-                action: 'quick_create_client',
-                company_name: companyName,
-                contact_name: contactInput ? contactInput.value.trim() : '',
-                phone: phoneInput ? phoneInput.value.trim() : '',
-                category: quickCategory,
-            });
-
-            if (resp && resp.client) {
-                const wrap = el('taskClientOptionsWrapper');
-                if (wrap) {
-                    const newDiv = document.createElement('div');
-                    newDiv.className = 'task-client-opt flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/80 cursor-pointer transition text-slate-200 hover:text-white group';
-                    newDiv.setAttribute('data-client-id', resp.client.id);
-                    newDiv.setAttribute('data-client-name', resp.client.company_name.toLowerCase());
-                    newDiv.setAttribute('data-client-cat', (resp.client.category || quickCategory).toLowerCase());
-                    newDiv.onclick = () => KD.selectTaskClient(resp.client.id, resp.client.company_name, resp.client.category || quickCategory);
-                    newDiv.innerHTML = `
-                        <div class="flex items-center gap-2 min-w-0">
-                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border text-indigo-300 bg-indigo-500/15 border-indigo-500/30 flex-shrink-0">
-                                ${resp.client.category || quickCategory}
-                            </span>
-                            <span class="truncate font-medium opt-name">${resp.client.company_name}</span>
-                        </div>
-                        <i data-lucide="check" class="opt-check w-3.5 h-3.5 text-indigo-400" hidden></i>
-                    `;
-                    wrap.appendChild(newDiv);
-                    if (typeof KD.icons === 'function') KD.icons();
-                }
-
-                KD.selectTaskClient(resp.client.id, resp.client.company_name, resp.client.category || quickCategory);
-                KD.toggleQuickAddClient(false);
-                KD.toast(`Empresa "${resp.client.company_name}" cadastrada e vinculada!`);
-            } else {
-                KD.toast(resp?.error || 'Erro ao cadastrar empresa.', { tone: 'danger' });
-            }
-        } catch (err) {
-            KD.toast(err.message || 'Erro ao conectar ao servidor.', { tone: 'danger' });
-        } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> <span>Cadastrar e Vincular</span>';
-                KD.icons();
-            }
-        }
-    };
-
-    // ---------------------------------------------------------------
-    // Ajuste de Tempo do Contador da Tarefa (+ / - minutos ou valor fixo)
-    // ---------------------------------------------------------------
-
-        // ---------------------------------------------------------------
-    // Ajuste de Tempo do Contador da Tarefa (Modal Visual)
-    // ---------------------------------------------------------------
-
-    let adjustTimeBaseSeconds = 0;
-    let adjustTimeCalculatedSeconds = 0;
-
-    KD.adjustTaskTime = async function (deltaMinutes, taskId) {
-        const id = taskId || (activeTask ? activeTask.id : null);
-        if (!id) return;
-
-        try {
-            const resp = await KD.api.tasks({
-                action: 'adjust_time',
-                task_id: id,
-                delta_minutes: deltaMinutes,
-            });
-
-            if (resp && resp.success) {
-                const sign = deltaMinutes >= 0 ? `+${deltaMinutes}m` : `${deltaMinutes}m`;
-                KD.toast(`Tempo ajustado (${sign}). Total: ${resp.formatted}`);
-
-                if (activeTask && Number(activeTask.id) === Number(id)) {
-                    activeTask.effective_seconds = resp.total_seconds;
-                    const timerEl = el('detailTimer');
-                    if (timerEl) timerEl.textContent = resp.formatted;
-                }
-
-                if (KD.loadBoard) await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-            }
-        } catch (err) {
-            KD.toast(err.message || 'Erro ao ajustar tempo.', { tone: 'danger' });
-        }
-    };
-
-    KD.openAdjustTimeModal = function (taskId) {
-        const id = taskId || (activeTask ? activeTask.id : null);
-        if (!id) return;
-
-        // Tentar obter dados da tarefa pelo board ou pelo activeTask
-        let taskData = null;
-        if (activeTask && Number(activeTask.id) === Number(id)) {
-            taskData = activeTask;
-        } else if (KD.board && Array.isArray(KD.board.tasks)) {
-            taskData = KD.board.tasks.find((t) => Number(t.id) === Number(id));
-        }
-
-        const taskTitle = taskData ? (taskData.title || `Tarefa #${id}`) : `Tarefa #${id}`;
-        const currentSecs = taskData ? Number(taskData.effective_seconds || taskData.total_seconds || 0) : 0;
-
-        adjustTimeBaseSeconds = currentSecs;
-        adjustTimeCalculatedSeconds = currentSecs;
-
-        const inputId = el('adjust_time_task_id');
-        if (inputId) inputId.value = String(id);
-
-        const subTitle = el('adjustTimeTaskSubtitle');
-        if (subTitle) subTitle.textContent = taskTitle;
-
-        const currentDisplay = el('adjustTimeCurrentDisplay');
-        if (currentDisplay) currentDisplay.textContent = KD.formatSeconds(currentSecs);
-
-        const previewDisplay = el('adjustTimePreviewDisplay');
-        if (previewDisplay) previewDisplay.textContent = KD.formatSeconds(currentSecs);
-
-        // Resetar campos para modo delta inicial
-        const radioDelta = el('adjust_mode_delta');
-        if (radioDelta) radioDelta.checked = true;
-        KD.toggleAdjustTimeMode('delta');
-
-        const deltaSign = el('adjust_delta_sign');
-        if (deltaSign) deltaSign.value = '1';
-
-        const deltaMinInput = el('adjust_delta_minutes');
-        if (deltaMinInput) deltaMinInput.value = '15';
-
-        const hoursInput = el('adjust_exact_hours');
-        if (hoursInput) hoursInput.value = Math.floor(currentSecs / 3600);
-
-        const minsInput = el('adjust_exact_minutes');
-        if (minsInput) minsInput.value = Math.floor((currentSecs % 3600) / 60);
-
-        KD.recalcAdjustTimePreview();
-        KD.openModal('adjustTimeModal', { focus: '#adjust_delta_minutes' });
-    };
-
-    KD.toggleAdjustTimeMode = function (mode) {
-        const deltaPanel = el('adjustDeltaPanel');
-        const exactPanel = el('adjustExactPanel');
-
-        if (deltaPanel && exactPanel) {
-            deltaPanel.hidden = (mode !== 'delta');
-            exactPanel.hidden = (mode !== 'exact');
-        }
-        KD.recalcAdjustTimePreview();
-    };
-
-    KD.applyQuickTimeDelta = function (deltaMinutes) {
-        const radioDelta = el('adjust_mode_delta');
-        if (radioDelta) radioDelta.checked = true;
-        KD.toggleAdjustTimeMode('delta');
-
-        const deltaSign = el('adjust_delta_sign');
-        const deltaMinInput = el('adjust_delta_minutes');
-
-        if (deltaSign && deltaMinInput) {
-            if (deltaMinutes >= 0) {
-                deltaSign.value = '1';
-                deltaMinInput.value = String(deltaMinutes);
-            } else {
-                deltaSign.value = '-1';
-                deltaMinInput.value = String(Math.abs(deltaMinutes));
-            }
-        }
-        KD.recalcAdjustTimePreview();
-    };
-
-    KD.recalcAdjustTimePreview = function () {
-        const isDelta = el('adjust_mode_delta')?.checked ?? true;
-        let finalSeconds = adjustTimeBaseSeconds;
-
-        if (isDelta) {
-            const sign = Number(el('adjust_delta_sign')?.value || 1);
-            const mins = parseFloat(el('adjust_delta_minutes')?.value || 0);
-            const deltaSec = Math.round(sign * (isNaN(mins) ? 0 : mins) * 60);
-            finalSeconds = Math.max(0, adjustTimeBaseSeconds + deltaSec);
-        } else {
-            const h = parseInt(el('adjust_exact_hours')?.value || 0, 10);
-            const m = parseInt(el('adjust_exact_minutes')?.value || 0, 10);
-            const hoursSec = Math.max(0, isNaN(h) ? 0 : h) * 3600;
-            const minsSec = Math.max(0, isNaN(m) ? 0 : m) * 60;
-            finalSeconds = hoursSec + minsSec;
-        }
-
-        adjustTimeCalculatedSeconds = finalSeconds;
-        const previewDisplay = el('adjustTimePreviewDisplay');
-        if (previewDisplay) {
-            previewDisplay.textContent = KD.formatSeconds(finalSeconds);
-        }
-    };
-
-    KD.resetTimeZero = function () {
-        const radioExact = el('adjust_mode_exact');
-        if (radioExact) radioExact.checked = true;
-        KD.toggleAdjustTimeMode('exact');
-
-        if (el('adjust_exact_hours')) el('adjust_exact_hours').value = '0';
-        if (el('adjust_exact_minutes')) el('adjust_exact_minutes').value = '0';
-
-        adjustTimeCalculatedSeconds = 0;
-        const previewDisplay = el('adjustTimePreviewDisplay');
-        if (previewDisplay) previewDisplay.textContent = '00:00:00';
-    };
-
-    KD.submitAdjustTimeForm = async function (event) {
-        if (event && event.preventDefault) event.preventDefault();
-
-        const taskId = Number(el('adjust_time_task_id')?.value || 0);
-        if (!taskId) {
-            KD.closeModal('adjustTimeModal');
-            return;
-        }
-
-        const btn = el('btnSubmitAdjustTime');
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Salvando...';
-        }
-
-        try {
-            const resp = await KD.api.tasks({
-                action: 'adjust_time',
-                task_id: taskId,
-                set_seconds: adjustTimeCalculatedSeconds,
-            });
-
-            if (resp && resp.success) {
-                KD.closeModal('adjustTimeModal');
-                KD.toast(`Tempo ajustado para ${resp.formatted}!`);
-
-                if (activeTask && Number(activeTask.id) === Number(taskId)) {
-                    activeTask.effective_seconds = resp.total_seconds;
-                    const timerEl = el('detailTimer');
-                    if (timerEl) timerEl.textContent = resp.formatted;
-                }
-
-                if (KD.loadBoard) await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-            } else {
-                KD.toast(resp?.error || 'Erro ao ajustar tempo.', { tone: 'danger' });
-            }
-        } catch (err) {
-            KD.toast(err.message || 'Erro ao conectar ao servidor.', { tone: 'danger' });
-        } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Salvar Ajuste';
-                KD.icons();
-            }
-        }
-    };
-
-    // Alias para compatibilidade
-    KD.promptAdjustTaskTime = function (taskId) {
-        KD.openAdjustTimeModal(taskId);
-    };
-
-    // Se a página carregar com ?create_with_template=X, abre automaticamente o modal com o modelo
-    document.addEventListener('DOMContentLoaded', () => {
-        const params = new URLSearchParams(window.location.search);
-        const tplId = params.get('create_with_template');
-        if (tplId) {
-            setTimeout(() => {
-                if (window.KD && KD.openTaskForm) {
-                    KD.openTaskForm(null, null, { id: Number(tplId) });
-                }
-            }, 250);
-        }
-    });
-
-    KD.toggleTimeInput = function (checked) {
-        const wrap = el('task_time_wrap');
-        const input = el('task_due_time');
-        if (wrap) wrap.hidden = !checked;
-        if (!checked && input) input.value = '';
-        if (checked && input && !input.value) input.focus();
-    };
-
-    // ===============================================================
-    // Gerenciamento da Lixeira de Tarefas (30 dias)
-    // ===============================================================
-
-    KD.openTrashModal = async function () {
-        KD.closeMenus();
-        KD.openModal('taskTrashModal');
-        await KD.loadTrashList();
-    };
-
-    KD.closeTrashModal = function () {
-        KD.closeModal('taskTrashModal');
-    };
-
-    KD.loadTrashList = async function () {
-        const listEl = el('trashListContainer');
-        const emptyEl = el('trashEmpty');
-        const loadEl = el('trashLoading');
-        const badgeEl = el('trashModalBadge');
-        const emptyBtn = el('btnEmptyTrash');
-
-        if (!listEl) return;
-        listEl.innerHTML = '';
-        if (loadEl) loadEl.hidden = false;
-        if (emptyEl) emptyEl.hidden = true;
-
-        try {
-            const data = await KD.api.tasks({ action: 'trash_list' });
-            if (loadEl) loadEl.hidden = true;
-            const items = data.trash || [];
-
-            if (badgeEl) badgeEl.textContent = String(items.length);
-            if (emptyBtn) emptyBtn.disabled = (items.length === 0);
-
-            if (items.length === 0) {
-                if (emptyEl) emptyEl.hidden = false;
-                return;
-            }
-
-            listEl.innerHTML = items.map((task) => {
-                const priorityLabels = { urgent: 'Urgente', high: 'Alta', medium: 'Média', low: 'Baixa' };
-                const priorityColors = { urgent: '#ef4444', high: '#f59e0b', medium: '#3b82f6', low: '#64748b' };
-                const pLabel = priorityLabels[task.priority] || 'Normal';
-                const pColor = priorityColors[task.priority] || '#64748b';
-
-                return `
-                    <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700/80 transition flex items-center justify-between gap-3">
-                        <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-2 flex-wrap mb-1">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" style="background:${pColor}22;color:${pColor};border:1px solid ${pColor}44">
-                                    ${pLabel}
-                                </span>
-                                ${task.stage_name ? `<span class="text-[10px] text-slate-400 font-medium">Coluna: <strong>${KD.escapeHtml(task.stage_name)}</strong></span>` : ''}
-                                ${task.client_company ? `<span class="text-[10px] text-indigo-400 font-medium">· ${KD.escapeHtml(task.client_company)}</span>` : ''}
-                            </div>
-                            <h4 class="text-xs sm:text-sm font-semibold text-slate-200 truncate" title="${KD.escapeHtml(task.title)}">
-                                ${KD.escapeHtml(task.title)}
-                            </h4>
-                            <p class="text-[11px] text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
-                                <span>Excluída em ${task.deleted_formatted || '--'}</span>
-                                <span class="text-amber-400/90 font-medium bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
-                                    Restam ${task.days_left || 0} dia(s)
-                                </span>
-                            </p>
-                        </div>
-                        <div class="flex items-center gap-1.5 flex-shrink-0">
-                            <button type="button" class="kd-btn text-xs py-1 px-2.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border border-indigo-500/20"
-                                    onclick="KD.restoreTaskFromTrash(${task.id})" title="Restaurar para o Kanban">
-                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-                                <span class="hidden sm:inline">Restaurar</span>
-                            </button>
-                            <button type="button" class="kd-btn text-xs py-1 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20"
-                                    onclick="KD.deletePermanentFromTrash(${task.id})" title="Excluir definitivamente">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            if (window.lucide) lucide.createIcons();
-        } catch (err) {
-            if (loadEl) loadEl.hidden = true;
-            KD.toastError(err.message || 'Erro ao carregar lixeira');
-        }
-    };
-
-    KD.restoreTaskFromTrash = async function (taskId) {
-        try {
-            const res = await KD.api.tasks({ action: 'restore_task', task_id: taskId });
-            KD.toast(`"${res.title || 'Tarefa'}" restaurada da lixeira com sucesso!`);
-            await KD.loadTrashList();
-            await KD.loadBoard({ silent: true });
-            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
-        } catch (err) {
-            KD.toastError(err.message || 'Erro ao restaurar tarefa');
-        }
-    };
-
-    KD.deletePermanentFromTrash = async function (taskId) {
-        if (!confirm('Tem certeza? Esta tarefa será apagada permanentemente do sistema e não poderá mais ser recuperada.')) {
-            return;
-        }
-        try {
-            await KD.api.tasks({ action: 'delete_permanent', task_id: taskId });
-            KD.toast('Tarefa apagada permanentemente.');
-            await KD.loadTrashList();
-        } catch (err) {
-            KD.toastError(err.message || 'Erro ao excluir permanentemente');
-        }
-    };
-
-    KD.emptyTrashNow = async function () {
-        if (!confirm('Atenção: todas as tarefas da lixeira serão apagadas permanentemente!\nEsta ação não pode ser desfeita. Deseja continuar?')) {
-            return;
-        }
-        try {
-            const res = await KD.api.tasks({ action: 'purge_trash' });
-            KD.toast(res.message || 'Lixeira esvaziada com sucesso.');
-            await KD.loadTrashList();
-        } catch (err) {
-            KD.toastError(err.message || 'Erro ao esvaziar lixeira');
-        }
-    };
-
-// ---------------------------------------------------------------
-    // Notas do Cliente na Modal da Tarefa
-    // ---------------------------------------------------------------
-
-    let taskClientNotesCache = [];
-
-    async function renderTaskClientNotes(task) {
-        const badge = el('detailNotesTabBadge');
-        const list = el('detailClientNotesList');
-        const notice = el('detailNoClientNotesNotice');
-        const header = el('detailClientNotesHeader');
-        const sub = el('detailClientNotesSub');
-        const btnAdd = el('btnAddNoteFromTaskBtn');
-
-        if (!task || !task.client_id) {
-            if (badge) badge.hidden = true;
-            if (notice) notice.hidden = false;
-            if (list) list.innerHTML = '';
-            if (btnAdd) btnAdd.hidden = true;
-            if (header) header.textContent = 'Notas do Cliente';
-            if (sub) sub.textContent = 'Nenhum cliente associado a esta tarefa.';
-            return;
-        }
-
-        if (notice) notice.hidden = true;
-        if (btnAdd) btnAdd.hidden = false;
-        if (header) header.textContent = `Notas de ${task.client_company || 'Cliente'}`;
-        if (sub) sub.textContent = 'Diretrizes, credenciais e alinhamentos deste cliente';
-
-        if (list) {
-            list.innerHTML = '<div class="p-4 text-xs text-slate-400 text-center flex items-center justify-center gap-2"><span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span> Carregando notas do cliente...</div>';
-        }
-
-        try {
-            const res = await fetch(`${KD.url('/api/notas')}?client_id=${task.client_id}`);
-            const data = await res.json();
-            if (data.ok) {
-                taskClientNotesCache = data.notes || [];
-                if (badge) {
-                    badge.textContent = taskClientNotesCache.length;
-                    badge.hidden = taskClientNotesCache.length === 0;
-                }
-
-                if (taskClientNotesCache.length === 0) {
-                    if (list) {
-                        list.innerHTML = `
-                            <div class="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 text-center">
-                                <p class="text-xs font-semibold text-slate-300 mb-1">Nenhuma nota cadastrada para este cliente.</p>
-                                <p class="text-[11px] text-slate-500 mb-3">Adicione orientações, diretrizes ou atas de reunião para a equipe.</p>
-                                <button type="button" onclick="KD.openQuickNoteForTaskClient()" class="kd-btn kd-btn--primary text-xs mx-auto py-1.5 px-3">
-                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                                    <span>Adicionar Primeira Nota</span>
-                                </button>
-                            </div>
-                        `;
-                    }
-                                } else {
-                                        if (list) {
-                        const totalNotes = taskClientNotesCache.length;
-                        const hasScroll = totalNotes > 2;
-
-                        list.innerHTML = `
-                            <div class="space-y-2">
-                                <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
-                                    <span class="font-medium text-slate-300">
-                                        ${totalNotes === 1 ? '1 nota cadastrada' : (hasScroll ? `Exibindo 2 de ${totalNotes} notas` : `${totalNotes} notas cadastradas`)}
-                                    </span>
-                                    ${hasScroll ? '<span class="text-indigo-400 font-medium flex items-center gap-1"><i data-lucide="arrow-left-right" class="w-3 h-3"></i> Use as setas para rolar</span>' : ''}
-                                </div>
-                                <div class="relative flex items-center gap-2">
-                                    <button type="button" id="btnNotesScrollPrev" onclick="KD.scrollTaskNotes(-1)"
-                                            class="w-8 h-8 rounded-full bg-slate-800/90 hover:bg-indigo-600 border border-slate-700/80 hover:border-indigo-500 text-slate-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-20 disabled:pointer-events-none flex-shrink-0 shadow-lg cursor-pointer ${hasScroll ? '' : 'hidden'}"
-                                            title="Notas mais recentes" aria-label="Notas mais recentes">
-                                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
-                                    </button>
-
-                                    <div id="detailClientNotesSlider" onscroll="KD.updateNotesScrollButtons()"
-                                         class="flex-1 overflow-x-auto flex gap-3 scroll-smooth snap-x snap-mandatory py-1 px-0.5"
-                                         style="scrollbar-width: none; -ms-overflow-style: none;">
-                                        ${taskClientNotesCache.map(note => {
-                                            const grpColor = note.group_color || '#6366f1';
-                                            const dateStr = note.created_at ? new Date(note.created_at.replace(/-/g, '/')).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-                                            const cleanText = KD.stripHtml ? KD.stripHtml(note.content) : (note.content || '').replace(/<[^>]*>?/gm, ' ');
-                                            
-                                            return `
-                                                <div onclick="KD.viewTaskClientNote(${note.id})"
-                                                     style="min-width: calc(50% - 0.375rem); max-width: calc(50% - 0.375rem);"
-                                                     class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/60 hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col justify-between group shadow-sm flex-shrink-0 snap-start ${note.is_pinned ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.03] to-transparent' : ''}"
-                                                     title="Clique para ler anotação completa">
-                                                    <div>
-                                                        <div class="flex items-center justify-between gap-1.5 mb-1.5">
-                                                            <div class="flex items-center gap-1.5 min-w-0">
-                                                                ${note.is_pinned ? '<i data-lucide="pin" class="w-3 h-3 text-amber-400 flex-shrink-0" title="Nota Fixada"></i>' : ''}
-                                                                ${note.group_name ? `
-                                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider truncate max-w-[120px]" style="background:${grpColor}20;color:${grpColor}">
-                                                                        ${KD.escapeHtml(note.group_name)}
-                                                                    </span>
-                                                                ` : ''}
-                                                            </div>
-                                                            <span class="text-[10px] text-slate-500 whitespace-nowrap flex-shrink-0">${dateStr}</span>
-                                                        </div>
-                                                        <h5 class="text-xs font-bold text-white group-hover:text-indigo-300 transition line-clamp-1 mb-1">
-                                                            ${KD.escapeHtml(note.title)}
-                                                        </h5>
-                                                        <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                                                            ${KD.escapeHtml(cleanText.trim() || 'Sem conteúdo adicional.')}
-                                                        </p>
-                                                    </div>
-                                                    <div class="flex items-center justify-between pt-2 mt-2 border-t border-slate-800/60 text-[10px] text-slate-500">
-                                                        <span class="truncate">Por: ${KD.escapeHtml(note.author_name || 'Equipe')}</span>
-                                                        <span class="text-indigo-400 font-medium group-hover:translate-x-0.5 transition flex items-center gap-0.5">
-                                                            Ler nota <i data-lucide="chevron-right" class="w-3 h-3"></i>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            `;
-                                        }).join('')}
-                                    </div>
-
-                                    <button type="button" id="btnNotesScrollNext" onclick="KD.scrollTaskNotes(1)"
-                                            class="w-8 h-8 rounded-full bg-slate-800/90 hover:bg-indigo-600 border border-slate-700/80 hover:border-indigo-500 text-slate-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-20 disabled:pointer-events-none flex-shrink-0 shadow-lg cursor-pointer ${hasScroll ? '' : 'hidden'}"
-                                            title="Notas mais antigas" aria-label="Notas mais antigas">
-                                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
-                KD.icons();
-                setTimeout(KD.updateNotesScrollButtons, 50);
-            }
-        } catch (err) {
-            console.error('Erro ao buscar notas do cliente:', err);
-            if (list) list.innerHTML = '<p class="text-xs text-rose-400">Erro ao carregar notas do cliente.</p>';
-        }
-    }
-
-    KD.openQuickNoteForTaskClient = async function () {
-        if (!activeTask || !activeTask.client_id) {
-            KD.toastError('Esta tarefa não possui cliente vinculado.');
-            return;
-        }
-
-        const title = prompt('Título da Anotação para ' + (activeTask.client_company || 'este cliente') + ':');
-        if (!title || !title.trim()) return;
-
-        const content = prompt('Conteúdo da Anotação:');
-        if (!content || !content.trim()) return;
-
-        try {
-            const res = await fetch(KD.url('/api/notas'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'save_note',
-                    title: title.trim(),
-                    content: content.trim(),
-                    client_id: activeTask.client_id,
-                    is_pinned: 0
-                })
-            });
-            const data = await res.json();
-            if (data.ok) {
-                KD.toastSuccess('Nota adicionada com sucesso!');
-                renderTaskClientNotes(activeTask);
-            } else {
-                KD.toastError(data.error || 'Erro ao salvar nota.');
-            }
-        } catch (err) {
-            console.error(err);
-            KD.toastError('Falha de conexão ao salvar nota.');
-        }
-    };
-
-
-    KD.stripHtml = function(html) {
-        if (!html) return '';
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        return tmp.textContent || tmp.innerText || '';
-    };
-
-    KD.viewTaskClientNote = function(noteId) {
-        const note = (taskClientNotesCache || []).find(n => Number(n.id) === Number(noteId));
-        if (!note) return;
-
-        const titleEl = el('taskNoteReadTitle');
-        if (titleEl) titleEl.textContent = note.title;
-
-        // Grupo
-        const grpBadge = el('taskNoteReadGroupBadge');
-        if (grpBadge) {
-            if (note.group_name) {
-                const grpColor = note.group_color || '#6366f1';
-                grpBadge.style.display = 'inline-flex';
-                grpBadge.innerHTML = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider" style="background:${grpColor}20;color:${grpColor};border:1px solid ${grpColor}40">
-                    <span class="w-1.5 h-1.5 rounded-full" style="background:${grpColor}"></span>
-                    <span>${KD.escapeHtml(note.group_name)}</span>
-                </span>`;
-            } else {
-                grpBadge.style.display = 'none';
-                grpBadge.innerHTML = '';
-            }
-        }
-
-        // Cliente
-        const cliBadge = el('taskNoteReadClientBadge');
-        if (cliBadge) {
-            if (note.client_company) {
-                cliBadge.style.display = 'inline-flex';
-                cliBadge.innerHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
-                    <i data-lucide="building-2" class="w-3 h-3 text-indigo-400"></i>
-                    <span>${KD.escapeHtml(note.client_company)}</span>
-                </span>`;
-            } else {
-                cliBadge.style.display = 'none';
-                cliBadge.innerHTML = '';
-            }
-        }
-
-        // Pin
-        const pinBadge = el('taskNoteReadPinnedBadge');
-        if (pinBadge) {
-            pinBadge.classList.toggle('hidden', !note.is_pinned);
-        }
-
-        const authorEl = el('taskNoteReadAuthor');
-        if (authorEl) authorEl.textContent = `Criado por ${note.author_name || 'Equipe'}`;
-
-        const dateEl = el('taskNoteReadDate');
-        if (dateEl && note.created_at) {
-            try {
-                const d = new Date(note.created_at.replace(/-/g, '/'));
-                dateEl.textContent = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            } catch(e) {
-                dateEl.textContent = note.created_at;
-            }
-        }
-
-        // Corpo Formatado
-        const bodyEl = el('taskNoteReadBody');
-        if (bodyEl) {
-            if (note.content && (note.content.includes('<p>') || note.content.includes('<br>') || note.content.includes('<div>') || note.content.includes('<ul>') || note.content.includes('<h3>') || note.content.includes('<strong>'))) {
-                bodyEl.innerHTML = note.content;
-            } else {
-                bodyEl.innerHTML = `<p class="whitespace-pre-line">${KD.escapeHtml(note.content || '')}</p>`;
-            }
-        }
-
-        // Link externo para o modulo de notas
-        const extLink = el('taskNoteReadExternalLink');
-        if (extLink) {
-            extLink.href = `${KD.url('/notas')}?client_id=${note.client_id || (activeTask && activeTask.client_id) || ''}`;
-        }
-
-        KD.openModal('taskNoteReadModal');
-        KD.icons();
-    };
-
-        KD.updateDetailClientCategory = async function (newCat) {
-        if (!activeTask) return;
-        const clientId = activeTask.client_id || (activeTask.client && activeTask.client.id);
-        if (!clientId) {
-            KD.toast('Esta tarefa não possui empresa vinculada para alterar a categoria.', { tone: 'warning' });
-            return;
-        }
-
-        try {
-            const resp = await KD.api.tasks({
-                action: 'update_client_category',
-                client_id: clientId,
-                category: newCat
-            });
-
-            if (resp && resp.success) {
-                activeTask.client_category = newCat;
-
-                // Atualizar badge do cabeçalho
-                const catBadge = el('detailClientCategoryBadge');
-                if (catBadge) applyCategoryBadgeStyle(catBadge, newCat);
-                const headerSel = el('detailHeaderClientCategorySelect');
-                if (headerSel) headerSel.value = newCat;
-
-                // Atualizar select da aba Cliente
-                const tabSel = el('detailTabClientCategorySelect');
-                if (tabSel) tabSel.value = newCat;
-
-                // Atualizar select do formulário de edição se aberto
-                if (el('task_client_category')) el('task_client_category').value = newCat;
-
-                // Atualizar select de clientes na página
-                const clientOpt = document.querySelector(`#task_client_id option[value="${clientId}"]`);
-                if (clientOpt) {
-                    clientOpt.setAttribute('data-category', newCat);
-                    const baseName = clientOpt.text.replace(/\s*\([A-D\+]+\)$/, '').trim();
-                    clientOpt.text = `${baseName} (${newCat})`;
-                }
-
-                // Atualizar tarefa no quadro Kanban e reordenar em tempo real
-                if (KD.board && Array.isArray(KD.board.tasks)) {
-                    KD.board.tasks.forEach(t => {
-                        if (Number(t.client_id) === Number(clientId)) {
-                            t.client_category = newCat;
-                        }
-                    });
-                    if (typeof KD.renderBoard === 'function') {
-                        KD.renderBoard();
-                    }
-                }
-
-                KD.toast(`Categoria da empresa atualizada para ${newCat}!`, { tone: 'success' });
-            } else {
-                KD.toast(resp?.error || 'Não foi possível atualizar a categoria.', { tone: 'danger' });
-            }
-        } catch (err) {
-            console.error('Erro ao atualizar categoria:', err);
-            KD.toast('Erro na requisição ao atualizar categoria.', { tone: 'danger' });
-        }
-    };
-
-    KD.closeTaskNoteReadModal = function() {
-        KD.closeModal('taskNoteReadModal');
-    };
-
-})(window.KD);
+/**
+ * KanbanDoo - Modais de tarefa: formulário de criação/edição e painel de detalhes.
+ */
+window.KD = window.KD || {};
+
+(function (KD) {
+    'use strict';
+
+    let activeTask = null;
+    let detailTimerInterval = null;
+    let formTags = [];
+    let formChecklistItems = [];
+
+    function el(id) {
+        return document.getElementById(id);
+    }
+
+    // ===============================================================
+    // Formulário de Nova / Editar Tarefa
+    // ===============================================================
+
+    function clearFormErrors() {
+        document.querySelectorAll('#taskForm .kd-inline-error').forEach((node) => { node.hidden = true; });
+        document.querySelectorAll('#taskForm .kd-field-invalid').forEach((node) => {
+            node.classList.remove('kd-field-invalid');
+            node.removeAttribute('aria-invalid');
+        });
+    }
+
+    function showFormError(field, message) {
+        const input = el(`task_${field}`);
+        const error = el(`error_${field}`);
+
+        if (error) {
+            error.textContent = message;
+            error.hidden = false;
+        }
+        if (input) {
+            input.classList.add('kd-field-invalid');
+            input.setAttribute('aria-invalid', 'true');
+            input.focus();
+        }
+        if (!error && !input) KD.toastError(message);
+    }
+
+    // ---------------------------------------------------------------
+    // Etiquetas do formulário
+    // ---------------------------------------------------------------
+
+    function renderFormTags() {
+        const editor = el('taskTagsEditor');
+        const input = el('task_tags_input');
+        if (!editor || !input) return;
+
+        editor.querySelectorAll('.kd-tag').forEach((node) => node.remove());
+
+        formTags.forEach((tag, index) => {
+            const chip = document.createElement('span');
+            chip.className = 'kd-tag';
+            chip.textContent = tag;
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'kd-tag__remove';
+            remove.setAttribute('aria-label', `Remover etiqueta ${tag}`);
+            remove.textContent = '×';
+            remove.addEventListener('click', () => {
+                formTags.splice(index, 1);
+                renderFormTags();
+                input.focus();
+            });
+
+            chip.appendChild(remove);
+            editor.insertBefore(chip, input);
+        });
+
+        input.placeholder = formTags.length >= 8 ? 'Limite de 8 etiquetas' : 'Digite e pressione Enter';
+        input.disabled = formTags.length >= 8;
+    }
+
+    function addFormTag(raw) {
+        const value = String(raw || '').replace(/\s+/g, ' ').trim().replace(/^#|,$/g, '').trim();
+        if (!value || formTags.length >= 8) return;
+        if (formTags.some((t) => t.toLowerCase() === value.toLowerCase())) return;
+
+        formTags.push(value.slice(0, 24));
+        renderFormTags();
+    }
+
+    function setupTagInput() {
+        const input = el('task_tags_input');
+        if (!input || input.dataset.ready === '1') return;
+        input.dataset.ready = '1';
+
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ',') {
+                event.preventDefault();
+                addFormTag(input.value);
+                input.value = '';
+                return;
+            }
+            if (event.key === 'Backspace' && input.value === '' && formTags.length > 0) {
+                formTags.pop();
+                renderFormTags();
+            }
+        });
+
+        // Ao escolher uma sugestão do datalist o campo é preenchido de uma vez
+        input.addEventListener('input', () => {
+            if (input.value.endsWith(',')) {
+                addFormTag(input.value);
+                input.value = '';
+            }
+        });
+
+        input.addEventListener('blur', () => {
+            addFormTag(input.value);
+            input.value = '';
+        });
+    }
+
+    /** Sugestões vindas do que já existe no quadro. */
+    function renderTagSuggestions() {
+        const list = el('tagSuggestions');
+        if (!list || !KD.board) return;
+        list.innerHTML = (KD.board.allTags || [])
+            .map((tag) => `<option value="${KD.escapeHtml(tag.name)}"></option>`)
+            .join('');
+    }
+
+    // ---------------------------------------------------------------
+    // Checklist do formulário
+    // ---------------------------------------------------------------
+
+    function renderFormChecklist() {
+        const container = el('formChecklistContainer');
+        const count = el('formChecklistCount');
+        if (!container) return;
+
+        if (count) {
+            count.textContent = `${formChecklistItems.length} ite${formChecklistItems.length === 1 ? 'm' : 'ns'}`;
+        }
+
+        if (formChecklistItems.length === 0) {
+            container.innerHTML = '<p class="text-slate-500 text-xs text-center py-1.5 italic" id="formChecklistEmpty">Nenhuma subtarefa adicionada.</p>';
+            return;
+        }
+
+        container.innerHTML = formChecklistItems.map((item, idx) => `
+            <div class="flex items-center justify-between gap-2 p-1.5 px-2.5 rounded-lg bg-slate-800/40 border border-slate-700/30 text-xs">
+                <span class="truncate flex items-center gap-1.5 text-slate-200">
+                    <i data-lucide="check" class="w-3.5 h-3.5 text-indigo-400 flex-shrink-0"></i>
+                    ${KD.escapeHtml(item)}
+                </span>
+                <button type="button" onclick="KD.removeFormChecklistItem(${idx})" class="text-slate-400 hover:text-rose-400 transition" title="Remover subtarefa">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        `).join('');
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    KD.addFormChecklistItem = function () {
+        const input = el('formNewChecklistItem');
+        if (!input) return;
+        const text = input.value.trim();
+        if (!text) return;
+        formChecklistItems.push(text);
+        input.value = '';
+        renderFormChecklist();
+        input.focus();
+    };
+
+    KD.removeFormChecklistItem = function (idx) {
+        formChecklistItems.splice(idx, 1);
+        renderFormChecklist();
+    };
+
+    function setupFormChecklistInput() {
+        const input = el('formNewChecklistItem');
+        if (!input || input.dataset.ready === '1') return;
+        input.dataset.ready = '1';
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                KD.addFormChecklistItem();
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------
+    // Recorrência
+    // ---------------------------------------------------------------
+
+    KD.toggleRecurrenceOptions = function (checked) {
+        const fields = el('recurrenceFields');
+        if (fields) fields.hidden = !checked;
+    };
+
+    KD.onRecurrenceTypeChange = function (type) {
+        const customWrap = el('recurrenceCustomWrap');
+        if (customWrap) customWrap.hidden = (type !== 'custom');
+    };
+
+    KD.toggleCustomRecurrenceMode = function (mode) {
+        const weekdaysWrap = el('customWeekdaysWrap');
+        const monthdayWrap = el('customMonthdayWrap');
+        if (weekdaysWrap) weekdaysWrap.hidden = (mode !== 'weekdays');
+        if (monthdayWrap) monthdayWrap.hidden = (mode !== 'monthday');
+    };
+
+    KD.toggleWeekdayBtn = function (btn) {
+        btn.classList.toggle('is-active');
+    };
+
+    function getSelectedWeekdays() {
+        const btns = document.querySelectorAll('#recurrenceWeekdaysList .kd-day-btn.is-active');
+        return Array.from(btns).map((b) => Number(b.dataset.day));
+    }
+
+    // ---------------------------------------------------------------
+    // Modelos de Tarefa
+    // ---------------------------------------------------------------
+
+    KD.applyTemplateToForm = async function (templateId, templateData = null) {
+        if (!templateId && !templateData) return;
+
+        let tpl = templateData;
+        if (!tpl && templateId) {
+            try {
+                const res = await fetch(`${KD.url('/api/modelos')}?id=${templateId}`);
+                const data = await res.json();
+                if (data.success) tpl = data.template;
+            } catch (e) {
+                console.error('Erro ao carregar modelo:', e);
+            }
+        }
+
+        if (!tpl) return;
+
+        if (tpl.title) el('task_title').value = tpl.title;
+        if (tpl.estimated_minutes && el('task_estimated_minutes')) el('task_estimated_minutes').value = tpl.estimated_minutes;
+        if (tpl.description) el('task_description').value = tpl.description;
+
+        // Tags
+        let tags = [];
+        if (Array.isArray(tpl.tags_list)) {
+            tags = tpl.tags_list;
+        } else if (typeof tpl.tags === 'string') {
+            try { tags = JSON.parse(tpl.tags); } catch (e) { tags = tpl.tags.split(',').map((s) => s.trim()).filter(Boolean); }
+        } else if (Array.isArray(tpl.tags)) {
+            tags = tpl.tags;
+        }
+        formTags = [];
+        tags.forEach((tag) => addFormTag(tag));
+
+        // Checklist
+        const checklist = tpl.checklist_items || (typeof tpl.checklist === 'string' ? JSON.parse(tpl.checklist || '[]') : (tpl.checklist || []));
+        formChecklistItems = [];
+        checklist.forEach((item) => {
+            const itemText = typeof item === 'object' ? (item.title || '') : String(item);
+            if (itemText.trim()) formChecklistItems.push(itemText.trim());
+        });
+        renderFormChecklist();
+
+        KD.toast(`Modelo "${tpl.title}" aplicado!`);
+    };
+
+    // ---------------------------------------------------------------
+    // Abrir Formulário de Tarefa
+    // ---------------------------------------------------------------
+
+        // Estilos visuais unificados por categoria da empresa
+    const CATEGORY_STYLES = {
+        'A+': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        'A':  'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+        'B':  'bg-sky-500/20 text-sky-300 border-sky-500/40',
+        'C':  'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        'D':  'bg-slate-500/20 text-slate-300 border-slate-500/40'
+    };
+
+    function applyCategoryBadgeStyle(element, cat) {
+        if (!element) return;
+        Object.values(CATEGORY_STYLES).forEach(cls => {
+            cls.split(' ').forEach(c => element.classList.remove(c));
+        });
+        const style = CATEGORY_STYLES[cat] || CATEGORY_STYLES['C'];
+        style.split(' ').forEach(c => element.classList.add(c));
+    }
+
+        // ---------------------------------------------------------------
+    // Combobox / Dropdown com Busca Live de Empresa no Modal de Tarefa
+    // ---------------------------------------------------------------
+
+    KD.toggleTaskClientDropdown = function (force) {
+        const panel = el('taskClientDropdownPanel');
+        const chevron = el('taskClientChevronIcon');
+        if (!panel) return;
+
+        let shouldOpen;
+        if (typeof force === 'boolean') {
+            shouldOpen = force;
+        } else if (force && force.stopPropagation) {
+            force.stopPropagation();
+            shouldOpen = panel.hidden;
+        } else {
+            shouldOpen = panel.hidden;
+        }
+
+        panel.hidden = !shouldOpen;
+        if (chevron) {
+            chevron.style.transform = shouldOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+
+        if (shouldOpen) {
+            const searchInput = el('task_client_live_search');
+            if (searchInput) {
+                setTimeout(() => searchInput.focus(), 60);
+            }
+        }
+    };
+
+    KD.filterTaskClientDropdown = function (query) {
+        const cleanQuery = (query || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const items = document.querySelectorAll('.task-client-opt');
+        const clearBtn = el('task_client_live_search_clear');
+        const notFound = el('taskClientOptionsNotFound');
+        let visibleCount = 0;
+
+        if (clearBtn) clearBtn.hidden = !cleanQuery;
+
+        items.forEach(item => {
+            const name = (item.getAttribute('data-client-name') || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const cat = (item.getAttribute('data-client-cat') || '').toLowerCase();
+            const matches = !cleanQuery || name.includes(cleanQuery) || cat.includes(cleanQuery);
+            item.hidden = !matches;
+            if (matches) visibleCount++;
+        });
+
+        if (notFound) {
+            notFound.hidden = visibleCount > 0;
+        }
+    };
+
+    KD.clearTaskClientDropdownSearch = function (event) {
+        if (event && event.stopPropagation) event.stopPropagation();
+        const input = el('task_client_live_search');
+        if (input) {
+            input.value = '';
+            KD.filterTaskClientDropdown('');
+            input.focus();
+        }
+    };
+
+    KD.selectFirstVisibleClient = function () {
+        const first = document.querySelector('.task-client-opt:not([hidden])');
+        if (first) {
+            first.click();
+        }
+    };
+
+    KD.selectTaskClient = function (clientId, clientName, clientCategory) {
+        const hiddenId = el('task_client_id');
+        const label = el('taskClientSelectedLabel');
+        const catSelect = el('task_client_category');
+
+        if (hiddenId) hiddenId.value = clientId || '';
+        if (label) {
+            label.textContent = clientName || 'Sem empresa vinculada';
+            if (clientId) {
+                label.className = 'truncate font-semibold text-xs sm:text-sm text-white';
+            } else {
+                label.className = 'truncate font-normal text-xs sm:text-sm text-slate-400';
+            }
+        }
+
+        if (catSelect && clientCategory) {
+            catSelect.value = clientCategory;
+        }
+
+        // Atualizar estado ativo na lista
+        const items = document.querySelectorAll('.task-client-opt');
+        items.forEach(item => {
+            const isMatch = String(item.getAttribute('data-client-id') || '') === String(clientId || '');
+            const check = item.querySelector('.opt-check');
+            if (isMatch) {
+                item.classList.add('bg-indigo-600/20', 'text-indigo-200');
+                if (check) check.hidden = false;
+            } else {
+                item.classList.remove('bg-indigo-600/20', 'text-indigo-200');
+                if (check) check.hidden = true;
+            }
+        });
+
+        KD.toggleTaskClientDropdown(false);
+    };
+
+    // Fechar dropdown de empresa ao clicar fora
+    if (!window._taskClientDropdownListenerAdded) {
+        document.addEventListener('click', function (e) {
+            const container = document.getElementById('taskClientComboboxContainer');
+            if (container && !container.contains(e.target)) {
+                KD.toggleTaskClientDropdown(false);
+            }
+        });
+        window._taskClientDropdownListenerAdded = true;
+    }
+
+    KD.setRecordType = function (type) {
+        type = ['task', 'event', 'note'].includes(type) ? type : 'task';
+        const hiddenInput = el('task_record_type');
+        if (hiddenInput) hiddenInput.value = type;
+
+        // Atualizar botões de alternância
+        document.querySelectorAll('.btn-record-type').forEach((btn) => {
+            const isMatch = btn.dataset.type === type;
+            btn.classList.toggle('text-indigo-400', isMatch);
+            btn.classList.toggle('bg-indigo-600/15', isMatch);
+            btn.classList.toggle('border-indigo-500/20', isMatch);
+            btn.classList.toggle('shadow-sm', isMatch);
+            btn.classList.toggle('text-slate-400', !isMatch);
+        });
+
+        const isNote = type === 'note';
+        const isEvent = type === 'event';
+
+        // Ocultar blocos em Nota Rápida
+        const hideForNote = ['taskTemplateSelectWrap', 'taskClientRowWrap', 'taskScheduleRowWrap', 'taskPrivateWrap', 'taskRecurrenceWrap', 'taskAssigneesWrap', 'taskTagsWrap', 'formChecklistWrap'];
+        hideForNote.forEach(id => {
+            const elem = el(id);
+            if (elem) elem.hidden = isNote;
+        });
+
+        const isNew = !el('task_id')?.value;
+        const titleEl = el('taskModalTitle');
+        const titleInput = el('task_title');
+        const descInput = el('task_description');
+
+        if (isNote) {
+            if (titleEl) titleEl.textContent = isNew ? 'Nova nota rápida' : 'Editar nota rápida';
+            if (titleInput) titleInput.placeholder = 'Título ou assunto da nota...';
+            if (descInput) descInput.placeholder = 'Digite aqui sua nota, ideias, rascunhos ou lembretes rápidos...';
+            if (descInput) descInput.rows = 6;
+        } else if (isEvent) {
+            if (titleEl) titleEl.textContent = isNew ? 'Novo evento' : 'Editar evento';
+            if (titleInput) titleInput.placeholder = 'Ex: Reunião de Alinhamento Semanal';
+            if (descInput) descInput.placeholder = 'Pauta da reunião, link da sala virtual ou observações...';
+            if (descInput) descInput.rows = 3;
+            const hasTime = el('task_has_time');
+            if (hasTime && !hasTime.checked) {
+                hasTime.checked = true;
+                KD.toggleTimeInput(true);
+            }
+            if (el('task_is_calendar_event')) el('task_is_calendar_event').value = '1';
+        } else {
+            if (titleEl) titleEl.textContent = isNew ? 'Nova tarefa' : 'Editar tarefa';
+            if (titleInput) titleInput.placeholder = 'Ex: Criar criativos para a campanha de Páscoa';
+            if (descInput) descInput.placeholder = 'Instruções, links ou referências para a execução...';
+            if (descInput) descInput.rows = 3;
+        }
+    };
+
+KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initialDueDate = null, isCalendarEvent = null) {
+        try {
+            const form = el('taskForm');
+            if (!form) return;
+
+            form.reset();
+            if (el('task_client_live_search')) {
+                el('task_client_live_search').value = '';
+                KD.filterTaskClientDropdown('');
+            }
+            KD.toggleTaskClientDropdown(false);
+            KD.selectTaskClient('', 'Sem empresa vinculada', 'C');
+            clearFormErrors();
+            setupTagInput();
+            setupFormChecklistInput();
+            renderTagSuggestions();
+            formTags = [];
+            renderFormTags();
+            formChecklistItems = [];
+            renderFormChecklist();
+
+            el('task_id').value = '';
+            if (el('task_estimated_minutes')) el('task_estimated_minutes').value = '';
+            if (el('task_has_time')) el('task_has_time').checked = false;
+            if (el('task_time_wrap')) el('task_time_wrap').hidden = true;
+            if (el('task_due_time')) el('task_due_time').value = '';
+
+            const isCalPage = (typeof isCalendarEvent !== 'undefined' && isCalendarEvent !== null) ? Boolean(isCalendarEvent) : window.location.pathname.includes('/calendario');
+            if (el('task_is_calendar_event')) el('task_is_calendar_event').value = isCalPage ? '1' : '0';
+            if (el('showInKanbanWrap')) el('showInKanbanWrap').hidden = !isCalPage;
+            if (el('task_show_in_kanban')) el('task_show_in_kanban').checked = true;
+            KD.updateEstimatedPreview('');
+            document.querySelectorAll('.task-assignee-checkbox').forEach((box) => { box.checked = false; });
+            el('btnDeleteTask').hidden = true;
+
+            // Resetar opções de recorrência
+            const recBox = el('task_is_recurring');
+            if (recBox) {
+                recBox.checked = false;
+                KD.toggleRecurrenceOptions(false);
+            }
+            const recType = el('task_recurrence_type');
+            if (recType) recType.value = 'weekly';
+            KD.onRecurrenceTypeChange('weekly');
+            const modeWeekdays = el('mode_weekdays');
+            if (modeWeekdays) modeWeekdays.checked = true;
+            KD.toggleCustomRecurrenceMode('weekdays');
+            document.querySelectorAll('#recurrenceWeekdaysList .kd-day-btn').forEach(b => b.classList.remove('is-active'));
+            const monthdayInput = el('recurrence_monthday');
+            if (monthdayInput) monthdayInput.value = '1';
+
+            if (el('task_fixed_weekday')) el('task_fixed_weekday').value = '';
+            if (el('rec_mode_duplicate')) el('rec_mode_duplicate').checked = true;
+            KD.setRecordType('task');
+
+            const templateWrap = el('taskTemplateSelectWrap');
+            const templateSelect = el('task_template_id');
+
+            if (!taskId) {
+                el('taskModalTitle').textContent = isCalPage ? 'Novo evento no calendário' : 'Nova tarefa';
+                // Coluna padrão: A FAZER se não foi especificada outra
+                if (stageId) {
+                    el('task_stage_id').value = stageId;
+                } else {
+                    const stageSel = el('task_stage_id');
+                    if (stageSel) {
+                        for (let opt of stageSel.options) {
+                            if (/a\s*fazer|to\s*do/i.test(opt.text)) {
+                                stageSel.value = opt.value;
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Prioridade padrão: baixa
+                if (el('task_priority')) el('task_priority').value = 'low';
+                // Responsável padrão: usuário da conta logado
+                if (window.KD_CURRENT_USER_ID) {
+                    document.querySelectorAll('.task-assignee-checkbox').forEach((box) => {
+                        box.checked = (Number(box.value) === Number(window.KD_CURRENT_USER_ID));
+                    });
+                }
+                if (initialDueDate && el('task_due_date')) el('task_due_date').value = initialDueDate;
+                if (el('task_is_private')) el('task_is_private').checked = false;
+                if (el('task_client_category')) el('task_client_category').value = 'C';
+                if (templateWrap) templateWrap.hidden = false;
+                if (templateSelect) templateSelect.value = '';
+
+                if (initialTemplate) {
+                    if (templateSelect && initialTemplate.id) templateSelect.value = initialTemplate.id;
+                    await KD.applyTemplateToForm(initialTemplate.id, initialTemplate);
+                }
+
+                KD.openModal('taskModal', { focus: '#task_title' });
+                return;
+            }
+
+            if (templateWrap) templateWrap.hidden = true;
+
+            const data = await KD.api.get(`${KD.url('/api/tarefas')}?id=${taskId}`);
+            const task = data.task;
+
+            el('task_id').value = task.id;
+            el('task_title').value = task.title || '';
+            el('task_client_id').value = task.client_id || '';
+            if (el('task_client_category')) el('task_client_category').value = task.client_category || 'C';
+
+            // Sincronizar Combobox de Empresa
+            if (task.client_id) {
+                const optEl = document.querySelector(`.task-client-opt[data-client-id="${task.client_id}"]`);
+                const compName = optEl ? (optEl.querySelector('.opt-name')?.textContent || task.client_company) : (task.client_company || 'Empresa Vinculada');
+                const compCat = optEl ? (optEl.getAttribute('data-client-cat')?.toUpperCase() || task.client_category || 'C') : (task.client_category || 'C');
+                KD.selectTaskClient(task.client_id, compName, compCat);
+            } else {
+                KD.selectTaskClient('', 'Sem empresa vinculada', 'C');
+            }
+            el('task_stage_id').value = task.stage_id || '';
+            const isExistingCal = Number(task.is_calendar_event) === 1;
+            if (el('task_is_private')) el('task_is_private').checked = Boolean(Number(task.is_private) === 1);
+            if (el('task_is_calendar_event')) el('task_is_calendar_event').value = isExistingCal ? '1' : '0';
+            if (el('showInKanbanWrap')) el('showInKanbanWrap').hidden = !isExistingCal;
+            if (el('task_show_in_kanban')) el('task_show_in_kanban').checked = (Number(task.show_in_kanban ?? 1) === 1);
+            el('task_priority').value = task.priority || 'medium';
+            el('task_due_date').value = task.due_date || '';
+            if (task.due_time) {
+                if (el('task_has_time')) el('task_has_time').checked = true;
+                if (el('task_time_wrap')) el('task_time_wrap').hidden = false;
+                if (el('task_due_time')) el('task_due_time').value = task.due_time.substring(0, 5);
+            } else {
+                if (el('task_has_time')) el('task_has_time').checked = false;
+                if (el('task_time_wrap')) el('task_time_wrap').hidden = true;
+                if (el('task_due_time')) el('task_due_time').value = '';
+            }
+            el('task_description').value = task.description || '';
+            if (el('task_estimated_minutes')) el('task_estimated_minutes').value = task.estimated_minutes || '';
+
+            // Recorrência existente
+            const isRec = Number(task.is_recurring) === 1;
+            if (recBox) {
+                recBox.checked = isRec;
+                KD.toggleRecurrenceOptions(isRec);
+            }
+            if (recType && task.recurrence_type) {
+                recType.value = task.recurrence_type;
+                KD.onRecurrenceTypeChange(task.recurrence_type);
+            }
+            if (task.recurrence_config) {
+                try {
+                    const cfg = typeof task.recurrence_config === 'string' ? JSON.parse(task.recurrence_config) : task.recurrence_config;
+                    if (cfg && cfg.type === 'weekdays' && Array.isArray(cfg.days)) {
+                        if (modeWeekdays) modeWeekdays.checked = true;
+                        KD.toggleCustomRecurrenceMode('weekdays');
+                        document.querySelectorAll('#recurrenceWeekdaysList .kd-day-btn').forEach(b => {
+                            b.classList.toggle('is-active', cfg.days.includes(Number(b.dataset.day)));
+                        });
+                    } else if (cfg && cfg.type === 'monthday' && cfg.day) {
+                        const modeMonthday = el('mode_monthday');
+                        if (modeMonthday) modeMonthday.checked = true;
+                        KD.toggleCustomRecurrenceMode('monthday');
+                        if (monthdayInput) monthdayInput.value = cfg.day;
+                    }
+                } catch (e) {}
+            }
+
+            formTags = (task.tags || []).map((tag) => tag.name);
+            renderFormTags();
+
+            // Sincronizar fixar dia e modo de recorrência
+            if (el('task_fixed_weekday')) {
+                el('task_fixed_weekday').value = (task.fixed_weekday !== null && task.fixed_weekday !== undefined) ? String(task.fixed_weekday) : '';
+                if (el('task_fixed_weekday')._searchableInstance) {
+                    el('task_fixed_weekday')._searchableInstance.refresh();
+                }
+            }
+            if (task.recurrence_mode === 'new') {
+                if (el('rec_mode_new')) el('rec_mode_new').checked = true;
+            } else {
+                if (el('rec_mode_duplicate')) el('rec_mode_duplicate').checked = true;
+            }
+
+            // Sincronizar Tipo de Registro (task | event | note)
+            const inferredRecType = task.record_type || (task.due_time ? 'event' : 'task');
+            KD.setRecordType(inferredRecType);
+
+            const assigned = (task.assignees || []).map((a) => Number(a.id));
+            document.querySelectorAll('.task-assignee-checkbox').forEach((box) => {
+                box.checked = assigned.includes(Number(box.value));
+            });
+
+            el('taskModalTitle').textContent = 'Editar tarefa';
+            el('btnDeleteTask').hidden = false;
+
+            KD.openModal('taskModal', { focus: '#task_title' });
+        } catch (error) {
+            console.error('Erro ao abrir formulário de tarefa:', error);
+            KD.toastError(error.message || 'Erro ao abrir formulário');
+        }
+    };
+
+    KD.closeTaskForm = function () {
+        KD.closeModal('taskModal');
+    };
+
+    /**
+     * Exibe modal para escolher o escopo de alteração/exclusão de tarefas recorrentes:
+     * - Apenas este evento
+     * - Apenas eventos futuros
+     * - Todos da série
+     * @param {'edit'|'delete'} mode
+     * @returns {Promise<'single'|'future'|'all'|null>}
+     */
+    KD.promptRecurrenceScope = function (mode = 'edit') {
+        return new Promise((resolve) => {
+            const isDelete = mode === 'delete';
+            const title = isDelete ? 'Excluir Tarefa Recorrente' : 'Salvar Tarefa Recorrente';
+            const desc = isDelete
+                ? 'Esta tarefa faz parte de uma série recorrente. O que você deseja excluir?'
+                : 'Esta tarefa faz parte de uma série recorrente. Quais eventos você deseja alterar?';
+
+            const modalHtml = `
+                <div id="kdRecurrenceModal" class="fixed inset-0 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" style="z-index:999999;">
+                    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl ${isDelete ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'} flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="${isDelete ? 'trash-2' : 'repeat'}" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-white">${title}</h3>
+                                <p class="text-xs text-slate-400">${desc}</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 pt-2">
+                            <button type="button" data-scope="single" class="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500 text-left transition flex items-center justify-between group cursor-pointer">
+                                <div>
+                                    <div class="text-xs font-bold text-white group-hover:text-indigo-300">Apenas este evento</div>
+                                    <div class="text-[11px] text-slate-400">Aplica a alteração somente na ocorrência selecionada</div>
+                                </div>
+                                <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
+                            </button>
+
+                            <button type="button" data-scope="future" class="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500 text-left transition flex items-center justify-between group cursor-pointer">
+                                <div>
+                                    <div class="text-xs font-bold text-white group-hover:text-indigo-300">Apenas eventos futuros</div>
+                                    <div class="text-[11px] text-slate-400">Aplica a este evento e a todas as ocorrências posteriores</div>
+                                </div>
+                                <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
+                            </button>
+
+                            <button type="button" data-scope="all" class="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500 text-left transition flex items-center justify-between group cursor-pointer">
+                                <div>
+                                    <div class="text-xs font-bold text-white group-hover:text-indigo-300">Todos da série</div>
+                                    <div class="text-[11px] text-slate-400">Aplica a todas as ocorrências existentes da série</div>
+                                </div>
+                                <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
+                            </button>
+                        </div>
+
+                        <div class="pt-2 flex justify-end">
+                            <button type="button" data-scope="cancel" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition cursor-pointer">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const wrap = document.createElement('div');
+            wrap.innerHTML = modalHtml;
+            const modalEl = wrap.firstElementChild;
+            document.body.appendChild(modalEl);
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons({ root: modalEl });
+            }
+
+            modalEl.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-scope]');
+                if (!btn) return;
+                const scope = btn.dataset.scope;
+                modalEl.remove();
+                if (scope === 'cancel') {
+                    resolve(null);
+                } else {
+                    resolve(scope);
+                }
+            });
+        });
+    };
+
+    KD.submitTaskForm = async function (event) {
+        event.preventDefault();
+        clearFormErrors();
+
+        const taskId = Number(el('task_id').value || 0);
+        let recurrenceScope = 'single';
+        if (taskId > 0 && activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
+            const scope = await KD.promptRecurrenceScope('edit');
+            if (!scope) return;
+            recurrenceScope = scope;
+        }
+
+        const title = el('task_title').value.trim();
+        if (!title) {
+            showFormError('title', 'Informe um título para a tarefa.');
+            return;
+        }
+
+        const assignees = Array.from(document.querySelectorAll('.task-assignee-checkbox:checked'))
+            .map((box) => Number(box.value));
+
+        const isRecurring = el('task_is_recurring')?.checked ? 1 : 0;
+        const isPrivate = el('task_is_private')?.checked ? 1 : 0;
+        let recurrenceType = null;
+        let recurrenceConfig = null;
+
+        if (isRecurring) {
+            recurrenceType = el('task_recurrence_type')?.value || 'weekly';
+            if (recurrenceType === 'custom') {
+                const mode = document.querySelector('input[name="recurrence_custom_mode"]:checked')?.value || 'weekdays';
+                if (mode === 'weekdays') {
+                    recurrenceConfig = JSON.stringify({ type: 'weekdays', days: getSelectedWeekdays() });
+                } else {
+                    recurrenceConfig = JSON.stringify({ type: 'monthday', day: Number(el('recurrence_monthday')?.value || 1) });
+                }
+            }
+        }
+
+        const payload = {
+            action: 'save',
+            id: el('task_id').value || null,
+            title,
+            client_id: el('task_client_id').value || null,
+            client_category: el('task_client_category')?.value || 'C',
+            stage_id: el('task_stage_id').value,
+            priority: el('task_priority').value,
+            due_date: el('task_due_date').value || null,
+            due_time: (el('task_has_time')?.checked && el('task_due_time')?.value) ? el('task_due_time').value : null,
+            is_calendar_event: Number(el('task_is_calendar_event')?.value || 0),
+            show_in_kanban: el('task_show_in_kanban')?.checked ? 1 : 0,
+            estimated_minutes: el('task_estimated_minutes')?.value || null,
+            description: el('task_description').value,
+            assignees,
+            tags: formTags,
+            is_recurring: isRecurring,
+            is_private: isPrivate,
+            recurrence_type: recurrenceType,
+            recurrence_config: recurrenceConfig,
+            initial_checklist: formChecklistItems,
+            recurrence_scope: recurrenceScope,
+            record_type: el('task_record_type')?.value || 'task',
+            fixed_weekday: el('task_fixed_weekday')?.value !== '' ? Number(el('task_fixed_weekday')?.value) : null,
+            recurrence_mode: document.querySelector('input[name="recurrence_mode"]:checked')?.value || 'duplicate',
+        };
+
+        const saveBtn = el('btnSaveTask');
+        saveBtn.disabled = true;
+        saveBtn.dataset.label = saveBtn.textContent;
+        saveBtn.textContent = 'Salvando...';
+
+        try {
+            const result = await KD.api.tasks(payload);
+            KD.closeTaskForm();
+            await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+            KD.toast(result.created ? 'Tarefa criada.' : 'Alterações salvas.');
+        } catch (error) {
+            if (error.field) showFormError(error.field, error.message);
+            else KD.toastError(error.message);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = saveBtn.dataset.label || 'Salvar tarefa';
+        }
+    };
+
+    KD.deleteFromForm = async function () {
+        const taskId = Number(el('task_id').value || 0);
+        if (!taskId) return;
+
+        let recurrenceScope = 'single';
+        if (activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
+            const scope = await KD.promptRecurrenceScope('delete');
+            if (!scope) return;
+            recurrenceScope = scope;
+        }
+
+        try {
+            const result = await KD.api.tasks({ action: 'delete', task_id: taskId, recurrence_scope: recurrenceScope });
+            KD.closeTaskForm();
+            await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+            KD.toast(`"${result.title || 'Tarefa'}" excluída.`, {
+                undo: async () => {
+                    await KD.api.tasks({ action: 'undelete', task_id: taskId });
+                    await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                    KD.toast('Exclusão desfeita.', { tone: 'info' });
+                },
+            });
+        } catch (error) {
+            KD.toastError(error.message);
+        }
+    };
+
+    // ===============================================================
+    // Painel de Detalhes
+    // ===============================================================
+
+    KD.openTaskDetail = async function (taskId) {
+        try {
+            const cached = KD.getTaskById ? KD.getTaskById(taskId) : null;
+            if (cached) {
+                activeTask = { ...cached };
+                renderDetail(activeTask);
+                KD.openModal('taskDetailModal');
+                startDetailTimer();
+            }
+
+            const data = await KD.api.get(`${KD.url('/api/tarefas')}?id=${taskId}`);
+            activeTask = data.task;
+            renderDetail(activeTask);
+            if (!cached) {
+                KD.openModal('taskDetailModal');
+                startDetailTimer();
+            }
+        } catch (error) {
+            KD.toastError(error.message);
+        }
+    };
+
+    KD.closeTaskDetail = function () {
+        stopDetailTimer();
+        KD.closeModal('taskDetailModal');
+        activeTask = null;
+    };
+
+    function setText(id, value) {
+        const node = el(id);
+        if (node) node.textContent = value;
+    }
+
+    function renderDetail(task) {
+        setText('detailTitle', task.title || '');
+        setText('detailIdBadge', `#${task.id}`);
+
+        const description = el('detailDescription');
+        if (description) {
+            description.textContent = task.description || 'Sem descrição.';
+            description.classList.toggle('italic', !task.description);
+        }
+
+        // Particular
+        const privBadge = el('detailPrivateBadge');
+        if (privBadge) {
+            privBadge.hidden = Number(task.is_private) !== 1;
+        }
+
+        // Recorrencia
+        const recBadge = el('detailRecurringBadge');
+        const isRec = Number(task.is_recurring) === 1;
+        if (recBadge) {
+            recBadge.hidden = !isRec;
+            if (isRec) {
+                const recText = el('detailRecurringText');
+                const recMap = {
+                    daily: 'Diária',
+                    weekly: 'Semanal',
+                    biweekly: 'Quinzenal',
+                    monthly: 'Mensal',
+                    yearly: 'Anual',
+                    custom: 'Personalizada'
+                };
+                const rLabel = recMap[task.recurrence_type] || 'Recorrente';
+                if (recText) recText.textContent = `Recorrente (${rLabel})`;
+            }
+        }
+
+        // Cliente e Categoria
+        const chip = el('detailClientChip');
+        if (chip) {
+            if (task.client_company) {
+                chip.hidden = false;
+                chip.textContent = task.client_company;
+            } else {
+                chip.hidden = true;
+            }
+        }
+
+        const catBadge = el('detailClientCategoryBadge');
+        const catSelect = el('detailHeaderClientCategorySelect');
+        if (catBadge && catSelect) {
+            if (task.client_company && (task.client_id || (task.client && task.client.id))) {
+                catBadge.hidden = false;
+                const cat = task.client_category || 'C';
+                catSelect.value = cat;
+                applyCategoryBadgeStyle(catBadge, cat);
+            } else {
+                catBadge.hidden = true;
+            }
+        }
+
+        // Etiquetas
+        const tagsEl = el('detailTags');
+        if (tagsEl) {
+            const tags = task.tags || [];
+            tagsEl.hidden = tags.length === 0;
+            tagsEl.innerHTML = tags.map((tag) => `
+                <span class="kd-tag">${KD.escapeHtml(tag.name)}</span>
+            `).join('');
+        }
+
+        // Prioridade, coluna e prazo
+        const priority = el('detailPriority');
+        if (priority) {
+            priority.textContent = (task.priority_info && task.priority_info.label) || 'Média';
+            priority.dataset.tone = (task.priority_info && task.priority_info.tone) || 'medium';
+        }
+        setText('detailStage', task.stage_name || '—');
+
+        const dueEl = el('detailDue');
+        if (dueEl) {
+            const due = task.due_badge || {};
+            dueEl.textContent = task.due_date ? `${KD.formatDate(task.due_date)}${task.due_time ? ' às ' + task.due_time.substring(0, 5) : ''}${due.tone === 'overdue' ? ` · ${due.text}` : ''}` : 'Sem prazo definido';
+            dueEl.dataset.tone = due.tone || 'none';
+        }
+
+        setText('detailCreated', task.created_at ? KD.formatRelative(task.created_at) : '—');
+        setText('detailCompleted', task.completed_at ? KD.formatRelative(task.completed_at) : 'Em aberto');
+
+        // Responsáveis
+        const assignees = el('detailAssignees');
+        if (assignees) {
+            const list = task.assignees || [];
+            assignees.innerHTML = list.length
+                ? list.map((user) => `<span class="kd-avatar" title="${KD.escapeHtml(user.full_name)}">${KD.escapeHtml((user.full_name || '?').charAt(0).toUpperCase())}</span>`).join('')
+                : '<span class="text-slate-400" style="font-size:0.75rem">Ninguém atribuído</span>';
+        }
+
+        // Cronômetro e Tempo Estimado
+        const estMinutes = Number(task.estimated_minutes || 0);
+        setText('detailEstimated', estMinutes > 0 ? KD.formatMinutes(estMinutes) : 'Não informado');
+        setText('detailTimer', KD.formatSeconds(task.effective_seconds));
+        updateDetailPlayButton(Boolean(task.is_running));
+
+        // Botões de estado
+        const focusBtn = el('detailFocusBtn');
+        if (focusBtn) focusBtn.setAttribute('aria-pressed', String(Number(task.in_focus) === 1));
+        const bombBtn = el('detailBombBtn');
+        if (bombBtn) bombBtn.setAttribute('aria-pressed', String(Number(task.is_bomb) === 1));
+
+        const completeBtn = el('detailCompleteBtn');
+        if (completeBtn) {
+            const isDone = Boolean(task.completed_at);
+            completeBtn.dataset.detailAction = isDone ? 'reopen' : 'complete';
+            completeBtn.title = isDone ? 'Reabrir tarefa' : 'Concluir tarefa';
+            completeBtn.classList.toggle('kd-complete-pill--reopen', isDone);
+            const icon = completeBtn.querySelector('i');
+            if (icon) {
+                icon.setAttribute('data-lucide', isDone ? 'rotate-ccw' : 'check-circle-2');
+            }
+            const span = completeBtn.querySelector('span');
+            if (span) span.textContent = isDone ? 'Reabrir' : 'Concluir';
+        }
+
+        // Menção do WhatsApp
+        const isMention = task.source === 'whatsapp_mention' || Boolean(task.group_name || task.mentioned_by);
+        const mentionBox = el('detailMentionBox');
+        if (mentionBox) {
+            mentionBox.hidden = !isMention;
+            if (isMention) {
+                setText('detailMentionGroup', task.group_name || 'Grupo do WhatsApp');
+                setText('detailMentionAuthor', task.mentioned_by ? `Mencionado por @${task.mentioned_by}` : 'Menção recebida no grupo');
+                const link = el('detailMentionLink');
+                if (link) link.href = KD.safeUrl(task.whatsapp_url, 'https://web.whatsapp.com');
+            }
+        }
+
+        renderChecklist(task.checklists || []);
+        renderComments(task.comments || []);
+        renderClientLinks(task.client_links_json);
+        renderClientActivities(task.client_recent_tasks || []);
+        renderClientProfile(task);
+        renderDetailHistory(task.history || []);
+        renderTaskClientNotes(task);
+
+        switchTab('details');
+        KD.icons();
+    }
+
+    function renderClientProfile(task) {
+        setText('clientName', task.client_company || 'Sem cliente vinculado');
+        setText('clientContact', task.client_contact || 'Contato não informado');
+
+        const email = el('clientEmail');
+        if (email) {
+            email.textContent = task.client_email || 'Não informado';
+            email.href = task.client_email ? `mailto:${task.client_email}` : '#';
+        }
+
+        const phone = el('clientPhone');
+        if (phone) {
+            phone.textContent = task.client_phone || 'Não informado';
+            phone.href = task.client_phone ? `https://wa.me/55${String(task.client_phone).replace(/\D/g, '')}` : '#';
+        }
+
+        setText('clientNotes', task.client_notes || 'Nenhuma anotação cadastrada para este cliente.');
+
+        const tabCatSelect = el('detailTabClientCategorySelect');
+        if (tabCatSelect) {
+            tabCatSelect.value = task.client_category || 'C';
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Abas
+    // ---------------------------------------------------------------
+
+    const TABS = ['details', 'comments', 'links', 'client', 'history', 'notes'];
+
+    function switchTab(name) {
+        TABS.forEach((tab) => {
+            const button = el(`tabBtn-${tab}`);
+            const panel = el(`tabPanel-${tab}`);
+            const selected = tab === name;
+            if (button) button.setAttribute('aria-selected', String(selected));
+            if (panel) panel.hidden = !selected;
+        });
+        const body = document.querySelector('.kd-detail-body');
+        if (body) body.scrollTop = 0;
+        KD.icons();
+    }
+
+    KD.switchDetailTab = switchTab;
+
+    // ---------------------------------------------------------------
+    // Cronômetro do painel
+    // ---------------------------------------------------------------
+
+    function updateDetailPlayButton(isRunning) {
+        const button = el('detailPlayBtn');
+        if (!button) return;
+        button.dataset.running = isRunning ? '1' : '0';
+        button.setAttribute('aria-label', isRunning ? 'Pausar cronômetro' : 'Iniciar cronômetro');
+        button.innerHTML = `<i data-lucide="${isRunning ? 'pause' : 'play'}" class="w-3.5 h-3.5"></i>`;
+        KD.icons();
+    }
+
+    function startDetailTimer() {
+        stopDetailTimer();
+        if (!activeTask || !activeTask.is_running) return;
+
+        let seconds = Number(activeTask.effective_seconds || 0);
+        detailTimerInterval = window.setInterval(() => {
+            seconds += 1;
+            setText('detailTimer', KD.formatSeconds(seconds));
+        }, 1000);
+    }
+
+    function stopDetailTimer() {
+        if (detailTimerInterval) {
+            window.clearInterval(detailTimerInterval);
+            detailTimerInterval = null;
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Subtarefas (Visualização com checklist interativo)
+    // ---------------------------------------------------------------
+
+    function renderChecklist(items) {
+        const list = el('detailChecklist');
+        if (!list) return;
+
+        const total = items.length;
+        const done = items.filter((item) => Number(item.is_completed) === 1).length;
+        const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+        setText('detailChecklistProgress', total > 0 ? `${done}/${total} · ${percent}%` : 'Nenhuma subtarefa');
+        const bar = el('detailProgressBar');
+        if (bar) {
+            bar.style.width = `${percent}%`;
+            bar.parentElement.setAttribute('aria-valuenow', String(percent));
+        }
+
+        if (total === 0) {
+            list.innerHTML = '<p class="text-xs text-slate-500 italic p-3 text-center">Nenhuma subtarefa vinculada. Para adicionar ou gerenciar subtarefas, clique no botão de editar acima.</p>';
+            return;
+        }
+
+        list.innerHTML = items.map((item) => {
+            const checked = Number(item.is_completed) === 1;
+            return `
+                <div class="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/60 transition hover:border-slate-700/60">
+                    <input type="checkbox" id="chk-${item.id}" ${checked ? 'checked' : ''}
+                           data-detail-action="toggle-checklist" data-item-id="${item.id}"
+                           class="w-4 h-4 rounded cursor-pointer accent-indigo-500">
+                    <label for="chk-${item.id}" class="flex-1 text-xs cursor-pointer select-none ${checked ? 'line-through text-slate-500' : 'text-slate-200'}">
+                        ${KD.escapeHtml(item.title)}
+                    </label>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // ---------------------------------------------------------------
+    // Comentários: Feed (50%) e Editor CRUD (50%)
+    // ---------------------------------------------------------------
+
+    function renderComments(comments) {
+        const container = el('detailComments');
+        if (!container) return;
+
+        setText('detailCommentsCount', String(comments.length));
+        setText('detailCommentsTabBadge', String(comments.length));
+
+        KD.cancelEditComment();
+
+        if (comments.length === 0) {
+            container.innerHTML = '<p class="text-xs text-slate-500 italic p-4 text-center">Nenhum comentário registrado ainda. Utilize o editor ao lado para enviar uma mensagem.</p>';
+            return;
+        }
+
+        container.innerHTML = comments.map((comment) => `
+            <div class="p-3 rounded-xl bg-slate-900/50 border border-slate-800/80 space-y-2 group">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-300 font-bold text-[10px] flex items-center justify-center border border-indigo-500/30">
+                            ${KD.escapeHtml((comment.user_name || 'U').charAt(0).toUpperCase())}
+                        </span>
+                        <span class="text-xs font-bold text-slate-200">${KD.escapeHtml(comment.user_name || 'Usuário')}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] text-slate-500">${KD.escapeHtml(KD.formatRelative(comment.created_at))}</span>
+                        <button type="button" class="p-1 text-slate-400 hover:text-indigo-300 transition"
+                                data-detail-action="edit-comment"
+                                data-comment-id="${comment.id}"
+                                title="Editar comentário">
+                            <i data-lucide="pencil" class="w-3 h-3"></i>
+                        </button>
+                        <button type="button" class="p-1 text-slate-400 hover:text-rose-400 transition"
+                                data-detail-action="delete-comment"
+                                data-comment-id="${comment.id}"
+                                title="Excluir comentário">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap pl-1" id="comment-text-${comment.id}">${KD.escapeHtml(comment.comment_text)}</p>
+            </div>
+        `).join('');
+
+        KD.icons();
+    }
+
+    KD.submitComment = async function (event) {
+        event.preventDefault();
+        const input = el('newCommentInput');
+        const text = input.value.trim();
+        if (!text || !activeTask) return;
+
+        const editId = el('editingCommentId').value;
+        const btn = el('btnSubmitComment');
+        btn.disabled = true;
+
+        try {
+            if (editId) {
+                await KD.api.tasks({
+                    action: 'update_comment',
+                    comment_id: Number(editId),
+                    task_id: activeTask.id,
+                    comment_text: text,
+                });
+                KD.toast('Comentário atualizado.');
+            } else {
+                await KD.api.tasks({
+                    action: 'add_comment',
+                    task_id: activeTask.id,
+                    comment_text: text,
+                });
+                KD.toast('Comentário enviado.');
+            }
+            KD.cancelEditComment();
+            await refreshDetail();
+        } catch (error) {
+            KD.toastError(error.message);
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    KD.editComment = function (commentId) {
+        const textEl = el(`comment-text-${commentId}`);
+        if (!textEl) return;
+
+        el('editingCommentId').value = commentId;
+        el('newCommentInput').value = textEl.innerText || textEl.textContent || '';
+        el('commentEditingIndicator').hidden = false;
+        el('btnCancelEditComment').hidden = false;
+        setText('btnSubmitCommentLabel', 'Salvar alteração');
+        el('commentEditorHeading').innerHTML = '<i data-lucide="pencil" class="w-4 h-4 text-amber-400"></i> Editar Comentário';
+        el('newCommentInput').focus();
+        KD.icons();
+    };
+
+    KD.cancelEditComment = function () {
+        if (el('editingCommentId')) el('editingCommentId').value = '';
+        if (el('newCommentInput')) el('newCommentInput').value = '';
+        if (el('commentEditingIndicator')) el('commentEditingIndicator').hidden = true;
+        if (el('btnCancelEditComment')) el('btnCancelEditComment').hidden = true;
+        setText('btnSubmitCommentLabel', 'Enviar comentário');
+        if (el('commentEditorHeading')) {
+            el('commentEditorHeading').innerHTML = '<i data-lucide="edit-3" class="w-4 h-4 text-emerald-400"></i> Novo Comentário';
+        }
+        KD.icons();
+    };
+
+    KD.deleteComment = async function (commentId) {
+        if (!confirm('Deseja realmente excluir este comentário?')) return;
+        if (!activeTask) return;
+
+        try {
+            await KD.api.tasks({
+                action: 'delete_comment',
+                comment_id: Number(commentId),
+                task_id: activeTask.id,
+            });
+            KD.toast('Comentário excluído.');
+            await refreshDetail();
+        } catch (error) {
+            KD.toastError(error.message);
+        }
+    };
+
+    // ---------------------------------------------------------------
+    // Histórico da Tarefa (Activity Log)
+    // ---------------------------------------------------------------
+
+    const HISTORY_ACTION_MAP = {
+        task_created: { icon: 'plus-circle', color: 'text-emerald-400', label: 'Tarefa criada' },
+        task_updated: { icon: 'edit', color: 'text-blue-400', label: 'Tarefa editada' },
+        stage_changed: { icon: 'arrow-right-circle', color: 'text-indigo-400', label: 'Coluna alterada' },
+        due_date_changed: { icon: 'calendar', color: 'text-amber-400', label: 'Prazo alterado' },
+        timer_started: { icon: 'play', color: 'text-emerald-400', label: 'Cronômetro iniciado' },
+        timer_stopped: { icon: 'pause', color: 'text-amber-400', label: 'Cronômetro pausado' },
+        task_completed: { icon: 'check-circle-2', color: 'text-emerald-400', label: 'Tarefa concluída' },
+        task_reopened: { icon: 'rotate-ccw', color: 'text-amber-400', label: 'Tarefa reaberta' },
+        comment_added: { icon: 'message-square', color: 'text-indigo-400', label: 'Comentário adicionado' },
+        comment_updated: { icon: 'edit-2', color: 'text-indigo-400', label: 'Comentário editado' },
+        comment_deleted: { icon: 'trash-2', color: 'text-rose-400', label: 'Comentário excluído' },
+        checklist_toggle: { icon: 'check-square', color: 'text-emerald-400', label: 'Subtarefa atualizada' },
+        focus_toggled: { icon: 'target', color: 'text-amber-400', label: 'Foco alterado' },
+        bomb_toggled: { icon: 'flame', color: 'text-rose-400', label: 'Urgência alterada' },
+    };
+
+    function renderDetailHistory(history) {
+        const container = el('detailHistoryTimeline');
+        if (!container) return;
+
+        if (!history || history.length === 0) {
+            container.innerHTML = '<p class="text-xs text-slate-500 italic p-4 text-center">Nenhuma atividade registrada no histórico desta tarefa.</p>';
+            return;
+        }
+
+        container.innerHTML = history.map((item) => {
+            const meta = HISTORY_ACTION_MAP[item.action] || { icon: 'activity', color: 'text-slate-400', label: item.action };
+            return `
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-900/40 border border-slate-800/60">
+                    <div class="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0 ${meta.color}">
+                        <i data-lucide="${meta.icon}" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-0.5">
+                            <span class="text-xs font-bold text-slate-200">${meta.label}</span>
+                            <span class="text-[10px] text-slate-500 flex-shrink-0">${KD.escapeHtml(KD.formatRelative(item.created_at))}</span>
+                        </div>
+                        ${item.details ? `<p class="text-xs text-slate-400 leading-relaxed">${KD.escapeHtml(item.details)}</p>` : ''}
+                        <span class="text-[10px] text-slate-500 mt-1 block">Por: ${KD.escapeHtml(item.user_name || 'Sistema')}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        KD.icons();
+    }
+
+    // ---------------------------------------------------------------
+    // Links úteis do cliente
+    // ---------------------------------------------------------------
+
+    const LINK_ICONS = {
+        site: 'globe',
+        meta_bm: 'layout',
+        google_mcc: 'bar-chart-2',
+        instagram: 'camera',
+        facebook: 'thumbs-up',
+        drive: 'folder',
+        outro: 'external-link',
+    };
+
+    function parseLinks(value) {
+        try {
+            return typeof value === 'string' ? JSON.parse(value || '[]') : (value || []);
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function renderClientLinks(value) {
+        const list = el('detailLinks');
+        if (!list) return;
+
+        const links = parseLinks(value);
+        if (links.length === 0) {
+            list.innerHTML = '<p class="kd-col__empty" style="grid-column:1/-1">Nenhum atalho cadastrado para este cliente.<br>Cadastre em Clientes &rsaquo; Editar.</p>';
+            return;
+        }
+
+        list.innerHTML = links.map((link) => {
+            const href = KD.safeUrl(link.url, '#');
+            return `
+                <a href="${KD.escapeHtml(href)}" target="_blank" rel="noopener noreferrer"
+                   class="p-3 rounded-xl flex items-center gap-3 min-w-0"
+                   style="background:var(--surface-1);border:1px solid var(--border)">
+                    <i data-lucide="${LINK_ICONS[link.type] || LINK_ICONS.outro}" class="w-4 h-4" style="color:var(--brand-strong);flex-shrink:0"></i>
+                    <span class="min-w-0 flex-1">
+                        <span style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-strong)" class="truncate">${KD.escapeHtml(link.title)}</span>
+                        <span style="display:block;font-size:0.6875rem;color:var(--text-faint)" class="truncate">${KD.escapeHtml(link.url)}</span>
+                    </span>
+                    <i data-lucide="arrow-up-right" class="w-3.5 h-3.5" style="color:var(--text-faint);flex-shrink:0"></i>
+                </a>
+            `;
+        }).join('');
+    }
+
+    // ---------------------------------------------------------------
+    // Outras demandas do mesmo cliente
+    // ---------------------------------------------------------------
+
+    function renderClientActivities(tasks) {
+        const list = el('detailClientActivities');
+        if (!list) return;
+
+        setText('detailClientActivitiesCount', `${tasks.length} demanda(s)`);
+
+        if (tasks.length === 0) {
+            list.innerHTML = '<p class="kd-col__empty">Nenhuma outra demanda registrada para este cliente.</p>';
+            return;
+        }
+
+        list.innerHTML = tasks.map((task) => {
+            const done = Boolean(task.completed_at);
+            return `
+                <button type="button" class="w-full flex items-center justify-between gap-2 p-2.5 rounded-xl text-left"
+                        style="background:var(--surface-1);border:1px solid var(--border)"
+                        data-detail-action="open-task" data-task-id="${task.id}">
+                    <span class="flex items-center gap-2 min-w-0">
+                        <span class="kd-col__dot" style="background:${done ? 'var(--success)' : 'var(--brand)'}"></span>
+                        <span class="truncate" style="font-size:0.75rem;${done ? 'text-decoration:line-through;color:var(--text-faint)' : 'color:var(--text)'}">
+                            ${KD.escapeHtml(task.title)}
+                        </span>
+                    </span>
+                    <span style="font-size:0.625rem;color:var(--text-faint);flex-shrink:0">${KD.escapeHtml(task.stage_name || '')}</span>
+                </button>
+            `;
+        }).join('');
+    }
+
+    // ---------------------------------------------------------------
+    // Ações do painel (delegação)
+    // ---------------------------------------------------------------
+
+    async function refreshDetail() {
+        if (!activeTask) return;
+        const data = await KD.api.get(`${KD.url('/api/tarefas')}?id=${activeTask.id}`);
+        activeTask = data.task;
+        renderDetail(activeTask);
+        KD.loadBoard({ silent: true });
+    }
+
+    async function runDetailAction(action, node) {
+        if (!activeTask && action !== 'close') return;
+
+        switch (action) {
+            case 'close':
+                KD.closeTaskDetail();
+                break;
+
+            case 'edit': {
+                const id = activeTask.id;
+                const isCal = Number(activeTask.is_calendar_event || 0) === 1;
+                KD.closeTaskDetail();
+                KD.openTaskForm(id, null, null, null, isCal);
+                break;
+            }
+
+            case 'timer': {
+                const result = await KD.api.tasks({ action: 'toggle_timer', task_id: activeTask.id });
+                activeTask.is_running = result.is_running;
+                activeTask.effective_seconds = result.total_seconds;
+                updateDetailPlayButton(result.is_running);
+                setText('detailTimer', KD.formatSeconds(result.total_seconds));
+                if (result.is_running) {
+                    startDetailTimer();
+                } else {
+                    stopDetailTimer();
+                }
+                if (result.stage_name) {
+                    activeTask.stage_id = result.stage_id;
+                    activeTask.stage_name = result.stage_name;
+                    setText('detailStage', result.stage_name);
+                }
+                KD.loadBoard({ silent: true });
+                KD.toast(result.is_running ? 'Cronômetro iniciado. Tarefa em andamento.' : 'Cronômetro pausado. Tarefa continua em andamento.', { tone: 'info' });
+                break;
+            }
+
+            case 'stop_timer':
+            case 'timer-stop': {
+                const result = await KD.api.tasks({ action: 'stop_timer', task_id: activeTask.id });
+                activeTask.is_running = false;
+                activeTask.effective_seconds = result.total_seconds;
+                updateDetailPlayButton(false);
+                setText('detailTimer', KD.formatSeconds(result.total_seconds));
+                stopDetailTimer();
+                if (result.stage_name) {
+                    activeTask.stage_id = result.stage_id;
+                    activeTask.stage_name = result.stage_name;
+                    setText('detailStage', result.stage_name);
+                }
+                KD.loadBoard({ silent: true });
+                KD.toast('Tarefa parada e movida de volta para A Fazer.', { tone: 'info' });
+                break;
+            }
+
+            case 'focus':
+            case 'bomb': {
+                const result = await KD.api.tasks({
+                    action: action === 'focus' ? 'toggle_focus' : 'toggle_bomb',
+                    task_id: activeTask.id,
+                });
+                node.setAttribute('aria-pressed', String(Boolean(action === 'focus' ? result.in_focus : result.is_bomb)));
+                if (action === 'focus') activeTask.in_focus = result.in_focus;
+                else activeTask.is_bomb = result.is_bomb;
+                KD.loadBoard({ silent: true });
+                break;
+            }
+
+            case 'complete': {
+                const result = await KD.api.tasks({ action: 'complete_task', task_id: activeTask.id });
+                const undo = result.undo;
+                KD.closeTaskDetail();
+                await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                KD.toast('Tarefa concluída.', {
+                    undo: async () => {
+                        await KD.api.tasks(undo);
+                        await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                        KD.toast('Conclusão desfeita.', { tone: 'info' });
+                    },
+                });
+                break;
+            }
+
+            case 'reopen':
+                await KD.api.tasks({ action: 'uncomplete_task', task_id: activeTask.id });
+                await refreshDetail();
+                KD.toast('Tarefa reaberta.', { tone: 'info' });
+                break;
+
+            case 'duplicate': {
+                const result = await KD.api.tasks({ action: 'duplicate_task', task_id: activeTask.id });
+                KD.closeTaskDetail();
+                await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                KD.toast('Tarefa duplicada.', {
+                    undo: async () => {
+                        await KD.api.tasks(result.undo);
+                        await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                    },
+                });
+                break;
+            }
+
+            case 'delete': {
+                const taskId = activeTask.id;
+                const taskTitle = activeTask.title || 'Tarefa';
+                let recurrenceScope = 'single';
+                if (activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
+                    const scope = await KD.promptRecurrenceScope('delete');
+                    if (!scope) break;
+                    recurrenceScope = scope;
+                }
+                const result = await KD.api.tasks({ action: 'delete', task_id: taskId, recurrence_scope: recurrenceScope });
+                KD.closeTaskDetail();
+                await KD.loadBoard({ silent: true });
+                if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                KD.toast(`"${taskTitle}" movida para a lixeira.`, {
+                    undo: result && result.undo ? async () => {
+                        await KD.api.tasks(result.undo);
+                        await KD.loadBoard({ silent: true });
+                        if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+                        KD.toast('Tarefa restaurada.', { tone: 'info' });
+                    } : null,
+                });
+                break;
+            }
+
+            case 'copy-link': {
+                const url = `${window.location.origin}${window.location.pathname}?task=${activeTask.id}`;
+                try {
+                    await navigator.clipboard.writeText(url);
+                    KD.toast('Link da tarefa copiado.');
+                } catch (e) {
+                    window.prompt('Copie o link da tarefa:', url);
+                }
+                break;
+            }
+
+            case 'toggle-checklist':
+                await KD.api.tasks({
+                    action: 'toggle_checklist',
+                    item_id: Number(node.dataset.itemId),
+                    is_completed: node.checked ? 1 : 0,
+                });
+                await refreshDetail();
+                break;
+
+            case 'delete-checklist': {
+                const itemId = Number(node.dataset.itemId);
+                await KD.api.tasks({ action: 'delete_checklist', item_id: itemId });
+                await refreshDetail();
+                break;
+            }
+
+            case 'edit-comment':
+                KD.editComment(Number(node.dataset.commentId));
+                break;
+
+            case 'delete-comment':
+                await KD.deleteComment(Number(node.dataset.commentId));
+                break;
+
+            case 'open-task':
+                await KD.openTaskDetail(Number(node.dataset.taskId));
+                break;
+
+            case 'tab':
+                switchTab(node.dataset.tab);
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    function handleDetailEvent(event) {
+        const node = event.target.closest('[data-detail-action]');
+        if (!node) return;
+
+        if (node.tagName !== 'INPUT') event.preventDefault();
+
+        Promise.resolve(runDetailAction(node.dataset.detailAction, node))
+            .catch((error) => KD.toastError(error.message));
+    }
+
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('#taskDetailModal')) return;
+        handleDetailEvent(event);
+    });
+
+    async function addQuickSubtask() {
+        const input = el('detailQuickSubtaskInput');
+        if (!input || !activeTask) return;
+        const title = input.value.trim();
+        if (!title) return;
+
+        input.disabled = true;
+        try {
+            await KD.api.tasks({
+                action: 'add_checklist',
+                task_id: activeTask.id,
+                title: title
+            });
+            input.value = '';
+            await refreshDetail();
+            if (KD.loadBoard) KD.loadBoard({ silent: true });
+        } catch (err) {
+            KD.toastError(err.message || 'Erro ao adicionar subtarefa');
+        } finally {
+            input.disabled = false;
+            input.focus();
+        }
+    }
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && event.target && event.target.id === 'detailQuickSubtaskInput') {
+            event.preventDefault();
+            addQuickSubtask();
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        if (event.target && event.target.closest('#detailQuickSubtaskBtn')) {
+            event.preventDefault();
+            addQuickSubtask();
+        }
+    });
+
+    // ---------------------------------------------------------------
+    // Helpers de Tempo Estimado e Expediente
+    // ---------------------------------------------------------------
+
+    KD.formatMinutes = function (totalMinutes) {
+        const mins = Math.max(0, Number(totalMinutes || 0));
+        if (mins === 0) return '0 min';
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        if (h === 0) return `${m}m`;
+        if (m === 0) return `${h}h`;
+        return `${h}h ${m}m`;
+    };
+
+    KD.updateEstimatedPreview = function (val) {
+        const preview = el('task_estimated_preview');
+        if (!preview) return;
+        const mins = Number(val || 0);
+        if (mins > 0) {
+            preview.textContent = `= ${KD.formatMinutes(mins)}`;
+            preview.hidden = false;
+        } else {
+            preview.hidden = true;
+        }
+    };
+
+    KD.setEstimatedMinutes = function (val) {
+        const input = el('task_estimated_minutes');
+        if (input) {
+            input.value = val;
+            KD.updateEstimatedPreview(val);
+            input.focus();
+        }
+    };
+
+    KD.openWorkHoursModal = async function () {
+        const startInput = el('work_start_time_input');
+        const endInput = el('work_end_time_input');
+
+        if (KD.board && KD.board.workHours) {
+            if (startInput) startInput.value = KD.board.workHours.start || '09:00';
+            if (endInput) endInput.value = KD.board.workHours.end || '17:00';
+        } else {
+            try {
+                const res = await fetch(KD.url('/api/preferencias'));
+                const data = await res.json();
+                if (data.success) {
+                    if (startInput) startInput.value = data.work_start_time || '09:00';
+                    if (endInput) endInput.value = data.work_end_time || '17:00';
+                }
+            } catch (e) {}
+        }
+
+        KD.calculateWorkHoursPreview();
+        KD.openModal('workHoursModal', { focus: '#work_start_time_input' });
+    };
+
+    KD.calculateWorkHoursPreview = function () {
+        const start = el('work_start_time_input')?.value || '09:00';
+        const end = el('work_end_time_input')?.value || '17:00';
+        const calcEl = el('workHoursCalculated');
+        if (!calcEl) return;
+
+        const startParts = start.split(':').map(Number);
+        const endParts = end.split(':').map(Number);
+        const startM = (startParts[0] || 0) * 60 + (startParts[1] || 0);
+        const endM = (endParts[0] || 0) * 60 + (endParts[1] || 0);
+        const diff = Math.max(0, endM - startM);
+
+        calcEl.textContent = `${KD.formatMinutes(diff)} (${diff} min)`;
+        if (diff <= 0) {
+            calcEl.classList.add('text-rose-400');
+            calcEl.classList.remove('text-indigo-400');
+        } else {
+            calcEl.classList.remove('text-rose-400');
+            calcEl.classList.add('text-indigo-400');
+        }
+    };
+
+    KD.submitWorkHoursForm = async function (event) {
+        event.preventDefault();
+        const start = el('work_start_time_input')?.value || '09:00';
+        const end = el('work_end_time_input')?.value || '17:00';
+
+        try {
+            const res = await fetch(KD.url('/api/preferencias'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ work_start_time: start, work_end_time: end }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao salvar expediente.');
+
+            if (KD.board) {
+                KD.board.workHours = {
+                    start: data.work_start_time,
+                    end: data.work_end_time,
+                    capacityMinutes: data.work_capacity_minutes,
+                };
+                if (el('workHoursLabel')) {
+                    const h = Math.round(data.work_capacity_minutes / 60);
+                    el('workHoursLabel').textContent = `${data.work_start_time.slice(0, 2)}h–${data.work_end_time.slice(0, 2)}h (${h}h)`;
+                }
+                KD.renderBoard();
+            }
+
+            KD.closeModal('workHoursModal');
+            KD.toast('Horário de expediente salvo com sucesso!');
+        } catch (err) {
+            KD.toastError(err.message);
+        }
+    };
+
+    // ---------------------------------------------------------------
+    // Cadastro Rápido de Empresa no Modal de Tarefa
+    // ---------------------------------------------------------------
+
+    KD.toggleQuickAddClient = function (force) {
+        const wrap = el('quickAddClientWrap');
+        if (!wrap) return;
+        const isHidden = (typeof force === 'boolean') ? !force : !wrap.hidden;
+        wrap.hidden = isHidden;
+        if (!isHidden) {
+            const input = el('quick_client_company');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            if (el('quick_client_contact')) el('quick_client_contact').value = '';
+            if (el('quick_client_phone')) el('quick_client_phone').value = '';
+            KD.icons();
+        }
+    };
+
+    KD.submitQuickClient = async function () {
+        const compInput = el('quick_client_company');
+        const contactInput = el('quick_client_contact');
+        const phoneInput = el('quick_client_phone');
+        const btn = el('btnSubmitQuickClient');
+
+        const companyName = compInput ? compInput.value.trim() : '';
+        if (!companyName) {
+            KD.toast('Digite o nome da empresa.', { tone: 'danger' });
+            if (compInput) compInput.focus();
+            return;
+        }
+
+        // Validação imediata: se já existe empresa com este nome cadastrada
+        const compLower = companyName.toLowerCase();
+        let alreadyExists = false;
+        document.querySelectorAll('.task-client-opt').forEach(opt => {
+            if ((opt.getAttribute('data-client-name') || '').toLowerCase() === compLower) {
+                alreadyExists = true;
+            }
+        });
+        if (alreadyExists) {
+            KD.toast(`Já existe uma empresa cadastrada com o nome "${companyName}".`, { tone: 'danger' });
+            if (compInput) compInput.focus();
+            return;
+        }
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Cadastrando...';
+        }
+
+        const catInput = el('quick_client_category');
+        const quickCategory = catInput ? catInput.value : 'C';
+
+        try {
+            const resp = await KD.api.tasks({
+                action: 'quick_create_client',
+                company_name: companyName,
+                contact_name: contactInput ? contactInput.value.trim() : '',
+                phone: phoneInput ? phoneInput.value.trim() : '',
+                category: quickCategory,
+            });
+
+            if (resp && resp.client) {
+                const wrap = el('taskClientOptionsWrapper');
+                if (wrap) {
+                    const newDiv = document.createElement('div');
+                    newDiv.className = 'task-client-opt flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/80 cursor-pointer transition text-slate-200 hover:text-white group';
+                    newDiv.setAttribute('data-client-id', resp.client.id);
+                    newDiv.setAttribute('data-client-name', resp.client.company_name.toLowerCase());
+                    newDiv.setAttribute('data-client-cat', (resp.client.category || quickCategory).toLowerCase());
+                    newDiv.onclick = () => KD.selectTaskClient(resp.client.id, resp.client.company_name, resp.client.category || quickCategory);
+                    newDiv.innerHTML = `
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border text-indigo-300 bg-indigo-500/15 border-indigo-500/30 flex-shrink-0">
+                                ${resp.client.category || quickCategory}
+                            </span>
+                            <span class="truncate font-medium opt-name">${resp.client.company_name}</span>
+                        </div>
+                        <i data-lucide="check" class="opt-check w-3.5 h-3.5 text-indigo-400" hidden></i>
+                    `;
+                    wrap.appendChild(newDiv);
+                    if (typeof KD.icons === 'function') KD.icons();
+                }
+
+                KD.selectTaskClient(resp.client.id, resp.client.company_name, resp.client.category || quickCategory);
+                KD.toggleQuickAddClient(false);
+                KD.toast(`Empresa "${resp.client.company_name}" cadastrada e vinculada!`);
+            } else {
+                KD.toast(resp?.error || 'Erro ao cadastrar empresa.', { tone: 'danger' });
+            }
+        } catch (err) {
+            KD.toast(err.message || 'Erro ao conectar ao servidor.', { tone: 'danger' });
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> <span>Cadastrar e Vincular</span>';
+                KD.icons();
+            }
+        }
+    };
+
+    // ---------------------------------------------------------------
+    // Ajuste de Tempo do Contador da Tarefa (+ / - minutos ou valor fixo)
+    // ---------------------------------------------------------------
+
+        // ---------------------------------------------------------------
+    // Ajuste de Tempo do Contador da Tarefa (Modal Visual)
+    // ---------------------------------------------------------------
+
+    let adjustTimeBaseSeconds = 0;
+    let adjustTimeCalculatedSeconds = 0;
+
+    KD.adjustTaskTime = async function (deltaMinutes, taskId) {
+        const id = taskId || (activeTask ? activeTask.id : null);
+        if (!id) return;
+
+        try {
+            const resp = await KD.api.tasks({
+                action: 'adjust_time',
+                task_id: id,
+                delta_minutes: deltaMinutes,
+            });
+
+            if (resp && resp.success) {
+                const sign = deltaMinutes >= 0 ? `+${deltaMinutes}m` : `${deltaMinutes}m`;
+                KD.toast(`Tempo ajustado (${sign}). Total: ${resp.formatted}`);
+
+                if (activeTask && Number(activeTask.id) === Number(id)) {
+                    activeTask.effective_seconds = resp.total_seconds;
+                    const timerEl = el('detailTimer');
+                    if (timerEl) timerEl.textContent = resp.formatted;
+                }
+
+                if (KD.loadBoard) await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+            }
+        } catch (err) {
+            KD.toast(err.message || 'Erro ao ajustar tempo.', { tone: 'danger' });
+        }
+    };
+
+    KD.openAdjustTimeModal = function (taskId) {
+        const id = taskId || (activeTask ? activeTask.id : null);
+        if (!id) return;
+
+        // Tentar obter dados da tarefa pelo board ou pelo activeTask
+        let taskData = null;
+        if (activeTask && Number(activeTask.id) === Number(id)) {
+            taskData = activeTask;
+        } else if (KD.board && Array.isArray(KD.board.tasks)) {
+            taskData = KD.board.tasks.find((t) => Number(t.id) === Number(id));
+        }
+
+        const taskTitle = taskData ? (taskData.title || `Tarefa #${id}`) : `Tarefa #${id}`;
+        const currentSecs = taskData ? Number(taskData.effective_seconds || taskData.total_seconds || 0) : 0;
+
+        adjustTimeBaseSeconds = currentSecs;
+        adjustTimeCalculatedSeconds = currentSecs;
+
+        const inputId = el('adjust_time_task_id');
+        if (inputId) inputId.value = String(id);
+
+        const subTitle = el('adjustTimeTaskSubtitle');
+        if (subTitle) subTitle.textContent = taskTitle;
+
+        const currentDisplay = el('adjustTimeCurrentDisplay');
+        if (currentDisplay) currentDisplay.textContent = KD.formatSeconds(currentSecs);
+
+        const previewDisplay = el('adjustTimePreviewDisplay');
+        if (previewDisplay) previewDisplay.textContent = KD.formatSeconds(currentSecs);
+
+        // Resetar campos para modo delta inicial
+        const radioDelta = el('adjust_mode_delta');
+        if (radioDelta) radioDelta.checked = true;
+        KD.toggleAdjustTimeMode('delta');
+
+        const deltaSign = el('adjust_delta_sign');
+        if (deltaSign) deltaSign.value = '1';
+
+        const deltaMinInput = el('adjust_delta_minutes');
+        if (deltaMinInput) deltaMinInput.value = '15';
+
+        const hoursInput = el('adjust_exact_hours');
+        if (hoursInput) hoursInput.value = Math.floor(currentSecs / 3600);
+
+        const minsInput = el('adjust_exact_minutes');
+        if (minsInput) minsInput.value = Math.floor((currentSecs % 3600) / 60);
+
+        KD.recalcAdjustTimePreview();
+        KD.openModal('adjustTimeModal', { focus: '#adjust_delta_minutes' });
+    };
+
+    KD.toggleAdjustTimeMode = function (mode) {
+        const deltaPanel = el('adjustDeltaPanel');
+        const exactPanel = el('adjustExactPanel');
+
+        if (deltaPanel && exactPanel) {
+            deltaPanel.hidden = (mode !== 'delta');
+            exactPanel.hidden = (mode !== 'exact');
+        }
+        KD.recalcAdjustTimePreview();
+    };
+
+    KD.applyQuickTimeDelta = function (deltaMinutes) {
+        const radioDelta = el('adjust_mode_delta');
+        if (radioDelta) radioDelta.checked = true;
+        KD.toggleAdjustTimeMode('delta');
+
+        const deltaSign = el('adjust_delta_sign');
+        const deltaMinInput = el('adjust_delta_minutes');
+
+        if (deltaSign && deltaMinInput) {
+            if (deltaMinutes >= 0) {
+                deltaSign.value = '1';
+                deltaMinInput.value = String(deltaMinutes);
+            } else {
+                deltaSign.value = '-1';
+                deltaMinInput.value = String(Math.abs(deltaMinutes));
+            }
+        }
+        KD.recalcAdjustTimePreview();
+    };
+
+    KD.recalcAdjustTimePreview = function () {
+        const isDelta = el('adjust_mode_delta')?.checked ?? true;
+        let finalSeconds = adjustTimeBaseSeconds;
+
+        if (isDelta) {
+            const sign = Number(el('adjust_delta_sign')?.value || 1);
+            const mins = parseFloat(el('adjust_delta_minutes')?.value || 0);
+            const deltaSec = Math.round(sign * (isNaN(mins) ? 0 : mins) * 60);
+            finalSeconds = Math.max(0, adjustTimeBaseSeconds + deltaSec);
+        } else {
+            const h = parseInt(el('adjust_exact_hours')?.value || 0, 10);
+            const m = parseInt(el('adjust_exact_minutes')?.value || 0, 10);
+            const hoursSec = Math.max(0, isNaN(h) ? 0 : h) * 3600;
+            const minsSec = Math.max(0, isNaN(m) ? 0 : m) * 60;
+            finalSeconds = hoursSec + minsSec;
+        }
+
+        adjustTimeCalculatedSeconds = finalSeconds;
+        const previewDisplay = el('adjustTimePreviewDisplay');
+        if (previewDisplay) {
+            previewDisplay.textContent = KD.formatSeconds(finalSeconds);
+        }
+    };
+
+    KD.resetTimeZero = function () {
+        const radioExact = el('adjust_mode_exact');
+        if (radioExact) radioExact.checked = true;
+        KD.toggleAdjustTimeMode('exact');
+
+        if (el('adjust_exact_hours')) el('adjust_exact_hours').value = '0';
+        if (el('adjust_exact_minutes')) el('adjust_exact_minutes').value = '0';
+
+        adjustTimeCalculatedSeconds = 0;
+        const previewDisplay = el('adjustTimePreviewDisplay');
+        if (previewDisplay) previewDisplay.textContent = '00:00:00';
+    };
+
+    KD.submitAdjustTimeForm = async function (event) {
+        if (event && event.preventDefault) event.preventDefault();
+
+        const taskId = Number(el('adjust_time_task_id')?.value || 0);
+        if (!taskId) {
+            KD.closeModal('adjustTimeModal');
+            return;
+        }
+
+        const btn = el('btnSubmitAdjustTime');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Salvando...';
+        }
+
+        try {
+            const resp = await KD.api.tasks({
+                action: 'adjust_time',
+                task_id: taskId,
+                set_seconds: adjustTimeCalculatedSeconds,
+            });
+
+            if (resp && resp.success) {
+                KD.closeModal('adjustTimeModal');
+                KD.toast(`Tempo ajustado para ${resp.formatted}!`);
+
+                if (activeTask && Number(activeTask.id) === Number(taskId)) {
+                    activeTask.effective_seconds = resp.total_seconds;
+                    const timerEl = el('detailTimer');
+                    if (timerEl) timerEl.textContent = resp.formatted;
+                }
+
+                if (KD.loadBoard) await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+            } else {
+                KD.toast(resp?.error || 'Erro ao ajustar tempo.', { tone: 'danger' });
+            }
+        } catch (err) {
+            KD.toast(err.message || 'Erro ao conectar ao servidor.', { tone: 'danger' });
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Salvar Ajuste';
+                KD.icons();
+            }
+        }
+    };
+
+    // Alias para compatibilidade
+    KD.promptAdjustTaskTime = function (taskId) {
+        KD.openAdjustTimeModal(taskId);
+    };
+
+    // Se a página carregar com ?create_with_template=X, abre automaticamente o modal com o modelo
+    document.addEventListener('DOMContentLoaded', () => {
+        const params = new URLSearchParams(window.location.search);
+        const tplId = params.get('create_with_template');
+        if (tplId) {
+            setTimeout(() => {
+                if (window.KD && KD.openTaskForm) {
+                    KD.openTaskForm(null, null, { id: Number(tplId) });
+                }
+            }, 250);
+        }
+    });
+
+    KD.toggleTimeInput = function (checked) {
+        const wrap = el('task_time_wrap');
+        const input = el('task_due_time');
+        if (wrap) wrap.hidden = !checked;
+        if (!checked && input) input.value = '';
+        if (checked && input && !input.value) input.focus();
+    };
+
+    // ===============================================================
+    // Gerenciamento da Lixeira de Tarefas (30 dias)
+    // ===============================================================
+
+    KD.openTrashModal = async function () {
+        KD.closeMenus();
+        KD.openModal('taskTrashModal');
+        await KD.loadTrashList();
+    };
+
+    KD.closeTrashModal = function () {
+        KD.closeModal('taskTrashModal');
+    };
+
+    KD.loadTrashList = async function () {
+        const listEl = el('trashListContainer');
+        const emptyEl = el('trashEmpty');
+        const loadEl = el('trashLoading');
+        const badgeEl = el('trashModalBadge');
+        const emptyBtn = el('btnEmptyTrash');
+
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        if (loadEl) loadEl.hidden = false;
+        if (emptyEl) emptyEl.hidden = true;
+
+        try {
+            const data = await KD.api.tasks({ action: 'trash_list' });
+            if (loadEl) loadEl.hidden = true;
+            const items = data.trash || [];
+
+            if (badgeEl) badgeEl.textContent = String(items.length);
+            if (emptyBtn) emptyBtn.disabled = (items.length === 0);
+
+            if (items.length === 0) {
+                if (emptyEl) emptyEl.hidden = false;
+                return;
+            }
+
+            listEl.innerHTML = items.map((task) => {
+                const priorityLabels = { urgent: 'Urgente', high: 'Alta', medium: 'Média', low: 'Baixa' };
+                const priorityColors = { urgent: '#ef4444', high: '#f59e0b', medium: '#3b82f6', low: '#64748b' };
+                const pLabel = priorityLabels[task.priority] || 'Normal';
+                const pColor = priorityColors[task.priority] || '#64748b';
+
+                return `
+                    <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700/80 transition flex items-center justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 flex-wrap mb-1">
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" style="background:${pColor}22;color:${pColor};border:1px solid ${pColor}44">
+                                    ${pLabel}
+                                </span>
+                                ${task.stage_name ? `<span class="text-[10px] text-slate-400 font-medium">Coluna: <strong>${KD.escapeHtml(task.stage_name)}</strong></span>` : ''}
+                                ${task.client_company ? `<span class="text-[10px] text-indigo-400 font-medium">· ${KD.escapeHtml(task.client_company)}</span>` : ''}
+                            </div>
+                            <h4 class="text-xs sm:text-sm font-semibold text-slate-200 truncate" title="${KD.escapeHtml(task.title)}">
+                                ${KD.escapeHtml(task.title)}
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
+                                <span>Excluída em ${task.deleted_formatted || '--'}</span>
+                                <span class="text-amber-400/90 font-medium bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
+                                    Restam ${task.days_left || 0} dia(s)
+                                </span>
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                            <button type="button" class="kd-btn text-xs py-1 px-2.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border border-indigo-500/20"
+                                    onclick="KD.restoreTaskFromTrash(${task.id})" title="Restaurar para o Kanban">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                <span class="hidden sm:inline">Restaurar</span>
+                            </button>
+                            <button type="button" class="kd-btn text-xs py-1 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20"
+                                    onclick="KD.deletePermanentFromTrash(${task.id})" title="Excluir definitivamente">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (window.lucide) lucide.createIcons();
+        } catch (err) {
+            if (loadEl) loadEl.hidden = true;
+            KD.toastError(err.message || 'Erro ao carregar lixeira');
+        }
+    };
+
+    KD.restoreTaskFromTrash = async function (taskId) {
+        try {
+            const res = await KD.api.tasks({ action: 'restore_task', task_id: taskId });
+            KD.toast(`"${res.title || 'Tarefa'}" restaurada da lixeira com sucesso!`);
+            await KD.loadTrashList();
+            await KD.loadBoard({ silent: true });
+            if (typeof loadCalendarEvents === 'function') { await loadCalendarEvents(); }
+        } catch (err) {
+            KD.toastError(err.message || 'Erro ao restaurar tarefa');
+        }
+    };
+
+    KD.deletePermanentFromTrash = async function (taskId) {
+        if (!confirm('Tem certeza? Esta tarefa será apagada permanentemente do sistema e não poderá mais ser recuperada.')) {
+            return;
+        }
+        try {
+            await KD.api.tasks({ action: 'delete_permanent', task_id: taskId });
+            KD.toast('Tarefa apagada permanentemente.');
+            await KD.loadTrashList();
+        } catch (err) {
+            KD.toastError(err.message || 'Erro ao excluir permanentemente');
+        }
+    };
+
+    KD.emptyTrashNow = async function () {
+        if (!confirm('Atenção: todas as tarefas da lixeira serão apagadas permanentemente!\nEsta ação não pode ser desfeita. Deseja continuar?')) {
+            return;
+        }
+        try {
+            const res = await KD.api.tasks({ action: 'purge_trash' });
+            KD.toast(res.message || 'Lixeira esvaziada com sucesso.');
+            await KD.loadTrashList();
+        } catch (err) {
+            KD.toastError(err.message || 'Erro ao esvaziar lixeira');
+        }
+    };
+
+// ---------------------------------------------------------------
+    // Notas do Cliente na Modal da Tarefa
+    // ---------------------------------------------------------------
+
+    let taskClientNotesCache = [];
+
+    async function renderTaskClientNotes(task) {
+        const badge = el('detailNotesTabBadge');
+        const list = el('detailClientNotesList');
+        const notice = el('detailNoClientNotesNotice');
+        const header = el('detailClientNotesHeader');
+        const sub = el('detailClientNotesSub');
+        const btnAdd = el('btnAddNoteFromTaskBtn');
+
+        if (!task || !task.client_id) {
+            if (badge) badge.hidden = true;
+            if (notice) notice.hidden = false;
+            if (list) list.innerHTML = '';
+            if (btnAdd) btnAdd.hidden = true;
+            if (header) header.textContent = 'Notas do Cliente';
+            if (sub) sub.textContent = 'Nenhum cliente associado a esta tarefa.';
+            return;
+        }
+
+        if (notice) notice.hidden = true;
+        if (btnAdd) btnAdd.hidden = false;
+        if (header) header.textContent = `Notas de ${task.client_company || 'Cliente'}`;
+        if (sub) sub.textContent = 'Diretrizes, credenciais e alinhamentos deste cliente';
+
+        if (list) {
+            list.innerHTML = '<div class="p-4 text-xs text-slate-400 text-center flex items-center justify-center gap-2"><span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span> Carregando notas do cliente...</div>';
+        }
+
+        try {
+            const res = await fetch(`${KD.url('/api/notas')}?client_id=${task.client_id}`);
+            const data = await res.json();
+            if (data.ok) {
+                taskClientNotesCache = data.notes || [];
+                if (badge) {
+                    badge.textContent = taskClientNotesCache.length;
+                    badge.hidden = taskClientNotesCache.length === 0;
+                }
+
+                if (taskClientNotesCache.length === 0) {
+                    if (list) {
+                        list.innerHTML = `
+                            <div class="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 text-center">
+                                <p class="text-xs font-semibold text-slate-300 mb-1">Nenhuma nota cadastrada para este cliente.</p>
+                                <p class="text-[11px] text-slate-500 mb-3">Adicione orientações, diretrizes ou atas de reunião para a equipe.</p>
+                                <button type="button" onclick="KD.openQuickNoteForTaskClient()" class="kd-btn kd-btn--primary text-xs mx-auto py-1.5 px-3">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                    <span>Adicionar Primeira Nota</span>
+                                </button>
+                            </div>
+                        `;
+                    }
+                                } else {
+                                        if (list) {
+                        const totalNotes = taskClientNotesCache.length;
+                        const hasScroll = totalNotes > 2;
+
+                        list.innerHTML = `
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                                    <span class="font-medium text-slate-300">
+                                        ${totalNotes === 1 ? '1 nota cadastrada' : (hasScroll ? `Exibindo 2 de ${totalNotes} notas` : `${totalNotes} notas cadastradas`)}
+                                    </span>
+                                    ${hasScroll ? '<span class="text-indigo-400 font-medium flex items-center gap-1"><i data-lucide="arrow-left-right" class="w-3 h-3"></i> Use as setas para rolar</span>' : ''}
+                                </div>
+                                <div class="relative flex items-center gap-2">
+                                    <button type="button" id="btnNotesScrollPrev" onclick="KD.scrollTaskNotes(-1)"
+                                            class="w-8 h-8 rounded-full bg-slate-800/90 hover:bg-indigo-600 border border-slate-700/80 hover:border-indigo-500 text-slate-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-20 disabled:pointer-events-none flex-shrink-0 shadow-lg cursor-pointer ${hasScroll ? '' : 'hidden'}"
+                                            title="Notas mais recentes" aria-label="Notas mais recentes">
+                                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                    </button>
+
+                                    <div id="detailClientNotesSlider" onscroll="KD.updateNotesScrollButtons()"
+                                         class="flex-1 overflow-x-auto flex gap-3 scroll-smooth snap-x snap-mandatory py-1 px-0.5"
+                                         style="scrollbar-width: none; -ms-overflow-style: none;">
+                                        ${taskClientNotesCache.map(note => {
+                                            const grpColor = note.group_color || '#6366f1';
+                                            const dateStr = note.created_at ? new Date(note.created_at.replace(/-/g, '/')).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                                            const cleanText = KD.stripHtml ? KD.stripHtml(note.content) : (note.content || '').replace(/<[^>]*>?/gm, ' ');
+                                            
+                                            return `
+                                                <div onclick="KD.viewTaskClientNote(${note.id})"
+                                                     style="min-width: calc(50% - 0.375rem); max-width: calc(50% - 0.375rem);"
+                                                     class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/60 hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col justify-between group shadow-sm flex-shrink-0 snap-start ${note.is_pinned ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/[0.03] to-transparent' : ''}"
+                                                     title="Clique para ler anotação completa">
+                                                    <div>
+                                                        <div class="flex items-center justify-between gap-1.5 mb-1.5">
+                                                            <div class="flex items-center gap-1.5 min-w-0">
+                                                                ${note.is_pinned ? '<i data-lucide="pin" class="w-3 h-3 text-amber-400 flex-shrink-0" title="Nota Fixada"></i>' : ''}
+                                                                ${note.group_name ? `
+                                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider truncate max-w-[120px]" style="background:${grpColor}20;color:${grpColor}">
+                                                                        ${KD.escapeHtml(note.group_name)}
+                                                                    </span>
+                                                                ` : ''}
+                                                            </div>
+                                                            <span class="text-[10px] text-slate-500 whitespace-nowrap flex-shrink-0">${dateStr}</span>
+                                                        </div>
+                                                        <h5 class="text-xs font-bold text-white group-hover:text-indigo-300 transition line-clamp-1 mb-1">
+                                                            ${KD.escapeHtml(note.title)}
+                                                        </h5>
+                                                        <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                                                            ${KD.escapeHtml(cleanText.trim() || 'Sem conteúdo adicional.')}
+                                                        </p>
+                                                    </div>
+                                                    <div class="flex items-center justify-between pt-2 mt-2 border-t border-slate-800/60 text-[10px] text-slate-500">
+                                                        <span class="truncate">Por: ${KD.escapeHtml(note.author_name || 'Equipe')}</span>
+                                                        <span class="text-indigo-400 font-medium group-hover:translate-x-0.5 transition flex items-center gap-0.5">
+                                                            Ler nota <i data-lucide="chevron-right" class="w-3 h-3"></i>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+
+                                    <button type="button" id="btnNotesScrollNext" onclick="KD.scrollTaskNotes(1)"
+                                            class="w-8 h-8 rounded-full bg-slate-800/90 hover:bg-indigo-600 border border-slate-700/80 hover:border-indigo-500 text-slate-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-20 disabled:pointer-events-none flex-shrink-0 shadow-lg cursor-pointer ${hasScroll ? '' : 'hidden'}"
+                                            title="Notas mais antigas" aria-label="Notas mais antigas">
+                                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                KD.icons();
+                setTimeout(KD.updateNotesScrollButtons, 50);
+            }
+        } catch (err) {
+            console.error('Erro ao buscar notas do cliente:', err);
+            if (list) list.innerHTML = '<p class="text-xs text-rose-400">Erro ao carregar notas do cliente.</p>';
+        }
+    }
+
+    KD.openQuickNoteForTaskClient = async function () {
+        if (!activeTask || !activeTask.client_id) {
+            KD.toastError('Esta tarefa não possui cliente vinculado.');
+            return;
+        }
+
+        const title = prompt('Título da Anotação para ' + (activeTask.client_company || 'este cliente') + ':');
+        if (!title || !title.trim()) return;
+
+        const content = prompt('Conteúdo da Anotação:');
+        if (!content || !content.trim()) return;
+
+        try {
+            const res = await fetch(KD.url('/api/notas'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'save_note',
+                    title: title.trim(),
+                    content: content.trim(),
+                    client_id: activeTask.client_id,
+                    is_pinned: 0
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                KD.toastSuccess('Nota adicionada com sucesso!');
+                renderTaskClientNotes(activeTask);
+            } else {
+                KD.toastError(data.error || 'Erro ao salvar nota.');
+            }
+        } catch (err) {
+            console.error(err);
+            KD.toastError('Falha de conexão ao salvar nota.');
+        }
+    };
+
+
+    KD.stripHtml = function(html) {
+        if (!html) return '';
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        return tmp.textContent || tmp.innerText || '';
+    };
+
+    KD.viewTaskClientNote = function(noteId) {
+        const note = (taskClientNotesCache || []).find(n => Number(n.id) === Number(noteId));
+        if (!note) return;
+
+        const titleEl = el('taskNoteReadTitle');
+        if (titleEl) titleEl.textContent = note.title;
+
+        // Grupo
+        const grpBadge = el('taskNoteReadGroupBadge');
+        if (grpBadge) {
+            if (note.group_name) {
+                const grpColor = note.group_color || '#6366f1';
+                grpBadge.style.display = 'inline-flex';
+                grpBadge.innerHTML = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider" style="background:${grpColor}20;color:${grpColor};border:1px solid ${grpColor}40">
+                    <span class="w-1.5 h-1.5 rounded-full" style="background:${grpColor}"></span>
+                    <span>${KD.escapeHtml(note.group_name)}</span>
+                </span>`;
+            } else {
+                grpBadge.style.display = 'none';
+                grpBadge.innerHTML = '';
+            }
+        }
+
+        // Cliente
+        const cliBadge = el('taskNoteReadClientBadge');
+        if (cliBadge) {
+            if (note.client_company) {
+                cliBadge.style.display = 'inline-flex';
+                cliBadge.innerHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                    <i data-lucide="building-2" class="w-3 h-3 text-indigo-400"></i>
+                    <span>${KD.escapeHtml(note.client_company)}</span>
+                </span>`;
+            } else {
+                cliBadge.style.display = 'none';
+                cliBadge.innerHTML = '';
+            }
+        }
+
+        // Pin
+        const pinBadge = el('taskNoteReadPinnedBadge');
+        if (pinBadge) {
+            pinBadge.classList.toggle('hidden', !note.is_pinned);
+        }
+
+        const authorEl = el('taskNoteReadAuthor');
+        if (authorEl) authorEl.textContent = `Criado por ${note.author_name || 'Equipe'}`;
+
+        const dateEl = el('taskNoteReadDate');
+        if (dateEl && note.created_at) {
+            try {
+                const d = new Date(note.created_at.replace(/-/g, '/'));
+                dateEl.textContent = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            } catch(e) {
+                dateEl.textContent = note.created_at;
+            }
+        }
+
+        // Corpo Formatado
+        const bodyEl = el('taskNoteReadBody');
+        if (bodyEl) {
+            if (note.content && (note.content.includes('<p>') || note.content.includes('<br>') || note.content.includes('<div>') || note.content.includes('<ul>') || note.content.includes('<h3>') || note.content.includes('<strong>'))) {
+                bodyEl.innerHTML = note.content;
+            } else {
+                bodyEl.innerHTML = `<p class="whitespace-pre-line">${KD.escapeHtml(note.content || '')}</p>`;
+            }
+        }
+
+        // Link externo para o modulo de notas
+        const extLink = el('taskNoteReadExternalLink');
+        if (extLink) {
+            extLink.href = `${KD.url('/notas')}?client_id=${note.client_id || (activeTask && activeTask.client_id) || ''}`;
+        }
+
+        KD.openModal('taskNoteReadModal');
+        KD.icons();
+    };
+
+        KD.updateDetailClientCategory = async function (newCat) {
+        if (!activeTask) return;
+        const clientId = activeTask.client_id || (activeTask.client && activeTask.client.id);
+        if (!clientId) {
+            KD.toast('Esta tarefa não possui empresa vinculada para alterar a categoria.', { tone: 'warning' });
+            return;
+        }
+
+        try {
+            const resp = await KD.api.tasks({
+                action: 'update_client_category',
+                client_id: clientId,
+                category: newCat
+            });
+
+            if (resp && resp.success) {
+                activeTask.client_category = newCat;
+
+                // Atualizar badge do cabeçalho
+                const catBadge = el('detailClientCategoryBadge');
+                if (catBadge) applyCategoryBadgeStyle(catBadge, newCat);
+                const headerSel = el('detailHeaderClientCategorySelect');
+                if (headerSel) headerSel.value = newCat;
+
+                // Atualizar select da aba Cliente
+                const tabSel = el('detailTabClientCategorySelect');
+                if (tabSel) tabSel.value = newCat;
+
+                // Atualizar select do formulário de edição se aberto
+                if (el('task_client_category')) el('task_client_category').value = newCat;
+
+                // Atualizar select de clientes na página
+                const clientOpt = document.querySelector(`#task_client_id option[value="${clientId}"]`);
+                if (clientOpt) {
+                    clientOpt.setAttribute('data-category', newCat);
+                    const baseName = clientOpt.text.replace(/\s*\([A-D\+]+\)$/, '').trim();
+                    clientOpt.text = `${baseName} (${newCat})`;
+                }
+
+                // Atualizar tarefa no quadro Kanban e reordenar em tempo real
+                if (KD.board && Array.isArray(KD.board.tasks)) {
+                    KD.board.tasks.forEach(t => {
+                        if (Number(t.client_id) === Number(clientId)) {
+                            t.client_category = newCat;
+                        }
+                    });
+                    if (typeof KD.renderBoard === 'function') {
+                        KD.renderBoard();
+                    }
+                }
+
+                KD.toast(`Categoria da empresa atualizada para ${newCat}!`, { tone: 'success' });
+            } else {
+                KD.toast(resp?.error || 'Não foi possível atualizar a categoria.', { tone: 'danger' });
+            }
+        } catch (err) {
+            console.error('Erro ao atualizar categoria:', err);
+            KD.toast('Erro na requisição ao atualizar categoria.', { tone: 'danger' });
+        }
+    };
+
+    KD.closeTaskNoteReadModal = function() {
+        KD.closeModal('taskNoteReadModal');
+    };
+
+})(window.KD);

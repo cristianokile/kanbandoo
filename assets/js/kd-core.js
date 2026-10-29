@@ -578,3 +578,173 @@ window.KD = window.KD || {};
             }
         });
     });
+
+    // ---------------------------------------------------------------
+    // Componente Dropdown Combobox Universal com Live Search
+    // ---------------------------------------------------------------
+    KD.makeSearchableSelect = function (selectEl, options = {}) {
+        if (!selectEl) return null;
+        if (typeof selectEl === 'string') selectEl = document.querySelector(selectEl);
+        if (!selectEl || selectEl.dataset.searchableInitialized === 'true') {
+            return selectEl ? selectEl._searchableInstance : null;
+        }
+        selectEl.dataset.searchableInitialized = 'true';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'kd-searchable-select-wrap relative inline-block ' + (options.wrapperClass || '');
+        wrapper.style.width = options.width || (selectEl.classList.contains('w-full') ? '100%' : 'auto');
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = (selectEl.className.replace(/\bw-full\b/g, '') + ' kd-searchable-trigger flex items-center justify-between gap-2 text-left cursor-pointer transition select-none').trim();
+        trigger.style.minHeight = selectEl.style.minHeight || '38px';
+        trigger.style.width = '100%';
+
+        const triggerLabel = document.createElement('span');
+        triggerLabel.className = 'truncate text-xs font-medium';
+        
+        const triggerIcon = document.createElement('span');
+        triggerIcon.className = 'text-slate-400 flex-shrink-0 transition-transform duration-200';
+        triggerIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+
+        trigger.appendChild(triggerLabel);
+        trigger.appendChild(triggerIcon);
+
+        const dropdown = document.createElement('div');
+        dropdown.className = 'kd-searchable-dropdown absolute left-0 right-0 top-full mt-1.5 p-2 rounded-xl bg-slate-950/98 border border-slate-700/90 shadow-2xl z-50 space-y-2 backdrop-blur-xl animate-fade-in';
+        dropdown.hidden = true;
+        dropdown.style.minWidth = options.minWidth || '180px';
+        dropdown.style.maxWidth = options.maxWidth || '100%';
+
+        const searchWrap = document.createElement('div');
+        searchWrap.className = 'relative';
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = options.placeholder || 'Filtrar...';
+        searchInput.className = 'w-full bg-slate-900/90 border border-slate-700 rounded-lg pl-7 pr-6 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition shadow-inner';
+        searchInput.autocomplete = 'off';
+
+        const searchIcon = document.createElement('span');
+        searchIcon.className = 'absolute left-2 top-2 text-slate-500 pointer-events-none';
+        searchIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
+
+        searchWrap.appendChild(searchIcon);
+        searchWrap.appendChild(searchInput);
+        dropdown.appendChild(searchWrap);
+
+        const optionsList = document.createElement('div');
+        optionsList.className = 'max-h-52 overflow-y-auto space-y-0.5 text-xs';
+        optionsList.style.scrollbarWidth = 'thin';
+        dropdown.appendChild(optionsList);
+
+        selectEl.parentNode.insertBefore(wrapper, selectEl);
+        wrapper.appendChild(selectEl);
+        wrapper.appendChild(trigger);
+        wrapper.appendChild(dropdown);
+        selectEl.style.display = 'none';
+
+        function renderOptions() {
+            optionsList.innerHTML = '';
+            const curVal = selectEl.value;
+            const curOpt = selectEl.options[selectEl.selectedIndex];
+            triggerLabel.textContent = curOpt ? curOpt.text : 'Selecione...';
+
+            Array.from(selectEl.options).forEach((opt) => {
+                const isSelected = String(opt.value) === String(curVal);
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/80 cursor-pointer transition text-slate-300 hover:text-white ' + (isSelected ? 'bg-indigo-600/20 text-indigo-300 font-semibold' : '');
+                item.dataset.value = opt.value;
+                item.dataset.text = (opt.text || '').toLowerCase();
+                item.innerHTML = `<span class="truncate">${KD.escapeHtml(opt.text)}</span>` + (isSelected ? `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-400 flex-shrink-0 ml-1.5"><polyline points="20 6 9 17 4 12"/></svg>` : '');
+
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectEl.value = opt.value;
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                    closeDropdown();
+                    renderOptions();
+                });
+                optionsList.appendChild(item);
+            });
+        }
+
+        renderOptions();
+
+        function openDropdown() {
+            document.querySelectorAll('.kd-searchable-dropdown').forEach(d => { if (d !== dropdown) d.hidden = true; });
+            dropdown.hidden = false;
+            searchInput.value = '';
+            filterItems('');
+            triggerIcon.style.transform = 'rotate(180deg)';
+            setTimeout(() => searchInput.focus(), 50);
+        }
+
+        function closeDropdown() {
+            dropdown.hidden = true;
+            triggerIcon.style.transform = '';
+        }
+
+        function filterItems(term) {
+            term = (term || '').trim().toLowerCase();
+            optionsList.querySelectorAll('[data-text]').forEach(el => {
+                const matches = !term || el.dataset.text.includes(term);
+                el.style.display = matches ? 'flex' : 'none';
+            });
+        }
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown.hidden) openDropdown(); else closeDropdown();
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            filterItems(e.target.value);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeDropdown();
+                trigger.focus();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const first = optionsList.querySelector('[data-value]:not([style*="display: none"])');
+                if (first) {
+                    first.click();
+                }
+            }
+        });
+
+        selectEl.addEventListener('change', () => {
+            const curOpt = selectEl.options[selectEl.selectedIndex];
+            triggerLabel.textContent = curOpt ? curOpt.text : 'Selecione...';
+            renderOptions();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                closeDropdown();
+            }
+        });
+
+        const instance = {
+            wrapper,
+            refresh: renderOptions,
+            setValue(val) {
+                selectEl.value = val;
+                renderOptions();
+            }
+        };
+
+        selectEl._searchableInstance = instance;
+        return instance;
+    };
+
+    KD.initAllSearchableSelects = function (scope = document) {
+        scope.querySelectorAll('select.kd-select-searchable').forEach((sel) => {
+            KD.makeSearchableSelect(sel);
+        });
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        KD.initAllSearchableSelects();
+    });
