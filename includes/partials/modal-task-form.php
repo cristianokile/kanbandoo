@@ -283,8 +283,21 @@
                     <div class="flex items-center gap-2">
                         <input type="date" id="task_due_date" name="due_date" class="kd-field flex-1 h-[42px] min-h-[42px]" aria-describedby="error_due_date">
                         <div id="task_time_wrap" class="flex items-center gap-1.5" hidden>
-                            <input type="time" id="task_due_time" name="due_time" class="kd-field w-28 text-center h-[42px] min-h-[42px]" placeholder="00:00">
+                            <input type="time" id="task_due_time" name="due_time" class="kd-field w-24 text-center h-[42px] min-h-[42px]" placeholder="00:00" title="Horário agendado">
                         </div>
+                    </div>
+                    <div id="task_reminder_wrap" class="flex items-center justify-between gap-1.5 mt-1.5 p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-xs" hidden>
+                        <span class="text-[11px] font-semibold text-indigo-300 flex items-center gap-1 truncate">
+                            <i data-lucide="bell" class="w-3.5 h-3.5 text-indigo-400 flex-shrink-0"></i> Alerta Push:
+                        </span>
+                        <select id="task_reminder_minutes" name="reminder_minutes" class="bg-slate-900 border border-slate-700/80 rounded-md text-[11px] text-white py-1 px-1.5 focus:outline-none focus:border-indigo-500 font-medium">
+                            <option value="15" selected>15 min antes</option>
+                            <option value="30">30 min antes</option>
+                            <option value="60">1 hora antes</option>
+                            <option value="1440">1 dia antes</option>
+                            <option value="0">No horário</option>
+                            <option value="-1">Sem alerta</option>
+                        </select>
                     </div>
                     <p id="error_due_date" class="kd-inline-error" role="alert" hidden></p>
                 </div>

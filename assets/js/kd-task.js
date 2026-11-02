@@ -544,6 +544,11 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
                     });
                 }
                 if (initialDueDate && el('task_due_date')) el('task_due_date').value = initialDueDate;
+                if (el('task_has_time')) el('task_has_time').checked = false;
+                if (el('task_time_wrap')) el('task_time_wrap').hidden = true;
+                if (el('task_reminder_wrap')) el('task_reminder_wrap').hidden = true;
+                if (el('task_due_time')) el('task_due_time').value = '';
+                if (el('task_reminder_minutes')) el('task_reminder_minutes').value = 15;
                 if (el('task_is_private')) el('task_is_private').checked = false;
                 if (el('task_client_category')) el('task_client_category').value = 'C';
                 if (templateWrap) templateWrap.hidden = false;
@@ -588,11 +593,15 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
             if (task.due_time) {
                 if (el('task_has_time')) el('task_has_time').checked = true;
                 if (el('task_time_wrap')) el('task_time_wrap').hidden = false;
+                if (el('task_reminder_wrap')) el('task_reminder_wrap').hidden = false;
                 if (el('task_due_time')) el('task_due_time').value = task.due_time.substring(0, 5);
+                if (el('task_reminder_minutes')) el('task_reminder_minutes').value = (task.reminder_minutes !== undefined && task.reminder_minutes !== null) ? task.reminder_minutes : 15;
             } else {
                 if (el('task_has_time')) el('task_has_time').checked = false;
                 if (el('task_time_wrap')) el('task_time_wrap').hidden = true;
+                if (el('task_reminder_wrap')) el('task_reminder_wrap').hidden = true;
                 if (el('task_due_time')) el('task_due_time').value = '';
+                if (el('task_reminder_minutes')) el('task_reminder_minutes').value = 15;
             }
             el('task_description').value = task.description || '';
             if (el('task_estimated_minutes')) el('task_estimated_minutes').value = task.estimated_minutes || '';
@@ -798,6 +807,7 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
             priority: el('task_priority').value,
             due_date: el('task_due_date').value || null,
             due_time: (el('task_has_time')?.checked && el('task_due_time')?.value) ? el('task_due_time').value : null,
+            reminder_minutes: (el('task_has_time')?.checked && el('task_reminder_minutes')) ? Number(el('task_reminder_minutes').value) : 15,
             is_calendar_event: Number(el('task_is_calendar_event')?.value || 0),
             show_in_kanban: el('task_show_in_kanban')?.checked ? 1 : 0,
             estimated_minutes: el('task_estimated_minutes')?.value || null,
@@ -2114,8 +2124,10 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
 
     KD.toggleTimeInput = function (checked) {
         const wrap = el('task_time_wrap');
+        const remWrap = el('task_reminder_wrap');
         const input = el('task_due_time');
         if (wrap) wrap.hidden = !checked;
+        if (remWrap) remWrap.hidden = !checked;
         if (!checked && input) input.value = '';
         if (checked && input && !input.value) input.focus();
     };

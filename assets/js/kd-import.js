@@ -407,4 +407,282 @@ window.KD = window.KD || {};
         }
     };
 
+
+    // ===============================================================
+    // Importação & Exportação via Planilha (CSV / Excel)
+    // ===============================================================
+
+    let parsedSpreadsheetRows = [];
+
+    /**
+     * Alterna entre a aba de Planilha e a aba de Lista Rápida (TXT)
+     */
+    KD.switchImportTab = function (tab) {
+        const tabSpreadsheet = document.getElementById('importTabSpreadsheet');
+        const tabText = document.getElementById('importTabText');
+        const btnSpreadsheet = document.getElementById('tabBtnSpreadsheet');
+        const btnText = document.getElementById('tabBtnText');
+
+        if (tab === 'spreadsheet') {
+            if (tabSpreadsheet) tabSpreadsheet.hidden = false;
+            if (tabText) tabText.hidden = true;
+            if (btnSpreadsheet) {
+                btnSpreadsheet.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 shadow-sm';
+            }
+            if (btnText) {
+                btnText.className = 'px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800/80';
+            }
+        } else {
+            if (tabSpreadsheet) tabSpreadsheet.hidden = true;
+            if (tabText) tabText.hidden = false;
+            if (btnText) {
+                btnText.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 shadow-sm';
+            }
+            if (btnSpreadsheet) {
+                btnSpreadsheet.className = 'px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800/80';
+            }
+        }
+    };
+
+    /**
+     * Parser robusto de CSV universal (lida com aspas, BOM, quebras de linha e delimitador ; ou ,)
+     */
+    function parseCsvText(csvText) {
+        if (!csvText) return [];
+        if (csvText.charCodeAt(0) === 0xFEFF) {
+            csvText = csvText.slice(1);
+        }
+
+        const firstLine = csvText.split(/\r\n|\n|\r/)[0] || '';
+        const semicolonCount = (firstLine.match(/;/g) || []).length;
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const tabCount = (firstLine.match(/\t/g) || []).length;
+        let delimiter = ';';
+        if (tabCount > semicolonCount && tabCount > commaCount) delimiter = '\t';
+        else if (commaCount > semicolonCount) delimiter = ',';
+
+        const rows = [];
+        let currentRow = [];
+        let currentCell = '';
+        let insideQuotes = false;
+
+        for (let i = 0; i < csvText.length; i++) {
+            const char = csvText[i];
+            const nextChar = csvText[i + 1];
+
+            if (char === '"') {
+                if (insideQuotes && nextChar === '"') {
+                    currentCell += '"';
+                    i++;
+                } else {
+                    insideQuotes = !insideQuotes;
+                }
+            } else if (char === delimiter && !insideQuotes) {
+                currentRow.push(currentCell.trim());
+                currentCell = '';
+            } else if ((char === '\r' || char === '\n') && !insideQuotes) {
+                if (char === '\r' && nextChar === '\n') {
+                    i++;
+                }
+                currentRow.push(currentCell.trim());
+                if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0] !== '')) {
+                    rows.push(currentRow);
+                }
+                currentRow = [];
+                currentCell = '';
+            } else {
+                currentCell += char;
+            }
+        }
+        if (currentCell !== '' || currentRow.length > 0) {
+            currentRow.push(currentCell.trim());
+            if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0] !== '')) {
+                rows.push(currentRow);
+            }
+        }
+
+        if (rows.length < 2) return [];
+
+        const rawHeaders = rows[0].map(h => 
+            h.toLowerCase()
+             .normalize('NFD')
+             .replace(/[\u0300-\u036f]/g, '')
+             .replace(/[^a-z0-9_]/g, '_')
+        );
+
+        const result = [];
+        for (let r = 1; r < rows.length; r++) {
+            const rowData = rows[r];
+            const obj = {};
+            for (let c = 0; c < rawHeaders.length; c++) {
+                const header = rawHeaders[c];
+                const val = rowData[c] !== undefined ? rowData[c] : '';
+                obj[header] = val;
+            }
+
+            const taskObj = {
+                id: obj.id || '',
+                title: obj.titulo || obj.title || obj.nome || '',
+                client: obj.cliente || obj.client || obj.empresa || '',
+                client_category: obj.categoria_cliente || obj.categoria || obj.category || 'C',
+                stage: obj.coluna || obj.stage || obj.etapa || obj.fase || '',
+                priority: obj.prioridade || obj.priority || 'Média',
+                due_date: obj.prazo || obj.due_date || obj.data || '',
+                due_time: obj.horario || obj.due_time || obj.hora || '',
+                reminder_minutes: obj.lembrete_minutos !== undefined ? obj.lembrete_minutos : (obj.lembrete || '15'),
+                estimated_minutes: obj.tempo_estimado_min || obj.tempo_estimado || obj.estimated_minutes || '',
+                fixed_weekday: obj.fixar_dia || obj.dia_semana || obj.fixed_weekday || '',
+                description: obj.descricao || obj.description || '',
+                tags: obj.etiquetas || obj.tags || '',
+                status: obj.status || 'Pendente'
+            };
+
+            if (taskObj.title) {
+                result.push(taskObj);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Manipula o upload do arquivo de planilha (.csv)
+     */
+    KD.handleSpreadsheetFile = function (event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        const nameLabel = document.getElementById('spreadsheetFileName');
+        if (nameLabel) {
+            nameLabel.textContent = `Arquivo carregado: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            nameLabel.classList.remove('text-slate-500');
+            nameLabel.classList.add('text-indigo-400', 'font-semibold');
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const content = e.target.result;
+            parsedSpreadsheetRows = parseCsvText(content);
+            renderSpreadsheetPreview();
+        };
+        reader.readAsText(file, 'UTF-8');
+        event.target.value = '';
+    };
+
+    /**
+     * Renderiza o painel de pré-visualização das linhas da planilha
+     */
+    function renderSpreadsheetPreview() {
+        const section = document.getElementById('spreadsheetPreviewSection');
+        const tbody = document.getElementById('spreadsheetPreviewBody');
+        const totalBadge = document.getElementById('csvTotalBadge');
+        const updateBadge = document.getElementById('csvUpdateBadge');
+        const createBadge = document.getElementById('csvCreateBadge');
+        const submitBtn = document.getElementById('btnSubmitSpreadsheet');
+        const submitLabel = document.getElementById('btnSubmitSpreadsheetLabel');
+
+        if (!section || !tbody) return;
+
+        if (parsedSpreadsheetRows.length === 0) {
+            section.hidden = true;
+            if (submitBtn) submitBtn.disabled = true;
+            return;
+        }
+
+        section.hidden = false;
+        tbody.innerHTML = '';
+
+        let updateCount = 0;
+        let createCount = 0;
+
+        parsedSpreadsheetRows.forEach((row, idx) => {
+            const hasId = Boolean(row.id && String(row.id).trim() !== '' && Number(row.id) > 0);
+            if (hasId) updateCount++; else createCount++;
+
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-900/60 transition';
+
+            const actionBadge = hasId
+                ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30 whitespace-nowrap">Atualizar #${KD.escapeHtml(row.id)}</span>`
+                : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">Novo</span>`;
+
+            tr.innerHTML = `
+                <td class="p-2.5">${actionBadge}</td>
+                <td class="p-2.5 font-semibold text-white max-w-[200px] truncate" title="${KD.escapeHtml(row.title)}">${KD.escapeHtml(row.title)}</td>
+                <td class="p-2.5 text-slate-300 truncate max-w-[120px]">${KD.escapeHtml(row.client || '—')}</td>
+                <td class="p-2.5 text-slate-400 truncate max-w-[100px]">${KD.escapeHtml(row.stage || 'A Fazer')}</td>
+                <td class="p-2.5 font-mono text-slate-300 whitespace-nowrap">${KD.escapeHtml(row.due_date || '—')}</td>
+                <td class="p-2.5 font-mono text-amber-300 whitespace-nowrap">${KD.escapeHtml(row.due_time || '—')}</td>
+                <td class="p-2.5 text-slate-400 capitalize">${KD.escapeHtml(row.priority || 'Média')}</td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+
+        if (totalBadge) totalBadge.textContent = `${parsedSpreadsheetRows.length} tarefas detectadas`;
+        if (updateBadge) {
+            updateBadge.hidden = updateCount === 0;
+            updateBadge.textContent = `${updateCount} para atualizar`;
+        }
+        if (createBadge) {
+            createBadge.hidden = createCount === 0;
+            createBadge.textContent = `${createCount} novas`;
+        }
+
+        if (submitBtn) submitBtn.disabled = false;
+        if (submitLabel) submitLabel.textContent = `Importar ${parsedSpreadsheetRows.length} Tarefa${parsedSpreadsheetRows.length > 1 ? 's' : ''}`;
+    }
+
+    /**
+     * Envia os dados parseados da planilha para o backend
+     */
+    KD.submitSpreadsheetImport = async function () {
+        if (!parsedSpreadsheetRows || parsedSpreadsheetRows.length === 0) {
+            KD.toast('Nenhuma tarefa carregada na planilha.', { tone: 'warning' });
+            return;
+        }
+
+        const modeRadio = document.querySelector('input[name="spreadsheet_mode"]:checked');
+        const overwriteExisting = modeRadio ? (modeRadio.value === 'overwrite') : true;
+
+        const submitBtn = document.getElementById('btnSubmitSpreadsheet');
+        const submitLabel = document.getElementById('btnSubmitSpreadsheetLabel');
+
+        if (submitBtn) submitBtn.disabled = true;
+        if (submitLabel) submitLabel.innerHTML = '<span class="inline-block animate-spin mr-1">⌛</span> Processando planilha...';
+
+        try {
+            const res = await KD.api.post(KD.url('/api/tarefas'), {
+                action: 'spreadsheet_import',
+                overwrite_existing: overwriteExisting,
+                rows: parsedSpreadsheetRows
+            });
+
+            KD.toast(res.message || 'Planilha importada com sucesso!', { tone: 'success' });
+            KD.closeImportModal();
+
+            parsedSpreadsheetRows = [];
+            const fileNameEl = document.getElementById('spreadsheetFileName');
+            if (fileNameEl) {
+                fileNameEl.textContent = 'Formatos aceitos: .csv (separado por ponto e vírgula ou vírgula)';
+                fileNameEl.className = 'text-[11px] text-slate-500';
+            }
+            const previewSection = document.getElementById('spreadsheetPreviewSection');
+            if (previewSection) previewSection.hidden = true;
+
+            // Recarrega o quadro
+            if (typeof KD.loadBoard === 'function') {
+                await KD.loadBoard();
+            } else {
+                window.location.reload();
+            }
+
+        } catch (err) {
+            KD.toast(err.message || 'Erro ao importar planilha.', { tone: 'error' });
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+            if (submitLabel) submitLabel.textContent = 'Importar Planilha';
+        }
+    };
+
 })(window.KD);

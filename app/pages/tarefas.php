@@ -71,6 +71,17 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                         title="Modo Compacto (estilo Trello: apenas título e detalhes essenciais)" aria-label="Modo Compacto">
                     <i data-lucide="rows-3" class="w-4 h-4"></i>
                 </button>
+                <div class="w-px h-4 bg-slate-800 my-auto"></div>
+                <button type="button" onclick="KD.openImportModal()"
+                        class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition text-slate-400 hover:text-white"
+                        title="Importar Planilha (.csv) ou Lista (.txt)" aria-label="Importar Planilha">
+                    <i data-lucide="upload" class="w-4 h-4"></i>
+                </button>
+                <a href="<?= url('/api/tarefas?action=export_csv') ?>" download
+                   class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition text-slate-400 hover:text-white"
+                   title="Exportar Todas as Tarefas para Planilha (.csv)" aria-label="Exportar Planilha">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                </a>
             </div>
 
             <!-- Navegação de Semanas (apenas Visão por Dias da Semana) -->

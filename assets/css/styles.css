@@ -2792,3 +2792,23 @@ html.kd-dragging * {
 .kd-searchable-dropdown {
     z-index: 99999 !important;
 }
+
+/* Container e Animação de Lembretes Push Flutuantes */
+#kdReminderBannerContainer {
+    z-index: 999999 !important;
+}
+
+@keyframes kdReminderSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.kd-reminder-banner {
+    animation: kdReminderSlideDown 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

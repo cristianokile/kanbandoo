@@ -212,6 +212,11 @@ function kanbandoo_migrations(string $driver): array
             "ALTER TABLE tasks ADD COLUMN is_private $int DEFAULT 0",
             "ALTER TABLE tasks ADD COLUMN original_due_date VARCHAR(10) DEFAULT NULL",
         ],
+
+        // Notificações push e lembretes de tarefas com horário
+        '014_task_reminders_and_spreadsheet' => [
+            "ALTER TABLE tasks ADD COLUMN reminder_minutes $int DEFAULT 15",
+        ],
     ];
 }
 

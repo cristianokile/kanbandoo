@@ -29,6 +29,7 @@ $taskTemplates = $pdo->query("SELECT id, title, estimated_minutes, tags, descrip
 <script src="<?= asset('assets/js/kd-board.js') ?>"></script>
 <script src="<?= asset('assets/js/kd-task.js') ?>"></script>
 <script src="<?= asset('assets/js/kd-import.js') ?>"></script>
+<script src="<?= asset('assets/js/kd-reminders.js') ?>"></script>
 <script>
     if (window.lucide) lucide.createIcons();
 </script>

@@ -83,7 +83,7 @@ $navItems = [
                     <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
                 </button>
 
-                <div id="newTaskDropdownMenu" class="kd-menu kd-glass kd-glass--raised" role="menu" hidden style="min-width:14rem">
+                <div id="newTaskDropdownMenu" class="kd-menu kd-glass kd-glass--raised" role="menu" hidden style="min-width:15rem">
                     <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between" role="menuitem" onclick="KD.openTaskForm(); KD.closeMenus();">
                         <span class="flex items-center gap-2">
                             <i data-lucide="plus" class="w-4 h-4 text-indigo-400"></i>
@@ -93,10 +93,25 @@ $navItems = [
                     </button>
                     <div class="kd-menu__sep"></div>
                     <button type="button" class="kd-menu__item w-full text-left flex items-center gap-2.5" role="menuitem" onclick="KD.openImportModal(); KD.closeMenus();">
-                        <i data-lucide="list-plus" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
                         <span class="min-w-0">
-                            <span class="block text-xs font-semibold text-white">Importar em lote</span>
-                            <span class="block text-[10px] text-slate-400">Subir lista em texto (.txt)</span>
+                            <span class="block text-xs font-semibold text-white">Importar Planilha / Lote</span>
+                            <span class="block text-[10px] text-slate-400">Subir .csv ou lista .txt</span>
+                        </span>
+                    </button>
+                    <a href="<?= url('/api/tarefas?action=export_csv') ?>" download class="kd-menu__item w-full text-left flex items-center gap-2.5" role="menuitem" onclick="KD.closeMenus();">
+                        <i data-lucide="download" class="w-4 h-4 text-indigo-400 flex-shrink-0"></i>
+                        <span class="min-w-0">
+                            <span class="block text-xs font-semibold text-white">Exportar Planilha (.csv)</span>
+                            <span class="block text-[10px] text-slate-400">Baixar tarefas para o Excel</span>
+                        </span>
+                    </a>
+                    <div class="kd-menu__sep"></div>
+                    <button type="button" class="kd-menu__item w-full text-left flex items-center gap-2.5" role="menuitem" onclick="KD.requestNotificationPermission(); KD.closeMenus();">
+                        <i data-lucide="bell" class="w-4 h-4 text-amber-400 flex-shrink-0"></i>
+                        <span class="min-w-0">
+                            <span class="block text-xs font-semibold text-white">Notificações Push</span>
+                            <span class="block text-[10px] text-slate-400">Ativar lembretes de horário</span>
                         </span>
                     </button>
                 </div>

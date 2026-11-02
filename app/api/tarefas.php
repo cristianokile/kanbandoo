@@ -217,6 +217,219 @@ try {
     // GET: Listagem ou Detalhes de Tarefa
     // -------------------------------------------------------------
     if ($method === 'GET') {
+        $getAct = $_GET['action'] ?? '';
+
+        // ---------------------------------------------------------
+        // Exportar Tarefas para Planilha (.CSV com UTF-8 BOM para Excel)
+        // ---------------------------------------------------------
+        if ($getAct === 'export_csv') {
+            $stmt = $pdo->prepare("
+                SELECT t.id, t.title, t.description, t.priority, t.due_date, t.due_time,
+                       t.reminder_minutes, t.estimated_minutes, t.fixed_weekday, t.tags,
+                       t.status, t.completed_at, t.created_at,
+                       c.company_name AS client_name, c.category AS client_category,
+                       s.name AS stage_name
+                FROM tasks t
+                LEFT JOIN clients c ON t.client_id = c.id
+                LEFT JOIN task_stages s ON t.stage_id = s.id
+                WHERE t.deleted_at IS NULL
+                ORDER BY t.id DESC
+            ");
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $filename = 'kanbandoo_tarefas_' . date('Y-m-d_His') . '.csv';
+            header('Content-Type: text/csv; charset=UTF-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+
+            // UTF-8 BOM para acentuação perfeita no Microsoft Excel e Google Sheets
+            echo "ï»¿";
+
+            $out = fopen('php://output', 'w');
+            $del = ';';
+
+            fputcsv($out, [
+                'ID',
+                'Titulo',
+                'Cliente',
+                'Categoria_Cliente',
+                'Coluna',
+                'Prioridade',
+                'Prazo',
+                'Horario',
+                'Lembrete_Minutos',
+                'Tempo_Estimado_Min',
+                'Fixar_Dia',
+                'Descricao',
+                'Etiquetas',
+                'Status'
+            ], $del);
+
+            $weekdayNames = [
+                '0' => 'Domingo',
+                '1' => 'Segunda-feira',
+                '2' => 'Terça-feira',
+                '3' => 'Quarta-feira',
+                '4' => 'Quinta-feira',
+                '5' => 'Sexta-feira',
+                '6' => 'Sábado'
+            ];
+
+            $priorityMap = [
+                'low' => 'Baixa',
+                'medium' => 'Média',
+                'high' => 'Alta',
+                'urgent' => 'Urgente'
+            ];
+
+            foreach ($rows as $r) {
+                $prio = $priorityMap[$r['priority'] ?? ''] ?? ($r['priority'] ?: 'Média');
+                $prazo = '';
+                if (!empty($r['due_date'])) {
+                    $parts = explode('-', $r['due_date']);
+                    if (count($parts) === 3) {
+                        $prazo = "{$parts[2]}/{$parts[1]}/{$parts[0]}";
+                    } else {
+                        $prazo = $r['due_date'];
+                    }
+                }
+                $fixDay = '';
+                if ($r['fixed_weekday'] !== null && $r['fixed_weekday'] !== '') {
+                    $fixDay = $weekdayNames[(string)$r['fixed_weekday']] ?? '';
+                }
+
+                $tagList = '';
+                if (!empty($r['tags'])) {
+                    $decoded = json_decode($r['tags'], true);
+                    if (is_array($decoded)) {
+                        $tagList = implode(', ', $decoded);
+                    } else {
+                        $tagList = $r['tags'];
+                    }
+                }
+
+                $statusStr = !empty($r['completed_at']) ? 'Concluído' : 'Pendente';
+
+                fputcsv($out, [
+                    $r['id'],
+                    $r['title'],
+                    $r['client_name'] ?? '',
+                    $r['client_category'] ?? '',
+                    $r['stage_name'] ?? 'A Fazer',
+                    $prio,
+                    $prazo,
+                    $r['due_time'] ?? '',
+                    $r['reminder_minutes'] ?? '15',
+                    $r['estimated_minutes'] ?? '',
+                    $fixDay,
+                    $r['description'] ?? '',
+                    $tagList,
+                    $statusStr
+                ], $del);
+            }
+
+            fclose($out);
+            exit;
+        }
+
+        // ---------------------------------------------------------
+        // Download de Modelo Vazio de Planilha (.CSV)
+        // ---------------------------------------------------------
+        if ($getAct === 'template_csv') {
+            $filename = 'modelo_importacao_kanbandoo.csv';
+            header('Content-Type: text/csv; charset=UTF-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+
+            echo "ï»¿";
+            $out = fopen('php://output', 'w');
+            $del = ';';
+
+            fputcsv($out, [
+                'ID',
+                'Titulo',
+                'Cliente',
+                'Categoria_Cliente',
+                'Coluna',
+                'Prioridade',
+                'Prazo',
+                'Horario',
+                'Lembrete_Minutos',
+                'Tempo_Estimado_Min',
+                'Fixar_Dia',
+                'Descricao',
+                'Etiquetas',
+                'Status'
+            ], $del);
+
+            fputcsv($out, [
+                '',
+                'Criar nova campanha Google Ads',
+                'Exemplo Cliente Alpha',
+                'A',
+                'A Fazer',
+                'Alta',
+                date('d/m/Y', strtotime('+2 days')),
+                '14:00',
+                '15',
+                '60',
+                'Segunda-feira',
+                'Estruturar grupos de anúncios e palavras-chave negativas.',
+                'Google, Anúncios',
+                'Pendente'
+            ], $del);
+
+            fputcsv($out, [
+                '',
+                'Otimização semanal de criativos',
+                'Exemplo Cliente Beta',
+                'B',
+                'A Fazer',
+                'Média',
+                date('d/m/Y', strtotime('+3 days')),
+                '10:30',
+                '30',
+                '45',
+                '',
+                'Substituir criativos saturados e testar novos ganchos.',
+                'Meta, Criativos',
+                'Pendente'
+            ], $del);
+
+            fclose($out);
+            exit;
+        }
+
+        // ---------------------------------------------------------
+        // Lembretes de Tarefas com Horário (Próximas para Notificação Push)
+        // ---------------------------------------------------------
+        if ($getAct === 'upcoming_reminders') {
+            $today = date('Y-m-d');
+            $tomorrow = date('Y-m-d', strtotime('+1 day'));
+            $yesterday = date('Y-m-d', strtotime('-1 day'));
+
+            $remStmt = $pdo->prepare("
+                SELECT t.id, t.title, t.due_date, t.due_time, t.reminder_minutes, t.priority,
+                       c.company_name AS client_company
+                FROM tasks t
+                LEFT JOIN clients c ON t.client_id = c.id
+                WHERE t.deleted_at IS NULL
+                  AND t.completed_at IS NULL
+                  AND t.due_time IS NOT NULL
+                  AND t.due_time != ''
+                  AND (t.due_date BETWEEN :y AND :tm)
+                  AND (t.reminder_minutes >= 0 OR t.reminder_minutes IS NULL)
+                ORDER BY t.due_date ASC, t.due_time ASC
+            ");
+            $remStmt->execute([':y' => $yesterday, ':tm' => $tomorrow]);
+            $reminders = $remStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            json_response(['success' => true, 'reminders' => $reminders]);
+        }
+
         $taskId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
         if ($taskId > 0) {
@@ -339,7 +552,7 @@ try {
                    t.source, t.group_name, t.mentioned_by, t.whatsapp_url, t.completed_at, t.created_at,
                    t.estimated_minutes, t.is_recurring, t.recurrence_type, t.recurrence_config, t.parent_task_id,
                    t.is_calendar_event, t.show_in_kanban, t.is_private, t.original_due_date,
-                   t.fixed_weekday, t.record_type, t.recurrence_mode,
+                   t.fixed_weekday, t.record_type, t.recurrence_mode, t.reminder_minutes,
                    c.company_name AS client_company, c.category AS client_category,
                    s.slug AS stage_slug,
                    (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) AS checklist_total,
@@ -1193,6 +1406,7 @@ try {
             $priority = in_array($input['priority'] ?? '', ['low', 'medium', 'high', 'urgent'], true) ? $input['priority'] : 'medium';
             $dueDate = !empty($input['due_date']) ? $input['due_date'] : null;
             $dueTime = !empty($input['due_time']) ? trim((string)$input['due_time']) : null;
+            $reminderMinutes = isset($input['reminder_minutes']) && $input['reminder_minutes'] !== '' && $input['reminder_minutes'] !== null ? (int)$input['reminder_minutes'] : 15;
             $isCalendarEvent = isset($input['is_calendar_event']) ? (int)$input['is_calendar_event'] : 0;
             $showInKanban = isset($input['show_in_kanban']) ? (int)$input['show_in_kanban'] : 1;
             if ($dueTime !== null && !preg_match('/^\d{1,2}:\d{2}/', $dueTime)) { $dueTime = null; }
@@ -1262,7 +1476,7 @@ try {
                         description = :description, source = :source, group_name = :group_name,
                         mentioned_by = :mentioned_by, whatsapp_url = :whatsapp_url, tags = :tags,
                         is_recurring = :is_rec, recurrence_type = :rec_type, recurrence_config = :rec_cfg, is_private = :is_private,
-                        fixed_weekday = :fixed_wd, record_type = :rec_type_rec, recurrence_mode = :rec_mode,
+                        fixed_weekday = :fixed_wd, record_type = :rec_type_rec, recurrence_mode = :rec_mode, reminder_minutes = :reminder_minutes,
                         updated_at = :now
                     WHERE id = :id
                 ");
@@ -1289,6 +1503,7 @@ try {
                     ':fixed_wd' => $fixedWeekday,
                     ':rec_type_rec' => $recordType,
                     ':rec_mode' => $recurrenceMode,
+                    ':reminder_minutes' => $reminderMinutes,
                     ':now' => now(),
                     ':id' => $taskId,
                 ]);
@@ -1370,11 +1585,11 @@ try {
                     INSERT INTO tasks (title, client_id, stage_id, priority, due_date, due_time, is_calendar_event, show_in_kanban, estimated_minutes, description, created_by,
                                        status, source, group_name, mentioned_by, whatsapp_url, tags,
                                        is_recurring, recurrence_type, recurrence_config, is_private,
-                                       fixed_weekday, record_type, recurrence_mode, created_at, updated_at)
+                                       fixed_weekday, record_type, recurrence_mode, reminder_minutes, created_at, updated_at)
                     VALUES (:title, :client_id, :stage_id, :priority, :due_date, :due_time, :is_cal, :show_kanban, :est, :description, :created_by,
                             'open', :source, :group_name, :mentioned_by, :whatsapp_url, :tags,
                             :is_rec, :rec_type, :rec_cfg, :is_private,
-                            :fixed_wd, :rec_type_rec, :rec_mode, :now, :now2)
+                            :fixed_wd, :rec_type_rec, :rec_mode, :reminder_minutes, :now, :now2)
                 ");
                 $stmt->execute([
                     ':title' => $title,
@@ -1400,6 +1615,7 @@ try {
                     ':fixed_wd' => $fixedWeekday,
                     ':rec_type_rec' => $recordType,
                     ':rec_mode' => $recurrenceMode,
+                    ':reminder_minutes' => $reminderMinutes,
                     ':now' => now(),
                     ':now2' => now(),
                 ]);
@@ -1762,6 +1978,252 @@ try {
 
         
         // Importação em lote / massa
+        
+        // ---------------------------------------------------------
+        // Importação Inteligente de Planilha (.CSV / Excel)
+        // Opções: Substituir existentes ou Manter existentes (Apenas criar novas)
+        // ---------------------------------------------------------
+        if ($action === 'spreadsheet_import') {
+            $rawRows = $input['rows'] ?? [];
+            if (!is_array($rawRows) || empty($rawRows)) {
+                json_response(['error' => 'Nenhuma linha encontrada na planilha para importação.'], 400);
+            }
+
+            $overwriteExisting = !empty($input['overwrite_existing']);
+            $defaultStageId = !empty($input['stage_id']) ? (int)$input['stage_id'] : 1;
+            $defaultAssigneeId = !empty($input['assignee_id']) ? (int)$input['assignee_id'] : (int)$user['id'];
+            $defaultPriority = in_array($input['priority'] ?? '', ['low', 'medium', 'high', 'urgent'], true) ? $input['priority'] : 'medium';
+
+            // Cache de clientes existentes
+            $allClients = $pdo->query("SELECT id, company_name FROM clients")->fetchAll(PDO::FETCH_ASSOC);
+            $clientMap = [];
+            foreach ($allClients as $cl) {
+                $clientMap[kd_normalize_text($cl['company_name'])] = (int)$cl['id'];
+            }
+
+            // Cache de colunas (stages)
+            $allStages = $pdo->query("SELECT id, name, slug FROM task_stages ORDER BY sort_order ASC")->fetchAll(PDO::FETCH_ASSOC);
+            $stageMap = [];
+            foreach ($allStages as $stg) {
+                $stageMap[kd_normalize_text($stg['name'])] = (int)$stg['id'];
+                $stageMap[kd_normalize_text($stg['slug'])] = (int)$stg['id'];
+            }
+
+            $firstStageId = !empty($allStages[0]['id']) ? (int)$allStages[0]['id'] : 1;
+
+            $weekdayMap = [
+                'domingo' => 0, 'dom' => 0, '0' => 0,
+                'segunda' => 1, 'segunda-feira' => 1, 'seg' => 1, '1' => 1,
+                'terça' => 2, 'terca' => 2, 'terça-feira' => 2, 'terca-feira' => 2, 'ter' => 2, '2' => 2,
+                'quarta' => 3, 'quarta-feira' => 3, 'qua' => 3, '3' => 3,
+                'quinta' => 4, 'quinta-feira' => 4, 'qui' => 4, '4' => 4,
+                'sexta' => 5, 'sexta-feira' => 5, 'sex' => 5, '5' => 5,
+                'sábado' => 6, 'sabado' => 6, 'sab' => 6, '6' => 6
+            ];
+
+            $priorityNormalize = [
+                'baixa' => 'low', 'low' => 'low',
+                'media' => 'medium', 'média' => 'medium', 'medium' => 'medium',
+                'alta' => 'high', 'high' => 'high',
+                'urgente' => 'urgent', 'urgent' => 'urgent'
+            ];
+
+            $pdo->beginTransaction();
+            $updatedCount = 0;
+            $createdCount = 0;
+
+            $stmtCheckTask = $pdo->prepare("SELECT id FROM tasks WHERE id = :id AND deleted_at IS NULL");
+
+            $stmtUpdateTask = $pdo->prepare("
+                UPDATE tasks
+                SET title = :title,
+                    client_id = :client_id,
+                    stage_id = :stage_id,
+                    priority = :priority,
+                    due_date = :due_date,
+                    due_time = :due_time,
+                    reminder_minutes = :reminder_minutes,
+                    estimated_minutes = :estimated_minutes,
+                    fixed_weekday = :fixed_weekday,
+                    description = :description,
+                    tags = :tags,
+                    completed_at = :completed_at,
+                    updated_at = :now
+                WHERE id = :id
+            ");
+
+            $stmtInsertTask = $pdo->prepare("
+                INSERT INTO tasks (title, client_id, stage_id, priority, due_date, due_time,
+                                   reminder_minutes, estimated_minutes, fixed_weekday, description, tags,
+                                   status, completed_at, source, created_by, created_at, updated_at)
+                VALUES (:title, :client_id, :stage_id, :priority, :due_date, :due_time,
+                        :reminder_minutes, :estimated_minutes, :fixed_weekday, :description, :tags,
+                        :status, :completed_at, 'spreadsheet_import', :created_by, :now, :now2)
+            ");
+
+            $stmtAssignee = $pdo->prepare("INSERT INTO task_assignees (task_id, user_id) VALUES (:task_id, :user_id)");
+
+            foreach ($rawRows as $row) {
+                $title = trim((string)($row['title'] ?? $row['Titulo'] ?? $row['titulo'] ?? ''));
+                if ($title === '') continue;
+
+                $rawId = !empty($row['id']) ? (int)$row['id'] : (!empty($row['ID']) ? (int)$row['ID'] : 0);
+
+                // Resolver cliente
+                $rawClient = trim((string)($row['client'] ?? $row['Cliente'] ?? $row['cliente'] ?? ''));
+                $clientId = null;
+                if ($rawClient !== '') {
+                    $normCl = kd_normalize_text($rawClient);
+                    if (isset($clientMap[$normCl])) {
+                        $clientId = $clientMap[$normCl];
+                    } else {
+                        // Cadastra o cliente se não existir
+                        $rawCategory = trim((string)($row['client_category'] ?? $row['Categoria_Cliente'] ?? $row['categoria'] ?? 'C'));
+                        if (!in_array($rawCategory, ['A+', 'A', 'B', 'C', 'D'], true)) $rawCategory = 'C';
+                        $insCl = $pdo->prepare("INSERT INTO clients (company_name, category, status, created_at, updated_at) VALUES (:n, :c, 'active', :now, :now2)");
+                        $insCl->execute([':n' => $rawClient, ':c' => $rawCategory, ':now' => now(), ':now2' => now()]);
+                        $clientId = (int)$pdo->lastInsertId();
+                        $clientMap[$normCl] = $clientId;
+                    }
+                }
+
+                // Resolver coluna (stage)
+                $rawStage = trim((string)($row['stage'] ?? $row['Coluna'] ?? $row['coluna'] ?? ''));
+                $stageId = $defaultStageId;
+                if ($rawStage !== '') {
+                    $normStg = kd_normalize_text($rawStage);
+                    if (isset($stageMap[$normStg])) {
+                        $stageId = $stageMap[$normStg];
+                    }
+                }
+
+                // Resolver prioridade
+                $rawPrio = trim(mb_strtolower((string)($row['priority'] ?? $row['Prioridade'] ?? $row['prioridade'] ?? '')));
+                $priority = $priorityNormalize[$rawPrio] ?? $defaultPriority;
+
+                // Resolver prazo
+                $rawDate = trim((string)($row['due_date'] ?? $row['Prazo'] ?? $row['prazo'] ?? ''));
+                $dueDate = null;
+                if ($rawDate !== '') {
+                    if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $rawDate, $m)) {
+                        $dueDate = sprintf('%04d-%02d-%02d', (int)$m[3], (int)$m[2], (int)$m[1]);
+                    } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
+                        $dueDate = $rawDate;
+                    }
+                }
+
+                // Resolver horário
+                $rawTime = trim((string)($row['due_time'] ?? $row['Horario'] ?? $row['horario'] ?? ''));
+                $dueTime = null;
+                if ($rawTime !== '' && preg_match('/^\d{1,2}:\d{2}/', $rawTime)) {
+                    $dueTime = substr($rawTime, 0, 5);
+                }
+
+                // Resolver lembrete (minutos)
+                $rawRem = isset($row['reminder_minutes']) ? $row['reminder_minutes'] : (isset($row['Lembrete_Minutos']) ? $row['Lembrete_Minutos'] : '15');
+                $reminderMinutes = ($rawRem !== '' && $rawRem !== null) ? (int)$rawRem : 15;
+
+                // Resolver tempo estimado (minutos)
+                $rawEst = !empty($row['estimated_minutes']) ? (int)$row['estimated_minutes'] : (!empty($row['Tempo_Estimado_Min']) ? (int)$row['Tempo_Estimado_Min'] : null);
+                $estimatedMinutes = ($rawEst && $rawEst > 0) ? $rawEst : null;
+
+                // Resolver fixar dia da semana
+                $rawFix = trim(mb_strtolower((string)($row['fixed_weekday'] ?? $row['Fixar_Dia'] ?? $row['fixar_dia'] ?? '')));
+                $fixedWeekday = null;
+                if ($rawFix !== '' && isset($weekdayMap[$rawFix])) {
+                    $fixedWeekday = $weekdayMap[$rawFix];
+                }
+
+                // Resolver descrição
+                $description = trim((string)($row['description'] ?? $row['Descricao'] ?? $row['descricao'] ?? ''));
+
+                // Resolver etiquetas
+                $rawTags = trim((string)($row['tags'] ?? $row['Etiquetas'] ?? $row['etiquetas'] ?? ''));
+                $tagsArr = [];
+                if ($rawTags !== '') {
+                    $exploded = explode(',', $rawTags);
+                    foreach ($exploded as $tg) {
+                        $tg = trim($tg);
+                        if ($tg !== '') $tagsArr[] = $tg;
+                    }
+                }
+                $tagsJson = !empty($tagsArr) ? json_encode(array_slice($tagsArr, 0, 8), JSON_UNESCAPED_UNICODE) : '[]';
+
+                // Resolver status / conclusão
+                $rawStatus = trim(mb_strtolower((string)($row['status'] ?? $row['Status'] ?? '')));
+                $isCompleted = ($rawStatus === 'concluído' || $rawStatus === 'concluido' || $rawStatus === 'done' || $rawStatus === 'closed');
+                $completedAt = $isCompleted ? now() : null;
+                $statusStr = $isCompleted ? 'completed' : 'open';
+
+                $now = now();
+
+                // Decisão: Atualizar existente ou Inserir nova
+                $shouldUpdate = false;
+                if ($overwriteExisting && $rawId > 0) {
+                    $stmtCheckTask->execute([':id' => $rawId]);
+                    if ($stmtCheckTask->fetch()) {
+                        $shouldUpdate = true;
+                    }
+                }
+
+                if ($shouldUpdate) {
+                    $stmtUpdateTask->execute([
+                        ':title' => mb_substr($title, 0, 200, 'UTF-8'),
+                        ':client_id' => $clientId,
+                        ':stage_id' => $stageId,
+                        ':priority' => $priority,
+                        ':due_date' => $dueDate,
+                        ':due_time' => $dueTime,
+                        ':reminder_minutes' => $reminderMinutes,
+                        ':estimated_minutes' => $estimatedMinutes,
+                        ':fixed_weekday' => $fixedWeekday,
+                        ':description' => $description,
+                        ':tags' => $tagsJson,
+                        ':completed_at' => $completedAt,
+                        ':now' => $now,
+                        ':id' => $rawId
+                    ]);
+                    $updatedCount++;
+                } else {
+                    $stmtInsertTask->execute([
+                        ':title' => mb_substr($title, 0, 200, 'UTF-8'),
+                        ':client_id' => $clientId,
+                        ':stage_id' => $stageId,
+                        ':priority' => $priority,
+                        ':due_date' => $dueDate,
+                        ':due_time' => $dueTime,
+                        ':reminder_minutes' => $reminderMinutes,
+                        ':estimated_minutes' => $estimatedMinutes,
+                        ':fixed_weekday' => $fixedWeekday,
+                        ':description' => $description,
+                        ':tags' => $tagsJson,
+                        ':status' => $statusStr,
+                        ':completed_at' => $completedAt,
+                        ':created_by' => (int)$user['id'],
+                        ':now' => $now,
+                        ':now2' => $now
+                    ]);
+                    $newTaskId = (int)$pdo->lastInsertId();
+                    // Atribui ao usuário padrão se fornecido
+                    if ($defaultAssigneeId > 0) {
+                        try {
+                            $stmtAssignee->execute([':task_id' => $newTaskId, ':user_id' => $defaultAssigneeId]);
+                        } catch (Throwable $e) {}
+                    }
+                    $createdCount++;
+                }
+            }
+
+            $pdo->commit();
+
+            json_response([
+                'success' => true,
+                'updated' => $updatedCount,
+                'created' => $createdCount,
+                'message' => "Importação concluída! {$updatedCount} tarefa(s) atualizada(s) e {$createdCount} nova(s) criada(s)."
+            ]);
+        }
+
         if ($action === 'bulk_import') {
             $rawItems = $input['tasks'] ?? [];
             if (!is_array($rawItems) || empty($rawItems)) {
