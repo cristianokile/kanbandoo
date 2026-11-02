@@ -278,20 +278,6 @@ function calculate_next_recurrence_date(?string $currentDueDate, ?string $recurr
 {
     $today = new DateTime('today');
 
-    // Se a tarefa tem dia fixo da semana (0=Dom a 6=Sáb) e é semanal/quinzenal:
-    // Garante que mesmo que tenha sido remanejada para outro dia na semana, a próxima caia no dia fixo da semana seguinte!
-    if ($fixedWeekday !== null && $fixedWeekday >= 0 && $fixedWeekday <= 6 && in_array($recurrenceType, ['weekly', 'biweekly'], true)) {
-        $target = clone $today;
-        $target->modify('+1 day');
-        while ((int)$target->format('w') !== $fixedWeekday || $target <= $today) {
-            $target->modify('+1 day');
-        }
-        if ($recurrenceType === 'biweekly') {
-            $target->modify('+1 week');
-        }
-        return $target->format('Y-m-d');
-    }
-
     if (!empty($currentDueDate)) {
         try {
             $baseDate = new DateTime($currentDueDate);
@@ -302,43 +288,61 @@ function calculate_next_recurrence_date(?string $currentDueDate, ?string $recurr
         $baseDate = clone $today;
     }
 
+    $refDate = ($baseDate > $today) ? clone $baseDate : clone $today;
+
+    // Se a tarefa tem dia fixo da semana (0=Dom a 6=Sáb) e é semanal/quinzenal:
+    // Garante que mesmo que tenha sido remanejada para outro dia na semana, a próxima caia no dia fixo da semana seguinte!
+    if ($fixedWeekday !== null && $fixedWeekday >= 0 && $fixedWeekday <= 6 && in_array($recurrenceType, ['weekly', 'biweekly'], true)) {
+        $target = clone $refDate;
+        do {
+            $target->modify('+1 day');
+        } while ((int)$target->format('w') !== $fixedWeekday || $target <= $today || $target <= $baseDate);
+
+        if ($recurrenceType === 'biweekly') {
+            $target->modify('+1 week');
+        }
+        return $target->format('Y-m-d');
+    }
+
     switch ($recurrenceType) {
         case 'daily':
-            if ($baseDate <= $today) {
-                $baseDate = clone $today;
-            }
-            $baseDate->modify('+1 day');
-            break;
+            $cursor = clone $refDate;
+            $cursor->modify('+1 day');
+            return $cursor->format('Y-m-d');
 
         case 'weekly':
             // Avança semana a semana preservando rigorosamente o dia da semana original
+            $cursor = clone $refDate;
             do {
-                $baseDate->modify('+1 week');
-            } while ($baseDate <= $today);
-            break;
+                $cursor->modify('+1 week');
+            } while ($cursor <= $today || $cursor <= $baseDate);
+            return $cursor->format('Y-m-d');
 
         case 'biweekly':
             // Avança a cada duas semanas preservando o dia da semana original
+            $cursor = clone $refDate;
             do {
-                $baseDate->modify('+2 weeks');
-            } while ($baseDate <= $today);
-            break;
+                $cursor->modify('+2 weeks');
+            } while ($cursor <= $today || $cursor <= $baseDate);
+            return $cursor->format('Y-m-d');
 
         case 'monthly':
             $targetDay = (int)$baseDate->format('d');
+            $cursor = clone $refDate;
             do {
-                $baseDate->modify('+1 month');
-                $maxDays = (int)$baseDate->format('t');
+                $cursor->modify('first day of next month');
+                $maxDays = (int)$cursor->format('t');
                 $d = min($targetDay, $maxDays);
-                $baseDate->setDate((int)$baseDate->format('Y'), (int)$baseDate->format('m'), $d);
-            } while ($baseDate <= $today);
-            break;
+                $cursor->setDate((int)$cursor->format('Y'), (int)$cursor->format('m'), $d);
+            } while ($cursor <= $today || $cursor <= $baseDate);
+            return $cursor->format('Y-m-d');
 
         case 'yearly':
+            $cursor = clone $refDate;
             do {
-                $baseDate->modify('+1 year');
-            } while ($baseDate <= $today);
-            break;
+                $cursor->modify('+1 year');
+            } while ($cursor <= $today || $cursor <= $baseDate);
+            return $cursor->format('Y-m-d');
 
         case 'custom':
             $cfg = !empty($recurrenceConfigJson) ? json_decode($recurrenceConfigJson, true) : [];
@@ -346,51 +350,51 @@ function calculate_next_recurrence_date(?string $currentDueDate, ?string $recurr
 
             if ($type === 'monthday' && !empty($cfg['day'])) {
                 $targetDay = min(31, max(1, (int)$cfg['day']));
-                $cursor = clone $today;
-                $maxDays = (int)$cursor->format('t');
-                $target = new DateTime();
-                $target->setDate((int)$cursor->format('Y'), (int)$cursor->format('m'), min($targetDay, $maxDays));
-                while ($target <= $today) {
-                    $target->modify('+1 month');
+                $target = clone $refDate;
+                $maxDays = (int)$target->format('t');
+                $target->setDate((int)$target->format('Y'), (int)$target->format('m'), min($targetDay, $maxDays));
+                while ($target <= $today || $target <= $baseDate) {
+                    $target->modify('first day of next month');
                     $maxDays = (int)$target->format('t');
                     $target->setDate((int)$target->format('Y'), (int)$target->format('m'), min($targetDay, $maxDays));
                 }
                 return $target->format('Y-m-d');
             } elseif ($type === 'weekdays' && !empty($cfg['days']) && is_array($cfg['days'])) {
                 $days = array_map('intval', $cfg['days']);
-                $cursor = clone $today;
-                for ($i = 1; $i <= 30; $i++) {
+                $cursor = clone $refDate;
+                for ($i = 1; $i <= 60; $i++) {
                     $cursor->modify('+1 day');
                     $w = (int)$cursor->format('w');
-                    if (in_array($w, $days, true)) {
+                    if (in_array($w, $days, true) && $cursor > $today && $cursor > $baseDate) {
                         return $cursor->format('Y-m-d');
                     }
                 }
                 do {
-                    $baseDate->modify('+1 week');
-                } while ($baseDate <= $today);
+                    $cursor->modify('+1 week');
+                } while ($cursor <= $today || $cursor <= $baseDate);
+                return $cursor->format('Y-m-d');
             } else {
+                $cursor = clone $refDate;
                 do {
-                    $baseDate->modify('+1 week');
-                } while ($baseDate <= $today);
+                    $cursor->modify('+1 week');
+                } while ($cursor <= $today || $cursor <= $baseDate);
+                return $cursor->format('Y-m-d');
             }
-            break;
 
         default:
+            $cursor = clone $refDate;
             do {
-                $baseDate->modify('+1 week');
-            } while ($baseDate <= $today);
-            break;
+                $cursor->modify('+1 week');
+            } while ($cursor <= $today || $cursor <= $baseDate);
+            return $cursor->format('Y-m-d');
     }
-
-    return $baseDate->format('Y-m-d');
 }
 
 /**
  * Cria a próxima ocorrência da tarefa se ela for recorrente.
  */
 /**
- * Garante que a serie recorrente tenha ocorrencias futuras agendadas (por padrao 4 ciclos).
+ * Garante que a serie recorrente tenha ocorrencias futuras agendadas.
  * Respeita rigorosamente o modo 'duplicate' (copia comentarios e subtarefas) ou 'new' (sem comentarios).
  */
 function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $user, ?int $targetCount = null): array
@@ -425,10 +429,35 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
 
     $todayStr = date('Y-m-d');
     $recurrenceType = $task['recurrence_type'] ?? 'weekly';
+    $recurrenceConfig = $task['recurrence_config'] ?? null;
+
+    // Se a recorrência for personalizada por dias da semana, remove quaisquer ocorrências futuras órfãs ou geradas incorretamente fora dos dias permitidos
+    if ($recurrenceType === 'custom') {
+        $cfg = !empty($recurrenceConfig) ? json_decode($recurrenceConfig, true) : [];
+        if (($cfg['type'] ?? '') === 'weekdays' && !empty($cfg['days']) && is_array($cfg['days'])) {
+            $allowedDays = array_map('intval', $cfg['days']);
+            $futureStmt = $pdo->prepare("
+                SELECT id, due_date FROM tasks
+                WHERE (id = :p OR parent_task_id = :p)
+                  AND id != :orig_id
+                  AND due_date >= :today
+                  AND deleted_at IS NULL
+                  AND completed_at IS NULL
+            ");
+            $futureStmt->execute([':p' => $seriesParentId, ':orig_id' => $taskId, ':today' => $todayStr]);
+            $futureOccs = $futureStmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($futureOccs as $fOcc) {
+                if (!empty($fOcc['due_date'])) {
+                    $w = (int)date('w', strtotime($fOcc['due_date']));
+                    if (!in_array($w, $allowedDays, true)) {
+                        $pdo->prepare("DELETE FROM tasks WHERE id = :id")->execute([':id' => $fOcc['id']]);
+                    }
+                }
+            }
+        }
+    }
 
     // Horizonte de ocorrencias por tipo de frequencia:
-    // Garante que tarefas diarias cubram ate 60 dias (2 meses inteiros) adiante,
-    // semanais cubram 26 semanas (6 meses), mensais 12 meses (1 ano), etc.
     if ($targetCount === null || $targetCount <= 4) {
         switch ($recurrenceType) {
             case 'daily':
@@ -447,7 +476,8 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
                 $targetCount = 3;  // 3 anos
                 break;
             case 'custom':
-                $targetCount = 30;
+                $cfg = !empty($recurrenceConfig) ? json_decode($recurrenceConfig, true) : [];
+                $targetCount = (($cfg['type'] ?? '') === 'weekdays') ? 60 : 24;
                 break;
             default:
                 $targetCount = 26;
@@ -484,7 +514,6 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
 
     $createdIds = [];
     $fixedWd = isset($task['fixed_weekday']) && $task['fixed_weekday'] !== null && $task['fixed_weekday'] !== '' ? (int)$task['fixed_weekday'] : null;
-    $recurrenceConfig = $task['recurrence_config'] ?? null;
     $recurrenceMode = in_array($task['recurrence_mode'] ?? '', ['duplicate', 'new'], true) ? $task['recurrence_mode'] : 'duplicate';
     $dueTime = $task['due_time'] ?? null;
     $recordType = (!empty($dueTime) || ($task['record_type'] ?? '') === 'event') ? 'event' : ($task['record_type'] ?? 'task');
@@ -512,7 +541,22 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
         $nextDueDate = calculate_next_recurrence_date($lastDueDate, $recurrenceType, $recurrenceConfig, $fixedWd);
         if ($nextDueDate <= $lastDueDate) {
             $dt = new DateTime($lastDueDate);
-            $dt->modify('+1 day');
+            if ($recurrenceType === 'custom') {
+                $cfg = !empty($recurrenceConfig) ? json_decode($recurrenceConfig, true) : [];
+                if (($cfg['type'] ?? '') === 'weekdays' && !empty($cfg['days']) && is_array($cfg['days'])) {
+                    $days = array_map('intval', $cfg['days']);
+                    for ($s = 1; $s <= 14; $s++) {
+                        $dt->modify('+1 day');
+                        if (in_array((int)$dt->format('w'), $days, true)) {
+                            break;
+                        }
+                    }
+                } else {
+                    $dt->modify('+1 day');
+                }
+            } else {
+                $dt->modify('+1 day');
+            }
             $nextDueDate = $dt->format('Y-m-d');
         }
 
@@ -539,14 +583,15 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
             ':now' => $nowStr,
             ':now2' => $nowStr,
         ]);
+
         $newTaskId = (int)$pdo->lastInsertId();
         $createdIds[] = $newTaskId;
 
-        $assigneesStmt->execute([':new_id' => $newTaskId, ':orig_id' => $taskId]);
-        $checklistStmt->execute([':new_id' => $newTaskId, ':orig_id' => $taskId]);
+        $assigneesStmt->execute([':new_id' => $newTaskId, ':orig_id' => $seriesParentId]);
+        $checklistStmt->execute([':new_id' => $newTaskId, ':orig_id' => $seriesParentId]);
 
         if ($recurrenceMode === 'duplicate') {
-            $commentsStmt->execute([':new_id' => $newTaskId, ':orig_id' => $taskId, ':now' => $nowStr]);
+            $commentsStmt->execute([':new_id' => $newTaskId, ':orig_id' => $seriesParentId, ':now' => $nowStr]);
         }
 
         $lastDueDate = $nextDueDate;
