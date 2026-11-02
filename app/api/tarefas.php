@@ -245,7 +245,7 @@ try {
             header('Expires: 0');
 
             // UTF-8 BOM para acentuação perfeita no Microsoft Excel e Google Sheets
-            echo "ï»¿";
+            echo "\xEF\xBB\xBF";
 
             $out = fopen('php://output', 'w');
             $del = ';';
@@ -344,7 +344,7 @@ try {
             header('Pragma: no-cache');
             header('Expires: 0');
 
-            echo "ï»¿";
+            echo "\xEF\xBB\xBF";
             $out = fopen('php://output', 'w');
             $del = ';';
 
@@ -1684,6 +1684,52 @@ try {
             }, $rows);
 
             json_response(['success' => true, 'trash' => $trash, 'total' => count($trash)]);
+        }
+
+        // 10.0.0 Resetar todas as tarefas (Limpeza Geral do Quadro)
+        if ($action === 'reset_all_tasks') {
+            $confirm = $input['confirm'] ?? false;
+            $confirmText = trim((string)($input['confirm_text'] ?? ''));
+            if ($confirm !== true && strtoupper($confirmText) !== 'RESETAR') {
+                json_response(['error' => 'Confirmação necessária. Digite RESETAR para confirmar a exclusão total.'], 400);
+            }
+
+            try {
+                $pdo->beginTransaction();
+
+                $pdo->exec("DELETE FROM task_assignees");
+                $pdo->exec("DELETE FROM task_checklists");
+                $pdo->exec("DELETE FROM task_comments");
+                $pdo->exec("DELETE FROM task_attachments");
+                $pdo->exec("DELETE FROM task_history");
+                $pdo->exec("DELETE FROM task_summaries");
+                $deletedTasks = $pdo->exec("DELETE FROM tasks");
+
+                $driver = defined('DB_DRIVER') ? DB_DRIVER : 'sqlite';
+                if ($driver === 'sqlite') {
+                    try {
+                        $pdo->exec("DELETE FROM sqlite_sequence WHERE name IN ('tasks', 'task_checklists', 'task_comments', 'task_attachments', 'task_history', 'task_summaries')");
+                    } catch (\Throwable $e) {}
+                } else {
+                    try {
+                        $pdo->exec("ALTER TABLE tasks AUTO_INCREMENT = 1");
+                        $pdo->exec("ALTER TABLE task_checklists AUTO_INCREMENT = 1");
+                        $pdo->exec("ALTER TABLE task_comments AUTO_INCREMENT = 1");
+                        $pdo->exec("ALTER TABLE task_history AUTO_INCREMENT = 1");
+                    } catch (\Throwable $e) {}
+                }
+
+                $pdo->commit();
+
+                json_response([
+                    'success' => true,
+                    'deleted_count' => (int)$deletedTasks,
+                    'message' => 'Todas as tarefas, subtarefas, comentários e históricos foram apagados com sucesso! O quadro está limpo.'
+                ]);
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                json_response(['error' => 'Erro ao resetar tarefas: ' . $e->getMessage()], 500);
+            }
         }
 
         // 10.0.1 Esvaziar lixeira completamente

@@ -107,6 +107,23 @@ $currentUser = current_user();
                     <p class="text-xs font-semibold text-white mb-1">Clique para selecionar ou arraste sua planilha aqui</p>
                     <p class="text-[11px] text-slate-500" id="spreadsheetFileName">Formatos aceitos: .csv (separado por ponto e vírgula ou vírgula)</p>
                 </div>
+
+                <!-- Opção de colar tabela/CSV diretamente -->
+                <div class="pt-1">
+                    <button type="button" onclick="KD.toggleSpreadsheetPaste()" class="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 transition">
+                        <i data-lucide="clipboard-copy" class="w-3.5 h-3.5"></i>
+                        <span id="btnToggleSpreadsheetPasteLabel">Ou colar texto copiado do Excel / Sheets</span>
+                    </button>
+                    <div id="spreadsheetPasteWrap" class="mt-2 space-y-2" hidden>
+                        <textarea id="spreadsheetPasteInput" rows="4" placeholder="Cole aqui o conteúdo copiado de sua planilha (com cabeçalhos)..."
+                                  class="w-full p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-200 font-mono text-xs leading-relaxed focus:outline-none focus:border-indigo-500 transition resize-y"></textarea>
+                        <div class="flex justify-end">
+                            <button type="button" onclick="KD.parsePastedCsv()" class="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 text-xs font-semibold flex items-center gap-1.5 transition border border-indigo-500/30">
+                                <i data-lucide="check" class="w-3.5 h-3.5"></i> Processar Texto Colado
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Pré-visualização da Planilha Parseada -->
@@ -138,6 +155,24 @@ $currentUser = current_user();
                             <!-- Renderizado via JS -->
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Seção de Reset de Tarefas (Zerar Quadro) -->
+            <div class="mt-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-2">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="space-y-0.5">
+                        <span class="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i> Opção de Reset do Quadro (Apagar Todas as Tarefas)
+                        </span>
+                        <p class="text-[11px] text-slate-400">
+                            Apaga definitivamente todas as tarefas, checklists, comentários e histórico de execuções. Mantém suas empresas, equipe e colunas do Kanban intactos.
+                        </p>
+                    </div>
+                    <button type="button" onclick="KD.openResetTasksModal()" class="px-3.5 py-2 rounded-xl bg-rose-600/25 hover:bg-rose-600/40 text-rose-200 text-xs font-bold flex items-center gap-1.5 transition border border-rose-500/30 shadow-sm flex-shrink-0">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
+                        <span>Resetar Todas as Tarefas</span>
+                    </button>
                 </div>
             </div>
 
@@ -250,5 +285,61 @@ $currentUser = current_user();
             </form>
         </div>
 
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Reset de Tarefas -->
+<div id="resetTasksModal" class="kd-modal" role="dialog" aria-modal="true" aria-labelledby="resetModalTitle" hidden style="z-index:999999">
+    <div class="kd-modal__panel kd-modal__panel--md kd-glass kd-glass--raised border border-rose-500/30">
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-3 mb-3 border-b border-rose-500/20">
+            <div class="flex items-center gap-2.5">
+                <span class="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center">
+                    <i data-lucide="alert-octagon" class="w-5 h-5 text-rose-400"></i>
+                </span>
+                <div>
+                    <h3 id="resetModalTitle" class="text-base font-bold text-white flex items-center gap-2">
+                        Resetar Todas as Tarefas
+                    </h3>
+                    <p class="text-xs text-rose-300 mt-0.5">Ação destrutiva e irreversível</p>
+                </div>
+            </div>
+            <button type="button" class="kd-icon-btn" onclick="KD.closeResetTasksModal()" aria-label="Fechar">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="space-y-3 text-xs text-slate-300 py-1">
+            <p class="leading-relaxed">
+                Você está prestes a <strong>apagar todas as tarefas</strong> cadastradas no KanbanDoo. Todos os dados associados a tarefas (subtarefas/checklists, comentários, históricos, cronômetros e anexos) serão excluídos permanentemente.
+            </p>
+            <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+                <p class="text-emerald-400 font-semibold flex items-center gap-1">
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i> O que será mantido intacto:
+                </p>
+                <p>&bull; Suas empresas e clientes cadastrados</p>
+                <p>&bull; Usuários, membros da equipe e permissões</p>
+                <p>&bull; Colunas e configurações do Kanban</p>
+                <p>&bull; Anotações e base de conhecimento</p>
+            </div>
+            <div>
+                <label for="resetConfirmInput" class="block font-bold text-slate-200 mb-1">
+                    Para confirmar, digite <span class="text-rose-400 font-mono tracking-wider">RESETAR</span> abaixo:
+                </label>
+                <input type="text" id="resetConfirmInput" placeholder="Digite RESETAR" 
+                       class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-center uppercase focus:outline-none focus:border-rose-500 transition">
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-4 mt-3 border-t border-slate-800 text-xs">
+            <button type="button" class="kd-btn kd-glass" onclick="KD.closeResetTasksModal()">
+                Cancelar
+            </button>
+            <button type="button" id="btnConfirmResetTasks" onclick="KD.submitResetTasks()" 
+                    class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center gap-1.5 transition shadow-lg shadow-rose-600/30">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                <span id="btnConfirmResetLabel">Sim, Apagar Todas as Tarefas</span>
+            </button>
+        </div>
     </div>
 </div>

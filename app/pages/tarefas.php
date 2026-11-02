@@ -190,10 +190,14 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                             </button>
                         </div>
                     </div>
-                    <div class="border-t border-slate-800 pt-1.5 mt-1.5 px-2">
+                    <div class="border-t border-slate-800 pt-1.5 mt-1.5 px-2 space-y-0.5">
                         <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between text-xs py-1 text-red-400 hover:text-red-300 transition" onclick="KD.openTrashModal()">
                             <span class="flex items-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Lixeira de Tarefas</span>
                             <span class="text-[10px] text-slate-500">30 dias</span>
+                        </button>
+                        <button type="button" class="kd-menu__item w-full text-left flex items-center justify-between text-xs py-1 text-rose-400 hover:text-rose-300 transition" onclick="KD.openResetTasksModal()">
+                            <span class="flex items-center gap-1.5"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Resetar Tarefas</span>
+                            <span class="text-[10px] text-rose-500/80 font-bold">Zerar</span>
                         </button>
                     </div>
                 </div>

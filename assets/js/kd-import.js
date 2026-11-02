@@ -184,6 +184,7 @@ window.KD = window.KD || {};
         if (textInput) {
             setTimeout(() => textInput.focus(), 80);
         }
+        setupSpreadsheetDropZone();
         if (window.lucide) lucide.createIcons();
     };
 
@@ -277,6 +278,7 @@ window.KD = window.KD || {};
         });
 
         previewList.innerHTML = html;
+        setupSpreadsheetDropZone();
         if (window.lucide) lucide.createIcons();
 
         const activeTotal = parsedTasks.filter(t => t.enabled).length;
@@ -408,11 +410,12 @@ window.KD = window.KD || {};
     };
 
 
-    // ===============================================================
+    // ===============================================================\n\n    // ===============================================================
     // Importação & Exportação via Planilha (CSV / Excel)
     // ===============================================================
 
     let parsedSpreadsheetRows = [];
+    let dropZoneInitialized = false;
 
     /**
      * Alterna entre a aba de Planilha e a aba de Lista Rápida (TXT)
@@ -432,6 +435,7 @@ window.KD = window.KD || {};
             if (btnText) {
                 btnText.className = 'px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800/80';
             }
+            setupSpreadsheetDropZone();
         } else {
             if (tabSpreadsheet) tabSpreadsheet.hidden = true;
             if (tabText) tabText.hidden = false;
@@ -445,30 +449,79 @@ window.KD = window.KD || {};
     };
 
     /**
-     * Parser robusto de CSV universal (lida com aspas, BOM, quebras de linha e delimitador ; ou ,)
+     * Limpa e normaliza o nome do cabeçalho de coluna
+     */
+    function cleanHeader(h) {
+        return String(h || '')
+            .replace(/^[\uFEFF\uFFFE\u00EF\u00BB\u00BF\s"'ï»¿]+/, '')
+            .replace(/["'\s]+$/, '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, '');
+    }
+
+    const HEADER_ALIASES = {
+        title: ['titulo', 'title', 'nome', 'tarefa', 'atividade', 'task', 'name', 'assunto'],
+        id: ['id', 'codigo', 'cod'],
+        client: ['cliente', 'client', 'empresa', 'company', 'clienteempresa'],
+        client_category: ['categoriacliente', 'categoria', 'category', 'clientcategory'],
+        stage: ['coluna', 'stage', 'etapa', 'fase', 'column', 'colunakanban'],
+        priority: ['prioridade', 'priority', 'prio', 'urgencia'],
+        due_date: ['prazo', 'duedate', 'data', 'vencimento', 'datadeentrega', 'date'],
+        due_time: ['horario', 'duetime', 'hora', 'time', 'horamarcada'],
+        reminder_minutes: ['lembreteminutos', 'lembrete', 'alerta', 'reminderminutes', 'reminder'],
+        estimated_minutes: ['tempoestimadomin', 'tempoestimado', 'estimativa', 'estimatedminutes', 'minutos', 'tempo'],
+        fixed_weekday: ['fixardia', 'fixardiasemana', 'diasemana', 'fixedweekday', 'weekday', 'dianasemana'],
+        description: ['descricao', 'description', 'detalhes', 'notas', 'desc', 'observacoes'],
+        tags: ['etiquetas', 'tags', 'labels', 'marcadores'],
+        status: ['status', 'situacao', 'estado', 'concluido']
+    };
+
+    function matchField(cleanH) {
+        for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
+            if (aliases.includes(cleanH)) {
+                return field;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Parser universal de CSV (suporta UTF-8 com/sem BOM, ANSI/Windows-1252, aspas duplas, quebras de linha e delimitadores ; , \t)
      */
     function parseCsvText(csvText) {
         if (!csvText) return [];
-        if (csvText.charCodeAt(0) === 0xFEFF) {
-            csvText = csvText.slice(1);
-        }
 
-        const firstLine = csvText.split(/\r\n|\n|\r/)[0] || '';
-        const semicolonCount = (firstLine.match(/;/g) || []).length;
-        const commaCount = (firstLine.match(/,/g) || []).length;
-        const tabCount = (firstLine.match(/\t/g) || []).length;
+        // Remove BOM inicial e resíduos de codificação
+        let raw = String(csvText)
+            .replace(/^[\uFEFF\uFFFE\u00EF\u00BB\u00BF\sï»¿]+/, '')
+            .trimStart();
+
+        if (!raw) return [];
+
+        // Detecta o melhor delimitador olhando as primeiras 5 linhas
+        const previewLines = raw.split(/\r\n|\n|\r/).slice(0, 5);
+        let countSemi = 0, countComma = 0, countTab = 0;
+        previewLines.forEach(l => {
+            countSemi += (l.match(/;/g) || []).length;
+            countComma += (l.match(/,/g) || []).length;
+            countTab += (l.match(/\t/g) || []).length;
+        });
+
         let delimiter = ';';
-        if (tabCount > semicolonCount && tabCount > commaCount) delimiter = '\t';
-        else if (commaCount > semicolonCount) delimiter = ',';
+        if (countTab > countSemi && countTab > countComma) delimiter = '\t';
+        else if (countComma > countSemi) delimiter = ',';
 
+        // Tokenização respeitando aspas
         const rows = [];
         let currentRow = [];
         let currentCell = '';
         let insideQuotes = false;
 
-        for (let i = 0; i < csvText.length; i++) {
-            const char = csvText[i];
-            const nextChar = csvText[i + 1];
+        for (let i = 0; i < raw.length; i++) {
+            const char = raw[i];
+            const nextChar = raw[i + 1];
 
             if (char === '"') {
                 if (insideQuotes && nextChar === '"') {
@@ -494,6 +547,7 @@ window.KD = window.KD || {};
                 currentCell += char;
             }
         }
+
         if (currentCell !== '' || currentRow.length > 0) {
             currentRow.push(currentCell.trim());
             if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0] !== '')) {
@@ -503,39 +557,67 @@ window.KD = window.KD || {};
 
         if (rows.length < 2) return [];
 
-        const rawHeaders = rows[0].map(h => 
-            h.toLowerCase()
-             .normalize('NFD')
-             .replace(/[\u0300-\u036f]/g, '')
-             .replace(/[^a-z0-9_]/g, '_')
-        );
+        // Mapeia os cabeçalhos da primeira linha
+        const headerRow = rows[0];
+        const fieldMapping = {}; // colIndex -> fieldName
+        let hasTitleColumn = false;
+
+        headerRow.forEach((cell, idx) => {
+            const cleaned = cleanHeader(cell);
+            const matched = matchField(cleaned);
+            if (matched) {
+                fieldMapping[idx] = matched;
+                if (matched === 'title') hasTitleColumn = true;
+            }
+        });
+
+        // Se nenhuma coluna casou com 'title', tenta o primeiro ou segundo campo não numérico
+        if (!hasTitleColumn) {
+            if (headerRow.length === 1) {
+                fieldMapping[0] = 'title';
+            } else {
+                for (let c = 0; c < headerRow.length; c++) {
+                    if (!fieldMapping[c]) {
+                        fieldMapping[c] = 'title';
+                        break;
+                    }
+                }
+            }
+        }
 
         const result = [];
         for (let r = 1; r < rows.length; r++) {
             const rowData = rows[r];
-            const obj = {};
-            for (let c = 0; c < rawHeaders.length; c++) {
-                const header = rawHeaders[c];
-                const val = rowData[c] !== undefined ? rowData[c] : '';
-                obj[header] = val;
+            const taskObj = {
+                id: '',
+                title: '',
+                client: '',
+                client_category: 'C',
+                stage: '',
+                priority: 'Média',
+                due_date: '',
+                due_time: '',
+                reminder_minutes: '15',
+                estimated_minutes: '',
+                fixed_weekday: '',
+                description: '',
+                tags: '',
+                status: 'Pendente'
+            };
+
+            for (let c = 0; c < rowData.length; c++) {
+                const fieldName = fieldMapping[c];
+                const rawVal = rowData[c] !== undefined ? String(rowData[c]).trim() : '';
+                if (fieldName) {
+                    taskObj[fieldName] = rawVal;
+                }
             }
 
-            const taskObj = {
-                id: obj.id || '',
-                title: obj.titulo || obj.title || obj.nome || '',
-                client: obj.cliente || obj.client || obj.empresa || '',
-                client_category: obj.categoria_cliente || obj.categoria || obj.category || 'C',
-                stage: obj.coluna || obj.stage || obj.etapa || obj.fase || '',
-                priority: obj.prioridade || obj.priority || 'Média',
-                due_date: obj.prazo || obj.due_date || obj.data || '',
-                due_time: obj.horario || obj.due_time || obj.hora || '',
-                reminder_minutes: obj.lembrete_minutos !== undefined ? obj.lembrete_minutos : (obj.lembrete || '15'),
-                estimated_minutes: obj.tempo_estimado_min || obj.tempo_estimado || obj.estimated_minutes || '',
-                fixed_weekday: obj.fixar_dia || obj.dia_semana || obj.fixed_weekday || '',
-                description: obj.descricao || obj.description || '',
-                tags: obj.etiquetas || obj.tags || '',
-                status: obj.status || 'Pendente'
-            };
+            // Remove aspas excedentes do título ou descrição
+            taskObj.title = taskObj.title.replace(/^["']+|["']+$/g, '').trim();
+            if (taskObj.description) {
+                taskObj.description = taskObj.description.replace(/^["']+|["']+$/g, '').trim();
+            }
 
             if (taskObj.title) {
                 result.push(taskObj);
@@ -546,10 +628,9 @@ window.KD = window.KD || {};
     }
 
     /**
-     * Manipula o upload do arquivo de planilha (.csv)
+     * Processa um arquivo File (.csv) com decodificação inteligente
      */
-    KD.handleSpreadsheetFile = function (event) {
-        const file = event.target.files && event.target.files[0];
+    KD.processSpreadsheetFile = function (file) {
         if (!file) return;
 
         const nameLabel = document.getElementById('spreadsheetFileName');
@@ -561,12 +642,126 @@ window.KD = window.KD || {};
 
         const reader = new FileReader();
         reader.onload = function (e) {
-            const content = e.target.result;
-            parsedSpreadsheetRows = parseCsvText(content);
-            renderSpreadsheetPreview();
+            try {
+                const buffer = e.target.result;
+                let text = '';
+                try {
+                    const utf8Decoder = new TextDecoder('utf-8', { fatal: false });
+                    text = utf8Decoder.decode(buffer);
+                    // Se contiver muitos caracteres de erro, tenta Windows-1252 (Excel em português)
+                    if (text.includes('\uFFFD')) {
+                        const winDecoder = new TextDecoder('windows-1252', { fatal: false });
+                        text = winDecoder.decode(buffer);
+                    }
+                } catch (decErr) {
+                    text = new TextDecoder('windows-1252', { fatal: false }).decode(buffer);
+                }
+
+                parsedSpreadsheetRows = parseCsvText(text);
+                renderSpreadsheetPreview();
+
+                if (parsedSpreadsheetRows.length === 0) {
+                    KD.toast('Nenhuma tarefa com título encontrada na planilha. Verifique as colunas.', { tone: 'warning' });
+                } else {
+                    KD.toast(`${parsedSpreadsheetRows.length} tarefa(s) detectada(s) na planilha!`, { tone: 'success' });
+                }
+            } catch (err) {
+                KD.toast('Erro ao processar planilha: ' + err.message, { tone: 'error' });
+            }
         };
-        reader.readAsText(file, 'UTF-8');
+        reader.readAsArrayBuffer(file);
+    };
+
+    /**
+     * Evento de upload de arquivo via <input type="file">
+     */
+    KD.handleSpreadsheetFile = function (event) {
+        const file = event.target.files && event.target.files[0];
+        if (file) {
+            KD.processSpreadsheetFile(file);
+        }
         event.target.value = '';
+    };
+
+    /**
+     * Configura listeners de Drag & Drop para o dropzone da planilha
+     */
+    function setupSpreadsheetDropZone() {
+        if (dropZoneInitialized) return;
+        const dropZone = document.getElementById('spreadsheetDropZone');
+        if (!dropZone) return;
+
+        dropZoneInitialized = true;
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('border-indigo-500', 'bg-indigo-500/10');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-500/10');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt && dt.files;
+            if (files && files.length > 0) {
+                KD.processSpreadsheetFile(files[0]);
+            }
+        }, false);
+    }
+
+    /**
+     * Alterna a caixa de colagem direta de CSV / TSV
+     */
+    KD.toggleSpreadsheetPaste = function () {
+        const wrap = document.getElementById('spreadsheetPasteWrap');
+        const label = document.getElementById('btnToggleSpreadsheetPasteLabel');
+        if (!wrap) return;
+
+        const isHidden = wrap.hidden;
+        wrap.hidden = !isHidden;
+        if (label) {
+            label.textContent = isHidden ? 'Ocultar colagem direta' : 'Ou colar texto copiado do Excel / Sheets';
+        }
+        if (isHidden) {
+            const input = document.getElementById('spreadsheetPasteInput');
+            if (input) setTimeout(() => input.focus(), 60);
+        }
+    };
+
+    /**
+     * Processa dados colados diretamente pelo usuário
+     */
+    KD.parsePastedCsv = function () {
+        const input = document.getElementById('spreadsheetPasteInput');
+        const val = input ? input.value : '';
+        if (!val || !val.trim()) {
+            KD.toast('Cole o conteúdo da tabela no campo.', { tone: 'warning' });
+            return;
+        }
+
+        parsedSpreadsheetRows = parseCsvText(val);
+        renderSpreadsheetPreview();
+
+        if (parsedSpreadsheetRows.length === 0) {
+            KD.toast('Nenhuma tarefa válida encontrada no texto colado. Verifique os dados.', { tone: 'warning' });
+        } else {
+            KD.toast(`${parsedSpreadsheetRows.length} tarefa(s) detectada(s) no texto colado!`, { tone: 'success' });
+            const nameLabel = document.getElementById('spreadsheetFileName');
+            if (nameLabel) {
+                nameLabel.textContent = `Texto colado com sucesso (${parsedSpreadsheetRows.length} tarefas)`;
+                nameLabel.classList.remove('text-slate-500');
+                nameLabel.classList.add('text-indigo-400', 'font-semibold');
+            }
+        }
     };
 
     /**
@@ -682,6 +877,65 @@ window.KD = window.KD || {};
         } finally {
             if (submitBtn) submitBtn.disabled = false;
             if (submitLabel) submitLabel.textContent = 'Importar Planilha';
+        }
+    };
+
+
+    // ===============================================================
+    // Reset Completo do Quadro (Apagar Todas as Tarefas)
+    // ===============================================================
+
+    KD.openResetTasksModal = function () {
+        KD.closeImportModal();
+        KD.openModal('resetTasksModal');
+        const input = document.getElementById('resetConfirmInput');
+        if (input) {
+            input.value = '';
+            setTimeout(() => input.focus(), 80);
+        }
+        if (window.lucide) lucide.createIcons();
+    };
+
+    KD.closeResetTasksModal = function () {
+        KD.closeModal('resetTasksModal');
+    };
+
+    KD.submitResetTasks = async function () {
+        const input = document.getElementById('resetConfirmInput');
+        const val = input ? input.value.trim().toUpperCase() : '';
+
+        if (val !== 'RESETAR') {
+            KD.toast('Digite a palavra RESETAR para confirmar a exclusão de todas as tarefas.', { tone: 'warning' });
+            if (input) input.focus();
+            return;
+        }
+
+        const btn = document.getElementById('btnConfirmResetTasks');
+        const lbl = document.getElementById('btnConfirmResetLabel');
+        if (btn) btn.disabled = true;
+        if (lbl) lbl.innerHTML = '<span class="inline-block animate-spin mr-1">⌛</span> Resetando quadro...';
+
+        try {
+            const res = await KD.api.post(KD.url('/api/tarefas'), {
+                action: 'reset_all_tasks',
+                confirm: true,
+                confirm_text: 'RESETAR'
+            });
+
+            KD.toast(res.message || 'Todas as tarefas foram apagadas com sucesso!', { tone: 'success' });
+            KD.closeResetTasksModal();
+
+            // Recarrega o quadro limpo
+            if (typeof KD.loadBoard === 'function') {
+                await KD.loadBoard();
+            } else {
+                window.location.reload();
+            }
+        } catch (err) {
+            KD.toast(err.message || 'Falha ao resetar tarefas.', { tone: 'error' });
+        } finally {
+            if (btn) btn.disabled = false;
+            if (lbl) lbl.textContent = 'Sim, Apagar Todas as Tarefas';
         }
     };
 

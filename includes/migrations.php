@@ -217,6 +217,11 @@ function kanbandoo_migrations(string $driver): array
         '014_task_reminders_and_spreadsheet' => [
             "ALTER TABLE tasks ADD COLUMN reminder_minutes $int DEFAULT 15",
         ],
+
+        // Compatibilidade de categorias de clientes
+        '015_client_category_compat' => [
+            "ALTER TABLE clients ADD COLUMN category VARCHAR(10) DEFAULT 'C'",
+        ],
     ];
 }
 
