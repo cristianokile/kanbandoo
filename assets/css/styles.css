@@ -2781,3 +2781,14 @@ html.kd-dragging * {
     margin-top: 0.35rem !important;
     padding-top: 0.25rem !important;
 }
+
+/* Searchable Select Combobox - Z-Index & Elevation */
+.kd-searchable-select-wrap {
+    position: relative;
+}
+.kd-searchable-select-wrap.is-open {
+    z-index: 999 !important;
+}
+.kd-searchable-dropdown {
+    z-index: 99999 !important;
+}

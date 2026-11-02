@@ -142,7 +142,7 @@ view_header('Notas & Conhecimento');
     </div>
 
     <!-- Barra Completa de Filtros (Clientes, Grupos, Conteudos, Periodo e Quem Criou) -->
-    <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3.5 space-y-3 kd-glass shadow-sm">
+    <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3.5 space-y-3 kd-glass shadow-sm relative z-30">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
             
             <!-- 1. Busca por Conteudo / Titulo -->
