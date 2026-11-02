@@ -374,7 +374,9 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
 
         dayEvents.forEach(ev => {
             const evCard = document.createElement('div');
-            evCard.className = `text-[11px] p-1.5 rounded-lg border cursor-pointer transition flex items-center gap-1.5 leading-tight ${ev.is_done ? 'line-through opacity-60 bg-slate-900/50 border-slate-800 text-slate-400' : 'bg-slate-900/90 hover:bg-slate-800/90 border-slate-700/60 text-slate-200 hover:border-indigo-500/50'}`;
+            evCard.className = `text-[11px] p-2 rounded-xl border cursor-pointer transition flex items-center gap-1.5 leading-tight shadow-sm ${ev.is_done ? 'line-through opacity-60' : 'hover:border-indigo-500/60'}`;
+            evCard.style.backgroundColor = '#152238';
+            evCard.style.border = '1px solid rgba(255, 255, 255, 0.08)';
             evCard.onclick = () => KD.openTaskDetail(ev.id);
 
             let timeBadge = '';
@@ -426,7 +428,9 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
             const dayEvents = calendarEvents.filter(ev => ev.due_date === dateStr);
             dayEvents.forEach(ev => {
                 const evCard = document.createElement('div');
-                evCard.className = `p-2 rounded-xl border bg-slate-900/90 border-slate-700/60 hover:border-indigo-500 text-xs text-slate-200 cursor-pointer transition space-y-1 shadow-sm ${ev.is_done ? 'line-through opacity-60' : ''}`;
+                evCard.className = `p-2.5 rounded-xl border text-xs text-slate-200 cursor-pointer transition space-y-1.5 shadow-sm hover:border-indigo-500/60 ${ev.is_done ? 'line-through opacity-60' : ''}`;
+                evCard.style.backgroundColor = '#152238';
+                evCard.style.border = '1px solid rgba(255, 255, 255, 0.08)';
                 evCard.onclick = () => KD.openTaskDetail(ev.id);
 
                 evCard.innerHTML = `

@@ -390,7 +390,9 @@ $userInitials = mb_strtoupper(mb_substr($agendaUser['full_name'] ?: $agendaUser[
             const dayEvents = agendaEvents.filter(ev => ev.due_date === dateString);
             dayEvents.forEach(ev => {
                 const evCard = document.createElement('div');
-                evCard.className = `text-[11px] p-1.5 rounded-lg border flex items-center gap-1.5 leading-tight select-none shadow-sm ${ev.is_completed ? 'line-through opacity-50 bg-slate-900/50 border-slate-800 text-slate-400' : 'bg-slate-900/90 border-slate-700/60 text-slate-200'}`;
+                evCard.className = `text-[11px] p-2 rounded-xl border flex items-center gap-1.5 leading-tight select-none shadow-sm ${ev.is_completed ? 'line-through opacity-50' : ''}`;
+                evCard.style.backgroundColor = '#152238';
+                evCard.style.border = '1px solid rgba(255, 255, 255, 0.08)';
 
                 let timeBadge = '';
                 if (ev.due_time) {
@@ -441,7 +443,9 @@ $userInitials = mb_strtoupper(mb_substr($agendaUser['full_name'] ?: $agendaUser[
                 const dayEvents = agendaEvents.filter(ev => ev.due_date === dateStr);
                 dayEvents.forEach(ev => {
                     const evCard = document.createElement('div');
-                    evCard.className = `p-2.5 rounded-xl border bg-slate-900/90 border-slate-700/60 text-xs text-slate-200 transition space-y-1 shadow-sm select-none ${ev.is_completed ? 'line-through opacity-50' : 'hover:border-indigo-500/50'}`;
+                    evCard.className = `p-2.5 rounded-xl border text-xs text-slate-200 transition space-y-1.5 shadow-sm select-none hover:border-indigo-500/50 ${ev.is_completed ? 'line-through opacity-50' : ''}`;
+                    evCard.style.backgroundColor = '#152238';
+                    evCard.style.border = '1px solid rgba(255, 255, 255, 0.08)';
 
                     evCard.innerHTML = `
                         <div class="flex items-center justify-between gap-1">

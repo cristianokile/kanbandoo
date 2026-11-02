@@ -155,7 +155,7 @@ view_header('Notas & Conhecimento');
 
             <!-- 2. Filtro por Cliente -->
             <div class="lg:col-span-2">
-                <select id="filterClient" onchange="loadNotes()" class="kd-field text-xs" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+                <select id="filterClient" onchange="loadNotes()" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
                     <option value="">Clientes: Todos</option>
                     <option value="none">Sem cliente (Gerais)</option>
                     <?php foreach ($clientsList as $cl): ?>
@@ -166,7 +166,7 @@ view_header('Notas & Conhecimento');
 
             <!-- 3. Filtro por Grupo -->
             <div class="lg:col-span-2">
-                <select id="filterGroup" onchange="loadNotes()" class="kd-field text-xs" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+                <select id="filterGroup" onchange="loadNotes()" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
                     <option value="">Grupos: Todos</option>
                     <option value="none">Sem grupo</option>
                     <?php foreach ($groupsList as $grp): ?>
@@ -179,7 +179,7 @@ view_header('Notas & Conhecimento');
 
             <!-- 4. Filtro por Periodo -->
             <div class="lg:col-span-2">
-                <select id="filterPeriod" onchange="loadNotes()" class="kd-field text-xs" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+                <select id="filterPeriod" onchange="loadNotes()" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
                     <option value="all">Período: Todo</option>
                     <option value="today">Criadas Hoje</option>
                     <option value="week">Últimos 7 dias</option>
@@ -189,7 +189,7 @@ view_header('Notas & Conhecimento');
 
             <!-- 5. Filtro por Quem Criou (Autor) -->
             <div class="lg:col-span-2">
-                <select id="filterAuthor" onchange="loadNotes()" class="kd-field text-xs" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+                <select id="filterAuthor" onchange="loadNotes()" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
                     <option value="">Autor: Todos</option>
                     <?php foreach ($authorsList as $aut): ?>
                         <option value="<?= (int)$aut['id'] ?>"><?= e($aut['full_name']) ?></option>
@@ -265,14 +265,14 @@ view_header('Notas & Conhecimento');
                             + Novo Grupo
                         </button>
                     </div>
-                    <select id="note_group_id" onchange="onNoteGroupChange()" class="kd-field text-xs">
+                    <select id="note_group_id" onchange="onNoteGroupChange()" class="kd-field text-xs w-full kd-select-searchable">
                         <option value="">Sem grupo (Nota avulsa)</option>
                     </select>
                 </div>
 
                 <div>
                     <label for="note_client_id" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Cliente / Empresa Vinculada</label>
-                    <select id="note_client_id" class="kd-field text-xs">
+                    <select id="note_client_id" class="kd-field text-xs w-full kd-select-searchable">
                         <option value="">Sem cliente (Uso interno / Geral)</option>
                         <?php foreach ($clientsList as $cl): ?>
                             <option value="<?= (int)$cl['id'] ?>"><?= e($cl['company_name']) ?></option>
@@ -385,7 +385,7 @@ view_header('Notas & Conhecimento');
 
                 <div class="sm:col-span-4">
                     <label for="group_client_id" class="block text-[11px] font-semibold text-slate-400 mb-1">Cliente Vinculado (Opcional)</label>
-                    <select id="group_client_id" class="kd-field text-xs" style="min-height:36px;padding-top:0.35rem;padding-bottom:0.35rem">
+                    <select id="group_client_id" class="kd-field text-xs w-full kd-select-searchable" style="min-height:36px;padding-top:0.35rem;padding-bottom:0.35rem">
                         <option value="">Geral (Todos os clientes)</option>
                         <?php foreach ($clientsList as $cl): ?>
                             <option value="<?= (int)$cl['id'] ?>"><?= e($cl['company_name']) ?></option>
@@ -441,10 +441,14 @@ function debounceNotesFilter() {
 
 function resetFilters() {
     document.getElementById('filterSearch').value = '';
-    document.getElementById('filterClient').value = '';
-    document.getElementById('filterGroup').value = '';
-    document.getElementById('filterPeriod').value = 'all';
-    document.getElementById('filterAuthor').value = '';
+    const fc = document.getElementById('filterClient');
+    if (fc) { fc.value = ''; fc.dispatchEvent(new Event('change')); }
+    const fg = document.getElementById('filterGroup');
+    if (fg) { fg.value = ''; fg.dispatchEvent(new Event('change')); }
+    const fp = document.getElementById('filterPeriod');
+    if (fp) { fp.value = 'all'; fp.dispatchEvent(new Event('change')); }
+    const fa = document.getElementById('filterAuthor');
+    if (fa) { fa.value = ''; fa.dispatchEvent(new Event('change')); }
     loadNotes();
 }
 
@@ -745,8 +749,10 @@ function openNoteModal(note = null) {
         }
     }
 
-    document.getElementById('note_group_id').value = note && note.group_id ? note.group_id : '';
-    document.getElementById('note_client_id').value = note && note.client_id ? note.client_id : '';
+    const ngEl = document.getElementById('note_group_id');
+    if (ngEl) { ngEl.value = note && note.group_id ? note.group_id : ''; ngEl.dispatchEvent(new Event('change')); }
+    const ncEl = document.getElementById('note_client_id');
+    if (ncEl) { ncEl.value = note && note.client_id ? note.client_id : ''; ncEl.dispatchEvent(new Event('change')); }
     document.getElementById('note_is_pinned').checked = note ? Boolean(note.is_pinned) : false;
     document.getElementById('noteModalTitle').textContent = note ? 'Editar Anotação' : 'Nova Anotação';
     KD.openModal('noteModal');

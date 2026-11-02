@@ -283,10 +283,24 @@ body:hover::-webkit-scrollbar-thumb {
 }
 
 /* Foco visível e consistente em tudo que é operável por teclado */
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+:where(a, button, input, select, textarea, [tabindex]:not(.kd-card)):focus-visible {
     outline: 2px solid var(--brand-strong);
     outline-offset: 2px;
     border-radius: 6px;
+}
+
+.kd-card:focus,
+.kd-card:focus-visible {
+    outline: none !important;
+    outline-offset: 0 !important;
+    box-shadow: 0 0 0 2px var(--brand, #6366f1) !important;
+}
+
+/* Espaçamento inferior para acomodar a barra flutuante mobile */
+@media (max-width: 767px) {
+    body {
+        padding-bottom: 5.5rem !important;
+    }
 }
 
 /* Respeita quem pediu menos movimento no sistema operacional */

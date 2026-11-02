@@ -523,11 +523,11 @@ view_header('Clientes & Empresas');
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Categoria *</label>
                     <select id="modal_category" name="category" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition font-bold">
-                        <option value="A+">Categoria A+ (Máxima)</option>
-                        <option value="A">Categoria A</option>
-                        <option value="B">Categoria B</option>
-                        <option value="C" selected>Categoria C</option>
-                        <option value="D">Categoria D</option>
+                        <option value="A+">A+</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C" selected>C</option>
+                        <option value="D">D</option>
                     </select>
                 </div>
             </div>

@@ -75,7 +75,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="taskClientRowWrap">
                 <div>
-                    <div class="flex items-center justify-between mb-2">
+                    <div class="h-6 flex items-center justify-between mb-1.5">
                         <label for="taskClientDropdownTrigger" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Empresa / Cliente</label>
                         <button type="button" onclick="KD.toggleQuickAddClient()" class="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
                             <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
@@ -87,7 +87,7 @@
                     <div class="relative" id="taskClientComboboxContainer">
                         <!-- Botão Gatilho do Dropdown -->
                         <button type="button" id="taskClientDropdownTrigger" onclick="KD.toggleTaskClientDropdown(event)"
-                                class="kd-field w-full flex items-center justify-between text-left cursor-pointer transition-all hover:border-indigo-500/60 focus:border-indigo-500 bg-slate-900/90 text-slate-200 py-2 px-3 rounded-xl border border-slate-700/80 shadow-inner" style="min-height: 42px;">
+                                class="kd-field w-full flex items-center justify-between text-left cursor-pointer transition-all hover:border-indigo-500/60 focus:border-indigo-500 bg-slate-900/90 text-slate-200 py-2 px-3 rounded-xl border border-slate-700/80 shadow-inner h-[42px] min-h-[42px]">
                             <span id="taskClientSelectedLabel" class="truncate font-medium text-xs sm:text-sm text-slate-300">Sem empresa vinculada</span>
                             <i data-lucide="chevron-down" id="taskClientChevronIcon" class="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200"></i>
                         </button>
@@ -163,11 +163,11 @@
                 </div>
 
                 <div>
-                    <div class="flex items-center justify-between mb-2">
+                    <div class="h-6 flex items-center justify-between mb-1.5">
                         <label for="task_client_category" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Categoria da Empresa</label>
                         <span id="task_client_category_badge" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Auto</span>
                     </div>
-                    <select id="task_client_category" name="client_category" class="kd-field font-semibold">
+                    <select id="task_client_category" name="client_category" class="kd-field font-semibold h-[42px] min-h-[42px]">
                         <option value="A+">⭐ Categoria A+ (Estratégico / VIP)</option>
                         <option value="A">🟣 Categoria A (Prioritário)</option>
                         <option value="B">🔵 Categoria B (Padrão Alto)</option>
@@ -177,8 +177,10 @@
                 </div>
 
                 <div>
-                    <label for="task_stage_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Coluna *</label>
-                    <select id="task_stage_id" name="stage_id" required class="kd-field">
+                    <div class="h-6 flex items-center justify-between mb-1.5">
+                        <label for="task_stage_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Coluna *</label>
+                    </div>
+                    <select id="task_stage_id" name="stage_id" required class="kd-field h-[42px] min-h-[42px]">
                         <?php 
                         $hasAFazer = false;
                         foreach ($kanbanStages as $stg) {
@@ -259,8 +261,10 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="taskScheduleRowWrap">
                 <div>
-                    <label for="task_priority" class="block text-xs font-semibold uppercase tracking-wider mb-2">Prioridade</label>
-                    <select id="task_priority" name="priority" class="kd-field kd-select-searchable">
+                    <div class="h-6 flex items-center justify-between mb-1.5">
+                        <label for="task_priority" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Prioridade</label>
+                    </div>
+                    <select id="task_priority" name="priority" class="kd-field kd-select-searchable h-[42px] min-h-[42px]">
                         <option value="low" selected>Baixa</option>
                         <option value="medium">Média</option>
                         <option value="high">Alta</option>
@@ -269,27 +273,27 @@
                 </div>
 
                 <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label for="task_due_date" class="block text-xs font-semibold uppercase tracking-wider">Prazo de entrega</label>
+                    <div class="h-6 flex items-center justify-between mb-1.5">
+                        <label for="task_due_date" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Prazo de entrega</label>
                         <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold select-none">
                             <input type="checkbox" id="task_has_time" onchange="KD.toggleTimeInput(this.checked)" class="rounded text-indigo-600 focus:ring-0">
                             <span>Ativar horário</span>
                         </label>
                     </div>
                     <div class="flex items-center gap-2">
-                        <input type="date" id="task_due_date" name="due_date" class="kd-field flex-1" aria-describedby="error_due_date">
+                        <input type="date" id="task_due_date" name="due_date" class="kd-field flex-1 h-[42px] min-h-[42px]" aria-describedby="error_due_date">
                         <div id="task_time_wrap" class="flex items-center gap-1.5" hidden>
-                            <input type="time" id="task_due_time" name="due_time" class="kd-field w-28 text-center" style="min-height:42px" placeholder="00:00">
+                            <input type="time" id="task_due_time" name="due_time" class="kd-field w-28 text-center h-[42px] min-h-[42px]" placeholder="00:00">
                         </div>
                     </div>
                     <p id="error_due_date" class="kd-inline-error" role="alert" hidden></p>
                 </div>
 
                 <div>
-                    <label for="task_fixed_weekday" class="block text-xs font-semibold uppercase tracking-wider mb-2 flex items-center justify-between">
-                        <span>Fixar dia da semana</span>
-                    </label>
-                    <select id="task_fixed_weekday" name="fixed_weekday" class="kd-field kd-select-searchable text-xs">
+                    <div class="h-6 flex items-center justify-between mb-1.5">
+                        <label for="task_fixed_weekday" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Fixar dia da semana</label>
+                    </div>
+                    <select id="task_fixed_weekday" name="fixed_weekday" class="kd-field kd-select-searchable text-xs h-[42px] min-h-[42px]">
                         <option value="">Não fixar dia</option>
                         <option value="1">📌 Segunda-feira</option>
                         <option value="2">📌 Terça-feira</option>
@@ -302,35 +306,36 @@
                 </div>
 
                 <div>
-                    <label for="task_estimated_minutes" class="block text-xs font-semibold uppercase tracking-wider mb-2 flex items-center justify-between">
-                        <span>Tempo estim. (min)</span>
+                    <div class="h-6 flex items-center justify-between mb-1.5">
+                        <label for="task_estimated_minutes" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Tempo estim. (min)</label>
                         <span id="task_estimated_preview" class="text-[11px] text-indigo-400 font-normal lowercase" hidden></span>
-                    </label>
-                    <input type="number" id="task_estimated_minutes" name="estimated_minutes" min="1" step="5" placeholder="Ex: 45" class="kd-field" oninput="KD.updateEstimatedPreview(this.value)">
-                    <div class="flex items-center gap-1 mt-1.5 flex-wrap">
-                        <button type="button" class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/60 hover:bg-slate-700 text-slate-300 border border-slate-700/40 transition" onclick="KD.setEstimatedMinutes(15)">15m</button>
-                        <button type="button" class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/60 hover:bg-slate-700 text-slate-300 border border-slate-700/40 transition" onclick="KD.setEstimatedMinutes(30)">30m</button>
-                        <button type="button" class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/60 hover:bg-slate-700 text-slate-300 border border-slate-700/40 transition" onclick="KD.setEstimatedMinutes(60)">1h</button>
-                        <button type="button" class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/60 hover:bg-slate-700 text-slate-300 border border-slate-700/40 transition" onclick="KD.setEstimatedMinutes(120)">2h</button>
-                        <button type="button" class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/60 hover:bg-slate-700 text-slate-300 border border-slate-700/40 transition" onclick="KD.setEstimatedMinutes(240)">4h</button>
+                    </div>
+                    <div class="relative">
+                        <input type="number" id="task_estimated_minutes" name="estimated_minutes" min="1" step="5" placeholder="Ex: 45" class="kd-field h-[42px] min-h-[42px] pr-28" oninput="KD.updateEstimatedPreview(this.value)">
+                        <div class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            <button type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition" onclick="KD.setEstimatedMinutes(15)">15m</button>
+                            <button type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition" onclick="KD.setEstimatedMinutes(30)">30m</button>
+                            <button type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition" onclick="KD.setEstimatedMinutes(60)">1h</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Tarefa Particular (Privada) -->
-            <div class="p-3.5 rounded-xl border border-slate-700/50 bg-slate-800/30" id="taskPrivateWrap">
-                <div class="flex items-center justify-between">
-                    <label class="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold uppercase tracking-wider text-slate-200">
-                        <input type="checkbox" id="task_is_private" name="is_private" value="1" class="rounded">
-                        <i data-lucide="lock" class="w-4 h-4 text-amber-400"></i>
-                        <span>Tarefa Particular</span>
-                    </label>
-                    <span class="text-[11px] text-slate-400">Visível apenas no seu painel (oculta em links públicos)</span>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Tarefa Particular (Privada) -->
+                <div class="p-3.5 rounded-xl border border-slate-700/50 bg-slate-800/30 flex flex-col justify-center" id="taskPrivateWrap">
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold uppercase tracking-wider text-slate-200">
+                            <input type="checkbox" id="task_is_private" name="is_private" value="1" class="rounded">
+                            <i data-lucide="lock" class="w-4 h-4 text-amber-400"></i>
+                            <span>Tarefa Particular</span>
+                        </label>
+                        <span class="text-[11px] text-slate-400">Oculta em links públicos</span>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Recorrência de Tarefa -->
-            <div class="p-3.5 rounded-xl border border-slate-700/50 bg-slate-800/30 space-y-3" id="taskRecurrenceWrap">
+                <!-- Recorrência de Tarefa -->
+                <div class="p-3.5 rounded-xl border border-slate-700/50 bg-slate-800/30 space-y-3" id="taskRecurrenceWrap">
                 <div class="flex items-center justify-between">
                     <label class="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold uppercase tracking-wider text-slate-200">
                         <input type="checkbox" id="task_is_recurring" name="is_recurring" value="1" onchange="KD.toggleRecurrenceOptions(this.checked)" class="rounded">
@@ -413,6 +418,7 @@
                     </div>
                 </div>
             </div>
+            </div>
 
             <fieldset id="taskAssigneesWrap">
                 <legend class="block text-xs font-semibold uppercase tracking-wider mb-2">Responsáveis</legend>
@@ -446,9 +452,9 @@
 
             <div>
                 <label for="task_description" class="block text-xs font-semibold uppercase tracking-wider mb-2">Descrição</label>
-                <textarea id="task_description" name="description" rows="3"
+                <textarea id="task_description" name="description" rows="6"
                           placeholder="Instruções, links ou referências para a execução..."
-                          class="kd-field" style="resize:vertical"></textarea>
+                          class="kd-field w-full" style="min-height: 140px; font-size: 0.875rem; line-height: 1.6; resize: vertical;"></textarea>
             </div>
 
             <!-- Subtarefas / Checklist Inicial -->
