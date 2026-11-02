@@ -326,8 +326,9 @@ $currentUser = current_user();
                 <label for="resetConfirmInput" class="block font-bold text-slate-200 mb-1">
                     Para confirmar, digite <span class="text-rose-400 font-mono tracking-wider">RESETAR</span> abaixo:
                 </label>
-                <input type="text" id="resetConfirmInput" placeholder="Digite RESETAR" 
-                       class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-center uppercase focus:outline-none focus:border-rose-500 transition">
+                <input type="text" id="resetConfirmInput" placeholder="Digite RESETAR" autocomplete="off"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();KD.submitResetTasks();}"
+                       class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-center uppercase tracking-wider text-sm focus:outline-none focus:border-rose-500 transition">
             </div>
         </div>
 

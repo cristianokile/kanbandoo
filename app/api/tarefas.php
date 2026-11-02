@@ -1688,9 +1688,9 @@ try {
 
         // 10.0.0 Resetar todas as tarefas (Limpeza Geral do Quadro)
         if ($action === 'reset_all_tasks') {
-            $confirm = $input['confirm'] ?? false;
+            $confirm = !empty($input['confirm']);
             $confirmText = trim((string)($input['confirm_text'] ?? ''));
-            if ($confirm !== true && strtoupper($confirmText) !== 'RESETAR') {
+            if (!$confirm && strtoupper($confirmText) !== 'RESETAR') {
                 json_response(['error' => 'Confirmação necessária. Digite RESETAR para confirmar a exclusão total.'], 400);
             }
 
@@ -1705,6 +1705,11 @@ try {
                 $pdo->exec("DELETE FROM task_summaries");
                 $deletedTasks = $pdo->exec("DELETE FROM tasks");
 
+                if ($pdo->inTransaction()) {
+                    $pdo->commit();
+                }
+
+                // DDL de reinício de auto-incremento executado após o commit da transação
                 $driver = defined('DB_DRIVER') ? DB_DRIVER : 'sqlite';
                 if ($driver === 'sqlite') {
                     try {
@@ -1718,8 +1723,6 @@ try {
                         $pdo->exec("ALTER TABLE task_history AUTO_INCREMENT = 1");
                     } catch (\Throwable $e) {}
                 }
-
-                $pdo->commit();
 
                 json_response([
                     'success' => true,
