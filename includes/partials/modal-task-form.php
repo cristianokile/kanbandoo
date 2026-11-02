@@ -55,7 +55,7 @@
                 <label for="task_template_id" class="block text-xs font-bold text-indigo-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                     <i data-lucide="copy-check" class="w-3.5 h-3.5"></i> Usar Modelo de Tarefa
                 </label>
-                <select id="task_template_id" onchange="KD.applyTemplateToForm(this.value)" class="kd-field text-xs">
+                <select id="task_template_id" onchange="KD.applyTemplateToForm(this.value)" class="kd-field kd-select-searchable text-xs h-[42px] min-h-[42px]">
                     <option value="">-- Tarefa em branco (sem modelo) --</option>
                     <?php if (!empty($taskTemplates)): ?>
                         <?php foreach ($taskTemplates as $t): ?>

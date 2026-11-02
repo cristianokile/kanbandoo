@@ -552,13 +552,20 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
                 if (el('task_is_private')) el('task_is_private').checked = false;
                 if (el('task_client_category')) el('task_client_category').value = 'C';
                 if (templateWrap) templateWrap.hidden = false;
-                if (templateSelect) templateSelect.value = '';
+                if (templateSelect) {
+                    templateSelect.value = '';
+                    if (templateSelect._searchableInstance) templateSelect._searchableInstance.setValue('');
+                }
 
                 if (initialTemplate) {
-                    if (templateSelect && initialTemplate.id) templateSelect.value = initialTemplate.id;
+                    if (templateSelect && initialTemplate.id) {
+                        templateSelect.value = initialTemplate.id;
+                        if (templateSelect._searchableInstance) templateSelect._searchableInstance.setValue(initialTemplate.id);
+                    }
                     await KD.applyTemplateToForm(initialTemplate.id, initialTemplate);
                 }
 
+                if (KD.initAllSearchableSelects && el('taskModal')) KD.initAllSearchableSelects(el('taskModal'));
                 KD.openModal('taskModal', { focus: '#task_title' });
                 return;
             }

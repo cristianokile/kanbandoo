@@ -1767,14 +1767,6 @@ window.KD = window.KD || {};
 
                 if (done && !showDone) return false;
 
-                // Se estamos numa semana futura e a tarefa tem dia fixo da semana:
-
-                if (isFutureWeek && t.fixed_weekday !== null && t.fixed_weekday !== undefined && t.fixed_weekday !== '') {
-
-                    return Number(t.fixed_weekday) === Number(day.dayIndex);
-
-                }
-
                 if (!t.due_date) return false;
 
                 return t.due_date === day.dateString;
