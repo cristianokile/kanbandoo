@@ -393,7 +393,7 @@ function calculate_next_recurrence_date(?string $currentDueDate, ?string $recurr
  * Garante que a serie recorrente tenha ocorrencias futuras agendadas (por padrao 4 ciclos).
  * Respeita rigorosamente o modo 'duplicate' (copia comentarios e subtarefas) ou 'new' (sem comentarios).
  */
-function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $user, int $targetCount = 4): array
+function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $user, ?int $targetCount = null): array
 {
     $stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = :id");
     $stmt->execute([':id' => $taskId]);
@@ -424,6 +424,36 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
     }
 
     $todayStr = date('Y-m-d');
+    $recurrenceType = $task['recurrence_type'] ?? 'weekly';
+
+    // Horizonte de ocorrencias por tipo de frequencia:
+    // Garante que tarefas diarias cubram ate 60 dias (2 meses inteiros) adiante,
+    // semanais cubram 26 semanas (6 meses), mensais 12 meses (1 ano), etc.
+    if ($targetCount === null || $targetCount <= 4) {
+        switch ($recurrenceType) {
+            case 'daily':
+                $targetCount = 60; // 60 dias continuos
+                break;
+            case 'weekly':
+                $targetCount = 26; // 26 semanas (meio ano)
+                break;
+            case 'biweekly':
+                $targetCount = 14; // 14 quinzenas (7 meses)
+                break;
+            case 'monthly':
+                $targetCount = 12; // 12 meses (1 ano completo)
+                break;
+            case 'yearly':
+                $targetCount = 3;  // 3 anos
+                break;
+            case 'custom':
+                $targetCount = 30;
+                break;
+            default:
+                $targetCount = 26;
+                break;
+        }
+    }
 
     // Quantas ocorrencias abertas ou futuras ja existem na serie?
     $countStmt = $pdo->prepare("
@@ -454,7 +484,6 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
 
     $createdIds = [];
     $fixedWd = isset($task['fixed_weekday']) && $task['fixed_weekday'] !== null && $task['fixed_weekday'] !== '' ? (int)$task['fixed_weekday'] : null;
-    $recurrenceType = $task['recurrence_type'] ?? 'weekly';
     $recurrenceConfig = $task['recurrence_config'] ?? null;
     $recurrenceMode = in_array($task['recurrence_mode'] ?? '', ['duplicate', 'new'], true) ? $task['recurrence_mode'] : 'duplicate';
     $dueTime = $task['due_time'] ?? null;
@@ -483,7 +512,7 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
         $nextDueDate = calculate_next_recurrence_date($lastDueDate, $recurrenceType, $recurrenceConfig, $fixedWd);
         if ($nextDueDate <= $lastDueDate) {
             $dt = new DateTime($lastDueDate);
-            $dt->modify('+1 week');
+            $dt->modify('+1 day');
             $nextDueDate = $dt->format('Y-m-d');
         }
 
@@ -532,7 +561,7 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
 
 function create_next_recurrence_task(PDO $pdo, int $taskId, array $user): ?int
 {
-    $created = generate_recurring_series_occurrences($pdo, $taskId, $user, 4);
+    $created = generate_recurring_series_occurrences($pdo, $taskId, $user);
     return !empty($created) ? $created[0] : null;
 }
 

@@ -1667,7 +1667,7 @@ try {
             }
 
             if ((int)$isRecurring === 1) {
-                generate_recurring_series_occurrences($pdo, $taskId, $user, 4);
+                generate_recurring_series_occurrences($pdo, $taskId, $user);
             }
 
             $pdo->commit();
