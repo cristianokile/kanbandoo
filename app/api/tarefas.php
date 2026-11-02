@@ -654,14 +654,19 @@ try {
             CASE 
                 WHEN t.completed_at IS NOT NULL THEN 99
                 WHEN t.due_date IS NOT NULL AND t.due_date < :today_sort THEN 1
-                WHEN t.priority = 'urgent' THEN 2
-                WHEN t.priority = 'high' THEN 3
-                WHEN t.priority = 'medium' THEN 4
-                ELSE 5
+                ELSE 2
             END ASC,
             CASE WHEN t.sort_order = 0 AND t.due_date IS NOT NULL AND t.due_date < :today_sort THEN t.due_date ELSE NULL END ASC,
             CASE WHEN t.sort_order = 0 AND t.due_date = :today_sort THEN 0 ELSE 1 END ASC,
             CASE WHEN t.sort_order = 0 AND t.due_date IS NOT NULL AND t.due_date > :today_sort THEN t.due_date ELSE NULL END ASC,
+            CASE WHEN t.sort_order = 0 AND t.due_time IS NOT NULL AND t.due_time != '' THEN 0 ELSE 1 END ASC,
+            CASE WHEN t.sort_order = 0 AND t.due_time IS NOT NULL AND t.due_time != '' THEN t.due_time ELSE '99:99' END ASC,
+            CASE 
+                WHEN t.priority = 'urgent' THEN 1
+                WHEN t.priority = 'high' THEN 2
+                WHEN t.priority = 'medium' THEN 3
+                ELSE 4
+            END ASC,
             t.created_at ASC,
             t.id ASC";
 
@@ -1432,10 +1437,8 @@ try {
             $recordType = in_array($input['record_type'] ?? '', ['task', 'event', 'note'], true) 
                 ? $input['record_type'] 
                 : 'task';
-            if (!empty($dueTime) && $recordType === 'task') {
+            if (!empty($dueTime)) {
                 $recordType = 'event';
-            }
-            if ($recordType === 'event') {
                 $isCalendarEvent = 1;
             }
 
@@ -1522,6 +1525,8 @@ try {
                                 estimated_minutes = :est, description = :description, tags = :tags,
                                 due_time = :due_time, is_calendar_event = :is_cal, show_in_kanban = :show_kanban,
                                 is_recurring = :is_rec, recurrence_type = :rec_type, recurrence_config = :rec_cfg,
+                                is_private = :is_private, fixed_weekday = :fixed_wd, record_type = :rec_type_rec,
+                                recurrence_mode = :rec_mode, reminder_minutes = :reminder_minutes,
                                 updated_at = :now
                             WHERE (id = :p OR parent_task_id = :p)
                               AND id != :tid
@@ -1540,9 +1545,13 @@ try {
                             ':is_cal' => $isCalendarEvent,
                             ':show_kanban' => $showInKanban,
                             ':is_rec' => $isRecurring,
-                    ':is_private' => $isPrivate,
                             ':rec_type' => $recurrenceType,
                             ':rec_cfg' => $recurrenceConfig,
+                            ':is_private' => $isPrivate,
+                            ':fixed_wd' => $fixedWeekday,
+                            ':rec_type_rec' => $recordType,
+                            ':rec_mode' => $recurrenceMode,
+                            ':reminder_minutes' => $reminderMinutes,
                             ':now' => now(),
                             ':p' => $seriesParentId,
                             ':tid' => $taskId,
@@ -1555,6 +1564,8 @@ try {
                                 estimated_minutes = :est, description = :description, tags = :tags,
                                 due_time = :due_time, is_calendar_event = :is_cal, show_in_kanban = :show_kanban,
                                 is_recurring = :is_rec, recurrence_type = :rec_type, recurrence_config = :rec_cfg,
+                                is_private = :is_private, fixed_weekday = :fixed_wd, record_type = :rec_type_rec,
+                                recurrence_mode = :rec_mode, reminder_minutes = :reminder_minutes,
                                 updated_at = :now
                             WHERE (id = :p OR parent_task_id = :p)
                               AND id != :tid
@@ -1574,6 +1585,11 @@ try {
                             ':is_rec' => $isRecurring,
                             ':rec_type' => $recurrenceType,
                             ':rec_cfg' => $recurrenceConfig,
+                            ':is_private' => $isPrivate,
+                            ':fixed_wd' => $fixedWeekday,
+                            ':rec_type_rec' => $recordType,
+                            ':rec_mode' => $recurrenceMode,
+                            ':reminder_minutes' => $reminderMinutes,
                             ':now' => now(),
                             ':p' => $seriesParentId,
                             ':tid' => $taskId,
@@ -1648,6 +1664,10 @@ try {
                 log_task_activity($pdo, $taskId, (int)$user['id'], 'task_created', 'Criou a tarefa');
             } else {
                 log_task_activity($pdo, $taskId, (int)$user['id'], 'task_updated', 'Atualizou as informações da tarefa');
+            }
+
+            if ((int)$isRecurring === 1) {
+                generate_recurring_series_occurrences($pdo, $taskId, $user, 4);
             }
 
             $pdo->commit();

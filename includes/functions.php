@@ -389,17 +389,32 @@ function calculate_next_recurrence_date(?string $currentDueDate, ?string $recurr
 /**
  * Cria a próxima ocorrência da tarefa se ela for recorrente.
  */
-function create_next_recurrence_task(PDO $pdo, int $taskId, array $user): ?int
+/**
+ * Garante que a serie recorrente tenha ocorrencias futuras agendadas (por padrao 4 ciclos).
+ * Respeita rigorosamente o modo 'duplicate' (copia comentarios e subtarefas) ou 'new' (sem comentarios).
+ */
+function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $user, int $targetCount = 4): array
 {
     $stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = :id");
     $stmt->execute([':id' => $taskId]);
     $task = $stmt->fetch();
 
     if (!$task || (int)($task['is_recurring'] ?? 0) !== 1) {
-        return null;
+        return [];
     }
 
-    // Primeiro estágio operacional: estritamente 'todo' / 'A Fazer' (NUNCA 'mentions' nem 'done')
+    $seriesParentId = !empty($task['parent_task_id']) ? (int)$task['parent_task_id'] : (int)$task['id'];
+
+    // Pegar a tarefa matriz para dados base se for o caso
+    if ($seriesParentId !== (int)$task['id']) {
+        $parentStmt = $pdo->prepare("SELECT * FROM tasks WHERE id = :id");
+        $parentStmt->execute([':id' => $seriesParentId]);
+        $parentTask = $parentStmt->fetch();
+        if ($parentTask) {
+            $task = $parentTask;
+        }
+    }
+
     $firstStage = $pdo->query("SELECT id FROM task_stages WHERE slug IN ('todo', 'a_fazer') ORDER BY sort_order ASC LIMIT 1")->fetchColumn();
     if (!$firstStage) {
         $firstStage = $pdo->query("SELECT id FROM task_stages WHERE slug NOT IN ('mentions', 'done', 'concluido') ORDER BY sort_order ASC LIMIT 1")->fetchColumn();
@@ -408,18 +423,44 @@ function create_next_recurrence_task(PDO $pdo, int $taskId, array $user): ?int
         $firstStage = 1;
     }
 
+    $todayStr = date('Y-m-d');
+
+    // Quantas ocorrencias abertas ou futuras ja existem na serie?
+    $countStmt = $pdo->prepare("
+        SELECT COUNT(*) FROM tasks
+        WHERE (id = :p OR parent_task_id = :p)
+          AND due_date >= :today
+          AND deleted_at IS NULL
+          AND completed_at IS NULL
+    ");
+    $countStmt->execute([':p' => $seriesParentId, ':today' => $todayStr]);
+    $existingFutureCount = (int)$countStmt->fetchColumn();
+
+    $toCreate = max(0, $targetCount - $existingFutureCount);
+    if ($toCreate === 0) {
+        return [];
+    }
+
+    // Achar a ultima data de vencimento agendada da serie
+    $lastDateStmt = $pdo->prepare("
+        SELECT due_date FROM tasks
+        WHERE (id = :p OR parent_task_id = :p)
+          AND deleted_at IS NULL
+          AND due_date IS NOT NULL
+        ORDER BY due_date DESC LIMIT 1
+    ");
+    $lastDateStmt->execute([':p' => $seriesParentId]);
+    $lastDueDate = $lastDateStmt->fetchColumn() ?: ($task['due_date'] ?: $todayStr);
+
+    $createdIds = [];
     $fixedWd = isset($task['fixed_weekday']) && $task['fixed_weekday'] !== null && $task['fixed_weekday'] !== '' ? (int)$task['fixed_weekday'] : null;
-
-    $nextDueDate = calculate_next_recurrence_date(
-        $task['due_date'],
-        $task['recurrence_type'] ?? 'weekly',
-        $task['recurrence_config'] ?? null,
-        $fixedWd
-    );
-
+    $recurrenceType = $task['recurrence_type'] ?? 'weekly';
+    $recurrenceConfig = $task['recurrence_config'] ?? null;
+    $recurrenceMode = in_array($task['recurrence_mode'] ?? '', ['duplicate', 'new'], true) ? $task['recurrence_mode'] : 'duplicate';
+    $dueTime = $task['due_time'] ?? null;
+    $recordType = (!empty($dueTime) || ($task['record_type'] ?? '') === 'event') ? 'event' : ($task['record_type'] ?? 'task');
+    $isCalendarEvent = (!empty($dueTime) || (int)($task['is_calendar_event'] ?? 0) === 1) ? 1 : 0;
     $nowStr = now();
-    $recurrenceMode = $task['recurrence_mode'] ?? 'duplicate';
-    $recordType = $task['record_type'] ?? 'task';
 
     $ins = $pdo->prepare("
         INSERT INTO tasks (client_id, stage_id, created_by, title, description, priority, due_date,
@@ -433,65 +474,68 @@ function create_next_recurrence_task(PDO $pdo, int $taskId, array $user): ?int
                 :due_time, :is_cal, :show_kanban, :is_private, :fixed_wd, :rec_type_record,
                 :now, :now2)
     ");
-    $ins->execute([
-        ':client_id' => $task['client_id'],
-        ':stage_id' => $firstStage,
-        ':created_by' => $user['id'] ?? $task['created_by'],
-        ':title' => $task['title'],
-        ':description' => $task['description'],
-        ':priority' => $task['priority'],
-        ':due_date' => $nextDueDate,
-        ':estimated_minutes' => $task['estimated_minutes'],
-        ':tags' => $task['tags'],
-        ':rec_type' => $task['recurrence_type'],
-        ':rec_cfg' => $task['recurrence_config'],
-        ':rec_mode' => $recurrenceMode,
-        ':parent_id' => $task['parent_task_id'] ?: $task['id'],
-        ':due_time' => $task['due_time'] ?? null,
-        ':is_cal' => (int)($task['is_calendar_event'] ?? 0),
-        ':show_kanban' => (int)($task['show_in_kanban'] ?? 1),
-        ':is_private' => (int)($task['is_private'] ?? 0),
-        ':fixed_wd' => $fixedWd,
-        ':rec_type_record' => $recordType,
-        ':now' => $nowStr,
-        ':now2' => $nowStr,
-    ]);
-    $newTaskId = (int)$pdo->lastInsertId();
 
-    // Copiar responsáveis
-    $assignees = $pdo->prepare("INSERT INTO task_assignees (task_id, user_id) SELECT :new_id, user_id FROM task_assignees WHERE task_id = :orig_id");
-    $assignees->execute([':new_id' => $newTaskId, ':orig_id' => $taskId]);
+    $assigneesStmt = $pdo->prepare("INSERT INTO task_assignees (task_id, user_id) SELECT :new_id, user_id FROM task_assignees WHERE task_id = :orig_id");
+    $checklistStmt = $pdo->prepare("INSERT INTO task_checklists (task_id, title, is_completed, sort_order) SELECT :new_id, title, 0, sort_order FROM task_checklists WHERE task_id = :orig_id");
+    $commentsStmt = $pdo->prepare("INSERT INTO task_comments (task_id, user_id, comment_text, created_at) SELECT :new_id, user_id, comment_text, :now FROM task_comments WHERE task_id = :orig_id");
 
-    // Copiar subtarefas limpas (desmarcadas)
-    $checklists = $pdo->prepare("INSERT INTO task_checklists (task_id, title, is_completed, sort_order) SELECT :new_id, title, 0, sort_order FROM task_checklists WHERE task_id = :orig_id");
-    $checklists->execute([':new_id' => $newTaskId, ':orig_id' => $taskId]);
+    for ($i = 0; $i < $toCreate; $i++) {
+        $nextDueDate = calculate_next_recurrence_date($lastDueDate, $recurrenceType, $recurrenceConfig, $fixedWd);
+        if ($nextDueDate <= $lastDueDate) {
+            $dt = new DateTime($lastDueDate);
+            $dt->modify('+1 week');
+            $nextDueDate = $dt->format('Y-m-d');
+        }
 
-    // Se o modo for 'duplicate' (duplicada), copiar comentários mantendo o histórico de anotações!
-    // Se for 'new' (nova), comentários ficam zerados para um ciclo limpo.
-    if ($recurrenceMode === 'duplicate') {
-        $comments = $pdo->prepare("INSERT INTO task_comments (task_id, user_id, comment_text, created_at) SELECT :new_id, user_id, comment_text, :now FROM task_comments WHERE task_id = :orig_id");
-        $comments->execute([':new_id' => $newTaskId, ':orig_id' => $taskId, ':now' => $nowStr]);
+        $ins->execute([
+            ':client_id' => $task['client_id'],
+            ':stage_id' => $firstStage,
+            ':created_by' => $user['id'] ?? $task['created_by'],
+            ':title' => $task['title'],
+            ':description' => $task['description'],
+            ':priority' => $task['priority'],
+            ':due_date' => $nextDueDate,
+            ':estimated_minutes' => $task['estimated_minutes'],
+            ':tags' => $task['tags'],
+            ':rec_type' => $recurrenceType,
+            ':rec_cfg' => $recurrenceConfig,
+            ':rec_mode' => $recurrenceMode,
+            ':parent_id' => $seriesParentId,
+            ':due_time' => $dueTime,
+            ':is_cal' => $isCalendarEvent,
+            ':show_kanban' => (int)($task['show_in_kanban'] ?? 1),
+            ':is_private' => (int)($task['is_private'] ?? 0),
+            ':fixed_wd' => $fixedWd,
+            ':rec_type_record' => $recordType,
+            ':now' => $nowStr,
+            ':now2' => $nowStr,
+        ]);
+        $newTaskId = (int)$pdo->lastInsertId();
+        $createdIds[] = $newTaskId;
+
+        $assigneesStmt->execute([':new_id' => $newTaskId, ':orig_id' => $taskId]);
+        $checklistStmt->execute([':new_id' => $newTaskId, ':orig_id' => $taskId]);
+
+        if ($recurrenceMode === 'duplicate') {
+            $commentsStmt->execute([':new_id' => $newTaskId, ':orig_id' => $taskId, ':now' => $nowStr]);
+        }
+
+        $lastDueDate = $nextDueDate;
     }
 
-    if (function_exists('log_task_activity')) {
-        log_task_activity($pdo, $newTaskId, (int)($user['id'] ?? $task['created_by']), 'task_created', "Recorrência gerada (" . ($recurrenceMode === 'duplicate' ? 'duplicada com comentários' : 'nova e limpa') . ") a partir da tarefa #{$taskId}");
-    }
-
-    if (function_exists('normalize_stage_order')) {
+    if (!empty($createdIds) && function_exists('normalize_stage_order')) {
         normalize_stage_order($pdo, (int)$firstStage);
     }
 
-    return $newTaskId;
+    return $createdIds;
 }
 
+function create_next_recurrence_task(PDO $pdo, int $taskId, array $user): ?int
+{
+    $created = generate_recurring_series_occurrences($pdo, $taskId, $user, 4);
+    return !empty($created) ? $created[0] : null;
+}
 
-/**
- * Escalação automática de prioridade para tarefas atrasadas.
- * Se uma tarefa tinha data anterior a hoje e não foi concluída, sobe de grau:
- * - 1 dia de atraso (ontem): sobe 1 nível (low -> medium -> high -> urgent)
- * - 2+ dias de atraso: sobe proporcionalmente até atingir urgent
- * Tarefas atrasadas entram com prioridade escalada e são destacadas.
- */
 function escalate_overdue_priority(string $originalPriority, ?string $dueDate, ?string $completedAt): array
 {
     $levels = ['low', 'medium', 'high', 'urgent'];

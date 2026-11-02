@@ -1625,54 +1625,29 @@ window.KD = window.KD || {};
             }
 
             // 5. Para tarefas do mesmo dia / mesmo atraso:
+            // 5.1 Horario agendado (due_time) tem precedencia cronologica absoluta
+            const aHasTime = Boolean(a.due_time && a.due_time.trim());
+            const bHasTime = Boolean(b.due_time && b.due_time.trim());
+            if (aHasTime && bHasTime) {
+                const timeDiff = a.due_time.localeCompare(b.due_time);
+                if (timeDiff !== 0) return timeDiff;
+            } else if (aHasTime && !bHasTime) {
+                return -1;
+            } else if (!aHasTime && bHasTime) {
+                return 1;
+            }
 
-            // Tarefas A+ acima de tarefas A &&
-
-            // Tarefas A acima de tarefas B &&
-
-            // Tarefas B acima de tarefas C &&
-
-            // Tarefas C acima de tarefas D
-
+            // 5.2 Categoria do Cliente (A+ > A > B > C > D)
             const catA = CAT_WEIGHT[getClientCategory(a)] || 5;
-
             const catB = CAT_WEIGHT[getClientCategory(b)] || 5;
-
             if (catA !== catB) {
-
                 return catA - catB;
-
             }
 
-            // 6. Desempates dentro da mesma data e mesma categoria:
-
-            // 6.1 Horário próximo nos próximos 60 minutos
-
-            const aNear = isNearDueTime(a, todayStr);
-
-            const bNear = isNearDueTime(b, todayStr);
-
-            if (aNear !== bNear) return aNear ? -1 : 1;
-
-            // 6.2 Prioridade cadastrada (Urgente > Alta > Média > Baixa)
-
+            // 5.3 Prioridade cadastrada (Urgente > Alta > Media > Baixa)
             const pA = PRIORITY_WEIGHT[a.priority] || 3;
-
             const pB = PRIORITY_WEIGHT[b.priority] || 3;
-
             if (pA !== pB) return pA - pB;
-
-            // 6.3 Horário de entrega mais cedo (due_time)
-
-            if (a.due_time && b.due_time && a.due_time !== b.due_time) {
-
-                return a.due_time.localeCompare(b.due_time);
-
-            }
-
-            if (a.due_time && !b.due_time) return -1;
-
-            if (!a.due_time && b.due_time) return 1;
 
             // 6.4 Ordem manual do usuário se existir dentro da mesma faixa
 
@@ -2829,17 +2804,18 @@ window.KD = window.KD || {};
         // 3. Prazo no rodapé à esquerda (texto do tracking-wide na mesma cor do status)
 
         let dueHtml = '';
-
         const timeBadge = task.due_time ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-xs"><i data-lucide="clock" class="w-3 h-3"></i>${KD.escapeHtml(task.due_time.substring(0, 5))}</span>` : '';
+        const isWeekdayMode = (board.viewMode === 'weekday');
+        const isTaskOverdue = Boolean(task.is_overdue || due.tone === 'overdue');
 
-        if (due.text) {
-
-            dueHtml = `<span class="text-xs font-bold tracking-wide leading-tight flex items-center gap-1.5" style="color: var(--card-status-color);">${KD.escapeHtml(due.text)} ${timeBadge}</span>`;
-
+        if (isWeekdayMode && !isTaskOverdue) {
+            dueHtml = timeBadge ? `<span class="text-xs leading-tight flex items-center gap-1.5">${timeBadge}</span>` : '';
         } else {
-
-            dueHtml = `<span class="text-xs font-mono font-bold tracking-wide leading-tight flex items-center gap-1.5" style="color: var(--card-status-color);">#${task.id} ${timeBadge}</span>`;
-
+            if (due.text) {
+                dueHtml = `<span class="text-xs font-bold tracking-wide leading-tight flex items-center gap-1.5" style="color: var(--card-status-color);">${KD.escapeHtml(due.text)} ${timeBadge}</span>`;
+            } else {
+                dueHtml = `<span class="text-xs font-mono font-bold tracking-wide leading-tight flex items-center gap-1.5" style="color: var(--card-status-color);">#${task.id} ${timeBadge}</span>`;
+            }
         }
 
         // 4. Botão Play / Timer Expandido (toggle suave)
@@ -2974,7 +2950,7 @@ window.KD = window.KD || {};
 
                         ` : ''}
 
-                        ${due.text ? `
+                        ${(!isWeekdayMode || isTaskOverdue) && due.text ? `
 
                             <span class="text-[10px] font-semibold tracking-tight" style="color: var(--card-status-color);" title="Prazo: ${KD.escapeHtml(due.text)}">
 

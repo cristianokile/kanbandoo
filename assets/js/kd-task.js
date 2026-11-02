@@ -567,6 +567,7 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
 
             const data = await KD.api.get(`${KD.url('/api/tarefas')}?id=${taskId}`);
             const task = data.task;
+            activeTask = task;
 
             el('task_id').value = task.id;
             el('task_title').value = task.title || '';
@@ -765,7 +766,8 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
 
         const taskId = Number(el('task_id').value || 0);
         let recurrenceScope = 'single';
-        if (taskId > 0 && activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0)) {
+        const isRecurringSeries = taskId > 0 && activeTask && (Number(activeTask.is_recurring) === 1 || Number(activeTask.parent_task_id) > 0);
+        if (isRecurringSeries) {
             const scope = await KD.promptRecurrenceScope('edit');
             if (!scope) return;
             recurrenceScope = scope;
@@ -808,7 +810,7 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
             due_date: el('task_due_date').value || null,
             due_time: (el('task_has_time')?.checked && el('task_due_time')?.value) ? el('task_due_time').value : null,
             reminder_minutes: (el('task_has_time')?.checked && el('task_reminder_minutes')) ? Number(el('task_reminder_minutes').value) : 15,
-            is_calendar_event: Number(el('task_is_calendar_event')?.value || 0),
+            is_calendar_event: (el('task_has_time')?.checked && el('task_due_time')?.value) ? 1 : Number(el('task_is_calendar_event')?.value || 0),
             show_in_kanban: el('task_show_in_kanban')?.checked ? 1 : 0,
             estimated_minutes: el('task_estimated_minutes')?.value || null,
             description: el('task_description').value,
@@ -820,7 +822,7 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
             recurrence_config: recurrenceConfig,
             initial_checklist: formChecklistItems,
             recurrence_scope: recurrenceScope,
-            record_type: el('task_record_type')?.value || 'task',
+            record_type: (el('task_has_time')?.checked && el('task_due_time')?.value) ? 'event' : (el('task_record_type')?.value || 'task'),
             fixed_weekday: el('task_fixed_weekday')?.value !== '' ? Number(el('task_fixed_weekday')?.value) : null,
             recurrence_mode: document.querySelector('input[name="recurrence_mode"]:checked')?.value || 'duplicate',
         };
@@ -2112,6 +2114,14 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
     // Se a página carregar com ?create_with_template=X, abre automaticamente o modal com o modelo
     document.addEventListener('DOMContentLoaded', () => {
         const params = new URLSearchParams(window.location.search);
+        const dueTimeInput = el('task_due_time');
+        if (dueTimeInput) {
+            dueTimeInput.addEventListener('input', () => {
+                if (dueTimeInput.value) {
+                    KD.setRecordType('event');
+                }
+            });
+        }
         const tplId = params.get('create_with_template');
         if (tplId) {
             setTimeout(() => {
@@ -2129,7 +2139,14 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
         if (wrap) wrap.hidden = !checked;
         if (remWrap) remWrap.hidden = !checked;
         if (!checked && input) input.value = '';
-        if (checked && input && !input.value) input.focus();
+        if (checked) {
+            KD.setRecordType('event');
+            if (input && !input.value) input.focus();
+        } else {
+            if (el('task_record_type')?.value === 'event') {
+                KD.setRecordType('task');
+            }
+        }
     };
 
     // ===============================================================
