@@ -2805,8 +2805,8 @@ window.KD = window.KD || {};
 
         let dueHtml = '';
         const timeBadge = task.due_time ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-xs"><i data-lucide="clock" class="w-3 h-3"></i>${KD.escapeHtml(task.due_time.substring(0, 5))}</span>` : '';
-        const isWeekdayMode = (board.viewMode === 'weekday');
-        const isTaskOverdue = Boolean(task.is_overdue || due.tone === 'overdue');
+        const isWeekdayMode = (board.viewMode === 'weekdays' || board.viewMode === 'weekday');
+        const isTaskOverdue = Boolean(task.is_overdue || due.tone === 'overdue' || (due.text && due.text.toLowerCase().includes('atraso')));
 
         if (isWeekdayMode && !isTaskOverdue) {
             dueHtml = timeBadge ? `<span class="text-xs leading-tight flex items-center gap-1.5">${timeBadge}</span>` : '';
