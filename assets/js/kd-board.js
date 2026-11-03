@@ -574,7 +574,7 @@ window.KD = window.KD || {};
             const h = Math.round((board.workHours.capacityMinutes || 480) / 60);
             const lH = Math.round((board.workHours.lunchMinutes || 0) / 60);
             const lText = lH > 0 ? ` • ${lH}h almoço` : '';
-            el('workHoursLabel').textContent = `${(board.workHours.start || '09:00').slice(0, 2)}h–${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h${lText})`;
+            el('workHoursLabel').textContent = `${(board.workHours.start || '09:00').slice(0, 2)}h - ${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h${lText})`;
 
         }
 
@@ -645,6 +645,12 @@ window.KD = window.KD || {};
         if (mobileGroupInd) {
             mobileGroupInd.textContent = board.groupByClient ? 'Ligado' : 'Desligado';
             mobileGroupInd.className = board.groupByClient ? 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold' : 'text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
+        }
+
+        const mobileCalInd = el('mobileCalIndicator');
+        if (mobileCalInd) {
+            mobileCalInd.textContent = board.showCalendarEvents ? 'Ligado' : 'Desligado';
+            mobileCalInd.className = board.showCalendarEvents ? 'text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold' : 'text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
         }
 
         const mBadge = el('mobileFilterCountBadge');

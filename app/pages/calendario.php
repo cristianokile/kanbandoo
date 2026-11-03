@@ -125,7 +125,7 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
         <!-- Visão Semanal -->
         <div id="weekViewWrap" class="kd-glass rounded-2xl overflow-hidden border border-slate-800/80 shadow-2xl flex flex-col" hidden>
             <div class="overflow-x-auto w-full">
-                <div class="min-w-[640px] md:min-w-0">
+                <div class="min-w-[700px] md:min-w-0">
                     <div id="weekHeader" class="grid grid-cols-7 border-b border-slate-800/80 bg-slate-950/60 text-center py-2.5">
                         <!-- Dias da semana preenchidos via JS -->
                     </div>
@@ -232,7 +232,14 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
 <script>
     let currentDate = new Date();
     let calendarEvents = [];
-    let viewMode = 'month'; // 'month' ou 'week'
+    let viewMode = (window.innerWidth < 768) ? 'week' : 'month';
+
+    function formatLocalDate(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
 
     const MONTH_NAMES = [
         'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -249,12 +256,12 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
         } else {
             currentDate.setMonth(currentDate.getMonth() + delta);
         }
-        renderCalendar();
+        loadCalendarEvents();
     }
 
     function goToToday() {
         currentDate = new Date();
-        renderCalendar();
+        loadCalendarEvents();
     }
 
     function setViewMode(mode) {
@@ -286,8 +293,8 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
         try {
             const y = currentDate.getFullYear();
             const m = currentDate.getMonth();
-            const start = new Date(y, m - 1, 1).toISOString().split('T')[0];
-            const end = new Date(y, m + 2, 0).toISOString().split('T')[0];
+            const start = formatLocalDate(new Date(y, m - 1, 1));
+            const end = formatLocalDate(new Date(y, m + 2, 0));
 
             const res = await fetch(`<?= url('/api/calendario') ?>?start=${start}&end=${end}`);
             const data = await res.json();
@@ -308,7 +315,8 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
         if (viewMode === 'week') {
             const curr = new Date(currentDate);
             const dayOfWeek = curr.getDay();
-            const startOfWeek = new Date(curr.setDate(curr.getDate() - dayOfWeek));
+            const startOfWeek = new Date(curr);
+            startOfWeek.setDate(curr.getDate() - dayOfWeek);
             const endOfWeek = new Date(startOfWeek);
             endOfWeek.setDate(endOfWeek.getDate() + 6);
             const startMonth = MONTH_NAMES[startOfWeek.getMonth()];
@@ -339,20 +347,20 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = formatLocalDate(new Date());
 
         // Dias do mês anterior para preencher a primeira semana
         for (let i = firstDayOfMonth - 1; i >= 0; i--) {
             const dayNum = daysInPrevMonth - i;
             const prevMonthDate = new Date(year, month - 1, dayNum);
-            const dateStr = prevMonthDate.toISOString().split('T')[0];
+            const dateStr = formatLocalDate(prevMonthDate);
             grid.appendChild(createDayCell(dayNum, dateStr, true, false));
         }
 
         // Dias do mês atual
         for (let day = 1; day <= daysInMonth; day++) {
             const thisDate = new Date(year, month, day);
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dateStr = formatLocalDate(thisDate);
             const isToday = (dateStr === todayStr);
             grid.appendChild(createDayCell(day, dateStr, false, isToday));
         }
@@ -362,7 +370,7 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
         const remaining = (7 - (totalCells % 7)) % 7;
         for (let nextDay = 1; nextDay <= remaining; nextDay++) {
             const nextMonthDate = new Date(year, month + 1, nextDay);
-            const dateStr = nextMonthDate.toISOString().split('T')[0];
+            const dateStr = formatLocalDate(nextMonthDate);
             grid.appendChild(createDayCell(nextDay, dateStr, true, false));
         }
     }
@@ -409,6 +417,8 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
             let timeBadge = '';
             if (ev.due_time) {
                 timeBadge = `<span class="px-1 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex-shrink-0">${ev.due_time}</span>`;
+            } else {
+                timeBadge = `<span class="px-1 py-0.2 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 flex-shrink-0">Tarefa</span>`;
             }
 
             evCard.innerHTML = `
@@ -432,14 +442,15 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
         // Obter início da semana atual de currentDate (domingo)
         const curr = new Date(currentDate);
         const dayOfWeek = curr.getDay();
-        const startOfWeek = new Date(curr.setDate(curr.getDate() - dayOfWeek));
+        const startOfWeek = new Date(curr);
+        startOfWeek.setDate(curr.getDate() - dayOfWeek);
 
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = formatLocalDate(new Date());
 
         for (let i = 0; i < 7; i++) {
             const dayDate = new Date(startOfWeek);
             dayDate.setDate(dayDate.getDate() + i);
-            const dateStr = dayDate.toISOString().split('T')[0];
+            const dateStr = formatLocalDate(dayDate);
             const isToday = (dateStr === todayStr);
 
             // Cabeçalho
@@ -460,10 +471,17 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
                 evCard.style.border = '1px solid rgba(255, 255, 255, 0.08)';
                 evCard.onclick = () => KD.openTaskDetail(ev.id);
 
+                let badge = '';
+                if (ev.due_time) {
+                    badge = `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">${ev.due_time}</span>`;
+                } else {
+                    badge = `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">Tarefa</span>`;
+                }
+
                 evCard.innerHTML = `
                     <div class="flex items-center justify-between gap-1">
-                        ${ev.due_time ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">${ev.due_time}</span>` : '<span></span>'}
-                        <span class="text-[10px] text-slate-400 truncate">${KD.escapeHtml(ev.client_company)}</span>
+                        ${badge}
+                        <span class="text-[10px] text-slate-400 truncate">${KD.escapeHtml(ev.client_company || '')}</span>
                     </div>
                     <p class="font-semibold text-white truncate">${KD.escapeHtml(ev.title)}</p>
                 `;
@@ -555,11 +573,7 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        if (window.innerWidth < 768) {
-            setViewMode('week');
-        } else {
-            renderCalendar();
-        }
+        setViewMode(viewMode);
         loadCalendarEvents();
     });
 </script>

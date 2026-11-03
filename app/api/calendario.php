@@ -2,7 +2,7 @@
 /**
  * KanbanDoo - API de Integração e Eventos do Calendário
  *
- * Fornece eventos/tarefas para a visão de calendário e processa importação/sincronização
+ * Fornece eventos e tarefas com prazo para a visão de calendário e processa importação/sincronização
  * com feeds iCal do Google Calendar e Microsoft Outlook / 365.
  */
 require_once dirname(__DIR__) . '/bootstrap.php';
@@ -67,29 +67,29 @@ function parse_ical_feed(string $rawIcs): array
                 case 'DESCRIPTION':
                     $current['description'] = trim($val);
                     break;
+                case 'LOCATION':
+                    $current['location'] = trim($val);
+                    break;
                 case 'UID':
                     $current['uid'] = trim($val);
                     break;
-                case 'RRULE':
-                    $current['rrule'] = trim($val);
-                    break;
-                case 'RECURRENCE-ID':
-                    $current['recurrence_id'] = trim($val);
-                    break;
                 case 'DTSTART':
-                    $parsed = parse_ical_date($val);
-                    if ($parsed) {
-                        $current['due_date'] = $parsed['date'];
-                        if (!empty($parsed['time'])) {
-                            $current['due_time'] = $parsed['time'];
+                    // Pode vir no formato YYYYMMDD ou YYYYMMDDTHHMMSS ou YYYYMMDDTHHMMSSZ
+                    $cleanVal = preg_replace('/[^0-9T]/', '', $val);
+                    if (strpos($cleanVal, 'T') !== false) {
+                        $parts = explode('T', $cleanVal);
+                        $d = $parts[0];
+                        $t = $parts[1] ?? '000000';
+                        if (strlen($d) === 8) {
+                            $current['due_date'] = substr($d, 0, 4) . '-' . substr($d, 4, 2) . '-' . substr($d, 6, 2);
                         }
-                        $current['start_ts'] = $parsed['timestamp'];
-                    }
-                    break;
-                case 'DTEND':
-                    $parsed = parse_ical_date($val);
-                    if ($parsed) {
-                        $current['end_ts'] = $parsed['timestamp'];
+                        if (strlen($t) >= 4) {
+                            $current['due_time'] = substr($t, 0, 2) . ':' . substr($t, 2, 2);
+                        }
+                    } else {
+                        if (strlen($cleanVal) === 8) {
+                            $current['due_date'] = substr($cleanVal, 0, 4) . '-' . substr($cleanVal, 4, 2) . '-' . substr($cleanVal, 6, 2);
+                        }
                     }
                     break;
             }
@@ -99,107 +99,8 @@ function parse_ical_feed(string $rawIcs): array
     return $events;
 }
 
-/**
- * Calcula a próxima ocorrência válida a partir de hoje para um evento recorrente (RRULE).
- */
-function calculate_next_occurrence(array $event, string $todayStr): ?array
-{
-    $rrule = $event['rrule'] ?? '';
-    if (empty($rrule)) return null;
-
-    // Verificar UNTIL se houver (se a série já expirou antes de hoje)
-    if (preg_match('/UNTIL=(\d{8}(T\d{6}Z?)?)/', $rrule, $um)) {
-        $untilParsed = parse_ical_date($um[1]);
-        if ($untilParsed && $untilParsed['date'] < $todayStr) {
-            return null; // Série já finalizou no passado
-        }
-    }
-
-    $time = $event['due_time'] ?? null;
-    $origDate = $event['due_date'] ?? $todayStr;
-
-    // FREQ=WEEKLY: encontrar o próximo dia correspondente a partir de hoje
-    if (stripos($rrule, 'FREQ=WEEKLY') !== false) {
-        $daysMap = ['SU' => 0, 'MO' => 1, 'TU' => 2, 'WE' => 3, 'TH' => 4, 'FR' => 5, 'SA' => 6];
-        $targetDays = [];
-        if (preg_match('/BYDAY=([A-Z,]+)/', $rrule, $bm)) {
-            $parts = explode(',', $bm[1]);
-            foreach ($parts as $p) {
-                $code = substr(trim($p), -2);
-                if (isset($daysMap[$code])) $targetDays[] = $daysMap[$code];
-            }
-        }
-        if (empty($targetDays)) {
-            $origTs = strtotime($origDate);
-            $targetDays[] = (int)date('w', $origTs);
-        }
-
-        // Buscar a data de ocorrência nos próximos 14 dias a partir de hoje
-        $todayDt = new DateTime($todayStr);
-        for ($offset = 0; $offset < 14; $offset++) {
-            $check = clone $todayDt;
-            if ($offset > 0) $check->modify("+{$offset} days");
-            $w = (int)$check->format('w');
-            if (in_array($w, $targetDays, true)) {
-                return [
-                    'due_date' => $check->format('Y-m-d'),
-                    'due_time' => $time,
-                ];
-            }
-        }
-    }
-
-    // FREQ=DAILY: a tarefa ocorrerá hoje
-    if (stripos($rrule, 'FREQ=DAILY') !== false) {
-        return [
-            'due_date' => $todayStr,
-            'due_time' => $time,
-        ];
-    }
-
-    return null;
-}
-
-function parse_ical_date(string $val): ?array
-{
-    $val = trim($val);
-    // Formato dia inteiro: YYYYMMDD
-    if (preg_match('/^(\d{4})(\d{2})(\d{2})$/', $val, $m)) {
-        return [
-            'date' => "{$m[1]}-{$m[2]}-{$m[3]}",
-            'time' => null,
-            'timestamp' => strtotime("{$m[1]}-{$m[2]}-{$m[3]} 00:00:00")
-        ];
-    }
-    // Formato com hora UTC: YYYYMMDDTHHMMSSZ ou local: YYYYMMDDTHHMMSS
-    if (preg_match('/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/', $val, $m)) {
-        $year = $m[1]; $month = $m[2]; $day = $m[3];
-        $hour = $m[4]; $min = $m[5]; $sec = $m[6];
-        $isUtc = !empty($m[7]);
-
-        if ($isUtc) {
-            $dt = new DateTime("{$year}-{$month}-{$day} {$hour}:{$min}:{$sec}", new DateTimeZone('UTC'));
-            // Converter para o timezone local do Brasil
-            $dt->setTimezone(new DateTimeZone('America/Sao_Paulo'));
-            return [
-                'date' => $dt->format('Y-m-d'),
-                'time' => $dt->format('H:i'),
-                'timestamp' => $dt->getTimestamp()
-            ];
-        } else {
-            return [
-                'date' => "{$year}-{$month}-{$day}",
-                'time' => "{$hour}:{$min}",
-                'timestamp' => strtotime("{$year}-{$month}-{$day} {$hour}:{$min}:{$sec}")
-            ];
-        }
-    }
-
-    return null;
-}
-
 // -------------------------------------------------------------
-// GET: Retornar tarefas formatadas para visualização de calendário
+// GET: Retornar tarefas e eventos formatados para visualização de calendário
 // -------------------------------------------------------------
 if ($method === 'GET') {
     $start = $_GET['start'] ?? date('Y-m-01', strtotime('-1 month'));
@@ -210,10 +111,11 @@ if ($method === 'GET') {
     $userStmt->execute([':id' => $user['id']]);
     $userUrls = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    // Buscar tarefas no período
+    // Buscar tarefas e eventos no período (tanto eventos de calendário quanto tarefas com prazo)
     $stmt = $pdo->prepare("
         SELECT t.id, t.title, t.description, t.priority, t.due_date, t.due_time,
                t.completed_at, t.is_bomb, t.in_focus, t.estimated_minutes, t.tags,
+               t.is_calendar_event, t.record_type,
                s.id AS stage_id, s.name AS stage_name, s.color AS stage_color,
                c.company_name AS client_company
         FROM tasks t
@@ -222,9 +124,8 @@ if ($method === 'GET') {
         WHERE t.deleted_at IS NULL
           AND t.archived_at IS NULL
           AND t.due_date IS NOT NULL
-          AND t.is_calendar_event = 1
           AND t.due_date >= :start AND t.due_date <= :end
-        ORDER BY t.due_date ASC, t.due_time ASC, t.sort_order ASC
+        ORDER BY t.due_date ASC, (t.due_time IS NULL) ASC, t.due_time ASC, t.sort_order ASC
     ");
     $stmt->execute([':start' => $start, ':end' => $end]);
     $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -259,235 +160,169 @@ if ($method === 'GET') {
             'due_time' => !empty($t['due_time']) ? substr($t['due_time'], 0, 5) : null,
             'priority' => $t['priority'],
             'is_done' => !empty($t['completed_at']),
-            'is_bomb' => (int)$t['is_bomb'] === 1,
+            'is_bomb' => (bool)$t['is_bomb'],
+            'in_focus' => (bool)$t['in_focus'],
+            'estimated_minutes' => (int)$t['estimated_minutes'],
+            'is_calendar_event' => (int)($t['is_calendar_event'] ?? 0),
+            'record_type' => $t['record_type'] ?? 'task',
             'stage_name' => $t['stage_name'],
-            'stage_color' => $t['stage_color'] ?? '#6366f1',
-            'client_company' => $t['client_company'] ?: 'Sem cliente',
+            'stage_color' => $t['stage_color'],
+            'client_company' => $t['client_company'],
             'assignees' => $assigneesByTask[$t['id']] ?? [],
-            'tags' => $tags ?: []
+            'tags' => is_array($tags) ? $tags : []
         ];
     }
 
     json_response([
         'success' => true,
         'events' => $events,
-        'google_calendar_url' => $userUrls['google_calendar_url'] ?? '',
-        'outlook_calendar_url' => $userUrls['outlook_calendar_url'] ?? '',
+        'google_url' => $userUrls['google_calendar_url'] ?? '',
+        'outlook_url' => $userUrls['outlook_calendar_url'] ?? ''
     ]);
 }
 
 // -------------------------------------------------------------
-// POST: Ações de Sincronização / Importação
+// POST: Sincronizar feeds iCal ou Salvar URLs de integração
 // -------------------------------------------------------------
-$input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-$action = $input['action'] ?? '';
+if ($method === 'POST') {
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $action = $input['action'] ?? 'sync';
 
-// Salvar URLs de Calendário do Usuário
-if ($action === 'save_urls') {
-    $googleUrl  = trim((string)($input['google_calendar_url'] ?? ''));
-    $outlookUrl = trim((string)($input['outlook_calendar_url'] ?? ''));
+    // Salvar URLs de feed externo
+    if ($action === 'save_urls') {
+        $googleUrl = trim($input['google_calendar_url'] ?? '');
+        $outlookUrl = trim($input['outlook_calendar_url'] ?? '');
 
-    // Converter prefixo webcal:// para https://
-    $googleUrl  = preg_replace('#^webcal://#i', 'https://', $googleUrl);
-    $outlookUrl = preg_replace('#^webcal://#i', 'https://', $outlookUrl);
+        $stmt = $pdo->prepare('UPDATE users SET google_calendar_url = :g, outlook_calendar_url = :o WHERE id = :id');
+        $stmt->execute([
+            ':g' => $googleUrl ?: null,
+            ':o' => $outlookUrl ?: null,
+            ':id' => $user['id']
+        ]);
 
-    $upd = $pdo->prepare('UPDATE users SET google_calendar_url = :g, outlook_calendar_url = :o WHERE id = :id');
-    $upd->execute([
-        ':g' => $googleUrl ?: null,
-        ':o' => $outlookUrl ?: null,
-        ':id' => $user['id']
-    ]);
-
-    json_response(['success' => true, 'message' => 'Configurações de calendário salvas com sucesso!']);
-}
-
-// Sincronizar via URL ou Upload de arquivo .ics
-if ($action === 'sync_ical') {
-    $provider = $input['provider'] ?? 'google'; // 'google', 'microsoft' ou 'file'
-    $url = trim((string)($input['url'] ?? ''));
-    $url = preg_replace('#^webcal://#i', 'https://', $url);
-
-    $rawIcs = '';
-
-    if (!empty($_FILES['file']['tmp_name'])) {
-        $rawIcs = file_get_contents($_FILES['file']['tmp_name']);
-    } elseif (!empty($url)) {
-        // Baixar feed iCal
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'KanbanDoo Calendar Sync/1.0');
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        $rawIcs = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if (!$rawIcs || $httpCode >= 400) {
-            json_response(['error' => 'Não foi possível baixar o calendário da URL informada. Verifique se o link está correto e acessível.'], 400);
-        }
-
-        // Salvar a URL informada no perfil do usuário
-        $field = ($provider === 'microsoft') ? 'outlook_calendar_url' : 'google_calendar_url';
-        $pdo->prepare("UPDATE users SET {$field} = :url WHERE id = :id")->execute([':url' => $url, ':id' => $user['id']]);
-    } else {
-        // Tentar usar URL salva
-        $uStmt = $pdo->prepare('SELECT google_calendar_url, outlook_calendar_url FROM users WHERE id = :id');
-        $uStmt->execute([':id' => $user['id']]);
-        $saved = $uStmt->fetch(PDO::FETCH_ASSOC);
-
-        $savedUrl = ($provider === 'microsoft') ? ($saved['outlook_calendar_url'] ?? '') : ($saved['google_calendar_url'] ?? '');
-        if (empty($savedUrl)) {
-            json_response(['error' => 'Informe uma URL do calendário ou faça upload de um arquivo .ics.'], 400);
-        }
-
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $savedUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'KanbanDoo Calendar Sync/1.0');
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        $rawIcs = curl_exec($ch);
-        curl_close($ch);
-
-        if (!$rawIcs) {
-            json_response(['error' => 'Falha ao sincronizar o calendário salvo. Verifique sua conexão e a validade da URL.'], 400);
-        }
+        json_response([
+            'success' => true,
+            'message' => 'URLs de calendários salvas com sucesso!'
+        ]);
     }
 
-    if (empty($rawIcs)) {
-        json_response(['error' => 'Conteúdo do calendário vazio ou inválido.'], 400);
-    }
+    // Sincronizar e importar eventos de feeds remotos
+    if ($action === 'sync') {
+        // Obter URLs salvas
+        $userStmt = $pdo->prepare('SELECT google_calendar_url, outlook_calendar_url FROM users WHERE id = :id');
+        $userStmt->execute([':id' => $user['id']]);
+        $urls = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    $parsedEvents = parse_ical_feed($rawIcs);
-    if (empty($parsedEvents)) {
-        json_response(['error' => 'Nenhum evento encontrado no arquivo do calendário.'], 400);
-    }
+        $sources = [
+            'google' => $urls['google_calendar_url'] ?? '',
+            'outlook' => $urls['outlook_calendar_url'] ?? ''
+        ];
 
-    // Localizar a coluna padrão "A FAZER"
-    $stageStmt = $pdo->query("SELECT id FROM task_stages WHERE name LIKE '%fazer%' OR name LIKE '%to do%' ORDER BY sort_order ASC LIMIT 1");
-    $stageId = (int)($stageStmt->fetchColumn() ?: 1);
+        // Obter estágio padrão "A Fazer" para tarefas sincronizadas
+        $firstStageStmt = $pdo->query('SELECT id FROM task_stages ORDER BY sort_order ASC, id ASC LIMIT 1');
+        $defaultStageId = (int)$firstStageStmt->fetchColumn() ?: 1;
 
-    $showInKanban = isset($input['show_in_kanban']) ? ((int)$input['show_in_kanban'] === 1 ? 1 : 0) : 1;
-    $providerTag = ($provider === 'microsoft') ? 'Outlook' : 'Google Calendar';
-    $importedCount = 0;
-    $updatedCount = 0;
+        $importedCount = 0;
+        $updatedCount = 0;
 
-    $checkStmt = $pdo->prepare("
-        SELECT id FROM tasks
-        WHERE created_by = :uid
-          AND title = :title
-          AND due_date = :due_date
-          AND deleted_at IS NULL
-        LIMIT 1
-    ");
+        foreach ($sources as $sourceKey => $url) {
+            if (empty($url)) continue;
 
-    $insertStmt = $pdo->prepare("
-        INSERT INTO tasks (title, description, priority, stage_id, due_date, due_time, is_calendar_event, show_in_kanban, estimated_minutes, created_by, status, tags, created_at, updated_at)
-        VALUES (:title, :description, 'low', :stage_id, :due_date, :due_time, 1, :show_kanban, :est, :created_by, 'open', :tags, :now, :now2)
-    ");
-
-    $updateStmt = $pdo->prepare("
-        UPDATE tasks
-        SET due_time = :due_time, description = :description, updated_at = :now
-        WHERE id = :id
-    ");
-
-    $assignStmt = $pdo->prepare("INSERT IGNORE INTO task_assignees (task_id, user_id) VALUES (:tid, :uid)");
-
-    $now = now();
-
-    $todayStr = date('Y-m-d');
-
-    foreach ($parsedEvents as $ev) {
-        $title = mb_substr($ev['title'], 0, 200, 'UTF-8');
-        $desc = $ev['description'] ?? '';
-        $hasRrule = !empty($ev['rrule']);
-
-        if ($hasRrule) {
-            // Evento recorrente: calcular a data real da ocorrência atual/próxima a partir de hoje
-            $nextOcc = calculate_next_occurrence($ev, $todayStr);
-            if ($nextOcc) {
-                $dueDate = $nextOcc['due_date'];
-                $dueTime = $nextOcc['due_time'] ?? ($ev['due_time'] ?? null);
-            } else {
-                continue; // Série já expirou
+            // Converter protocolo webcal:// para https://
+            if (strpos($url, 'webcal://') === 0) {
+                $url = 'https://' . substr($url, 9);
             }
-        } else {
-            $dueDate = $ev['due_date'] ?? null;
-            $dueTime = $ev['due_time'] ?? null;
 
-            // Eventos pontuais com data anterior a hoje não devem entrar como tarefas a fazer atrasadas
-            if ($dueDate && $dueDate < $todayStr) {
+            // Buscar arquivo iCal com contexto de stream seguro
+            $opts = [
+                'http' => [
+                    'method' => 'GET',
+                    'timeout' => 15,
+                    'user_agent' => 'KanbanDoo-CalendarSync/1.0'
+                ],
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false
+                ]
+            ];
+            $context = stream_context_create($opts);
+            $rawFeed = @file_get_contents($url, false, $context);
+
+            if ($rawFeed === false) {
                 continue;
             }
-        }
 
-        // Calcular tempo estimado se disponível
-        $estimatedMinutes = null;
-        if (!empty($ev['start_ts']) && !empty($ev['end_ts']) && $ev['end_ts'] > $ev['start_ts']) {
-            $diffMins = round(($ev['end_ts'] - $ev['start_ts']) / 60);
-            if ($diffMins > 0 && $diffMins <= 1440) {
-                $estimatedMinutes = (int)$diffMins;
+            $feedEvents = parse_ical_feed($rawFeed);
+
+            foreach ($feedEvents as $ev) {
+                if (empty($ev['title']) || empty($ev['due_date'])) continue;
+
+                $uid = $ev['uid'] ?? md5($sourceKey . '_' . $ev['title'] . '_' . $ev['due_date']);
+                $syncId = $sourceKey . '_' . $uid;
+
+                // Verificar se já existe uma tarefa com esse external_sync_id
+                $checkStmt = $pdo->prepare('SELECT id FROM tasks WHERE external_sync_id = :sync_id LIMIT 1');
+                $checkStmt->execute([':sync_id' => $syncId]);
+                $existingId = $checkStmt->fetchColumn();
+
+                $timeVal = !empty($ev['due_time']) ? $ev['due_time'] . ':00' : null;
+
+                if ($existingId) {
+                    // Atualizar título, data e hora se mudou
+                    $upd = $pdo->prepare('
+                        UPDATE tasks
+                        SET title = :title,
+                            due_date = :due_date,
+                            due_time = :due_time,
+                            description = COALESCE(:description, description)
+                        WHERE id = :id
+                    ');
+                    $upd->execute([
+                        ':title' => $ev['title'],
+                        ':due_date' => $ev['due_date'],
+                        ':due_time' => $timeVal,
+                        ':description' => $ev['description'] ?? null,
+                        ':id' => $existingId
+                    ]);
+                    $updatedCount++;
+                } else {
+                    // Inserir nova tarefa/evento com tag do calendário
+                    $ins = $pdo->prepare('
+                        INSERT INTO tasks (
+                            title, description, stage_id, due_date, due_time,
+                            is_calendar_event, record_type, source, external_sync_id,
+                            priority, user_id, created_at
+                        ) VALUES (
+                            :title, :description, :stage_id, :due_date, :due_time,
+                            1, "event", :source, :sync_id,
+                            "medium", :user_id, :now
+                        )
+                    ');
+                    $ins->execute([
+                        ':title' => $ev['title'],
+                        ':description' => $ev['description'] ?? '',
+                        ':stage_id' => $defaultStageId,
+                        ':due_date' => $ev['due_date'],
+                        ':due_time' => $timeVal,
+                        ':source' => $sourceKey,
+                        ':sync_id' => $syncId,
+                        ':user_id' => $user['id'],
+                        ':now' => now()
+                    ]);
+                    $importedCount++;
+                }
             }
         }
 
-        if (empty($dueDate)) continue;
-
-        // Verificar se já existe
-        $checkStmt->execute([
-            ':uid' => $user['id'],
-            ':title' => $title,
-            ':due_date' => $dueDate,
+        json_response([
+            'success' => true,
+            'message' => "Sincronização concluída! $importedCount eventos importados, $updatedCount atualizados.",
+            'imported' => $importedCount,
+            'updated' => $updatedCount
         ]);
-        $existingId = $checkStmt->fetchColumn();
-
-        if ($existingId) {
-            // Atualizar horário se alterado
-            $updateStmt->execute([
-                ':due_time' => $dueTime,
-                ':description' => $desc,
-                ':now' => $now,
-                ':id' => $existingId
-            ]);
-            $updatedCount++;
-        } else {
-            // Inserir nova tarefa no Kanban na coluna A FAZER
-            $tagsJson = json_encode([$providerTag], JSON_UNESCAPED_UNICODE);
-            $insertStmt->execute([
-                ':title' => $title,
-                ':description' => $desc,
-                ':stage_id' => $stageId,
-                ':due_date' => $dueDate,
-                ':due_time' => $dueTime,
-                ':est' => $estimatedMinutes,
-                ':created_by' => $user['id'],
-                ':show_kanban' => $showInKanban,
-                ':tags' => $tagsJson,
-                ':now' => $now,
-                ':now2' => $now,
-            ]);
-            $newTaskId = (int)$pdo->lastInsertId();
-
-            // Vincular ao usuário logado
-            if ($newTaskId > 0) {
-                try {
-                    $assignStmt->execute([':tid' => $newTaskId, ':uid' => $user['id']]);
-                } catch (\Exception $e) {}
-            }
-            $importedCount++;
-        }
     }
 
-    json_response([
-        'success' => true,
-        'imported' => $importedCount,
-        'updated' => $updatedCount,
-        'total_events' => count($parsedEvents),
-        'message' => "Sincronização concluída! {$importedCount} novas tarefas importadas e {$updatedCount} atualizadas para o Kanban."
-    ]);
+    json_response(['error' => 'Ação não reconhecida.'], 400);
 }
 
-json_response(['error' => 'Ação não reconhecida.'], 400);
+json_response(['error' => 'Método inválido.'], 405);

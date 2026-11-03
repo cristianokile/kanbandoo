@@ -408,6 +408,11 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
                 <span class="flex items-center gap-2"><i data-lucide="layers" class="w-4 h-4 text-amber-400"></i> Agrupar por Cliente</span>
                 <span id="mobileGroupIndicator" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">Desligado</span>
             </button>
+
+            <button type="button" onclick="KD.toggleCalendarEventsInKanban();" class="w-full py-2.5 px-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-semibold text-slate-200 flex items-center justify-between active:bg-slate-800">
+                <span class="flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i> Eventos do Calendário</span>
+                <span id="mobileCalIndicator" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">Ligado</span>
+            </button>
         </div>
 
         <!-- Mais Ferramentas -->
