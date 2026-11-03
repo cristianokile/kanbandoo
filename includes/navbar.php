@@ -25,7 +25,7 @@ $navItems = [
     ['id' => 'equipe',     'href' => url('/equipe'),     'icon' => 'users',       'label' => 'Equipe',     'active' => current_path() === '/equipe', 'admin' => true],
 ];
 ?>
-<header class="kd-header kd-glass sticky top-0 z-40 px-8 py-3">
+<header class="kd-header kd-glass sticky top-0 z-40 px-4 md:px-8 py-2 md:py-3">
     <div class="w-full flex items-center justify-between gap-4">
 
         <div class="flex items-center gap-6">
@@ -35,7 +35,7 @@ $navItems = [
                 </span>
                 <span class="flex flex-col">
                     <span class="font-bold text-lg text-white tracking-tight leading-none">KanbanDoo</span>
-                    <span class="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Tarefas &bull; Clientes</span>
+                    <span class="text-[10px] text-slate-400 font-medium tracking-wide uppercase hidden sm:block">Tarefas &bull; Clientes</span>
                 </span>
             </a>
 
@@ -71,7 +71,7 @@ $navItems = [
 
         <div class="flex items-center gap-2">
             <!-- Botão Unificado: Nova Tarefa + Dropdown -->
-            <div class="relative inline-flex items-stretch rounded-xl shadow-lg shadow-indigo-600/20 kd-menu-wrap" id="newTaskDropdownWrap">
+            <div class="relative hidden md:inline-flex items-stretch rounded-xl shadow-lg shadow-indigo-600/20 kd-menu-wrap" id="newTaskDropdownWrap">
                 <button type="button" onclick="KD.openTaskForm()" class="kd-btn kd-btn--primary rounded-r-none border-r border-indigo-400/30 pr-2.5">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">Nova tarefa</span>

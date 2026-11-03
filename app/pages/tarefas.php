@@ -21,7 +21,55 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
 <main id="conteudo" class="kd-main-board flex-1 w-full pt-3 flex flex-col min-h-0 overflow-hidden">
 
     <!-- Cabeçalho da página: título, métricas e controles de visão -->
-    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-3 flex-shrink-0 px-4 lg:px-8">
+        <!-- BARRA DE CONTROLE MOBILE ULTRA-LIMPA (Estilo ClickUp / Trello / Runrun.it) - Visível apenas no Mobile (< 768px) -->
+    <div class="md:hidden flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-xl flex-shrink-0 z-20">
+        <!-- Esquerda: Seletor de Modo / Navegador de Semanas -->
+        <div class="flex items-center gap-1.5 min-w-0">
+            <!-- Navegação de Semanas (apenas Visão por Dias da Semana) -->
+            <div id="mobileWeekNavWrap" class="flex items-center gap-0.5 bg-slate-900/90 border border-slate-800 rounded-xl p-0.5" style="display: none;">
+                <button type="button" onclick="KD.navigateWeek(-1)" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-white rounded-lg active:bg-slate-800" aria-label="Semana Anterior">
+                    <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+                </button>
+                <button type="button" onclick="KD.navigateWeek(0)" class="px-2 h-7 text-[11px] font-semibold text-slate-200 flex items-center gap-1 active:bg-slate-800 rounded-lg" aria-label="Esta Semana">
+                    <i data-lucide="calendar" class="w-3 h-3 text-indigo-400"></i>
+                    <span id="mobileWeekNavLabel">Esta Semana</span>
+                </button>
+                <button type="button" onclick="KD.navigateWeek(1)" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-white rounded-lg active:bg-slate-800" aria-label="Próxima Semana">
+                    <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+
+            <!-- Botão Alternador de Visão Rápido: Status vs Dias -->
+            <button type="button" onclick="KD.toggleViewModeMobile()" id="mobileViewToggleBtn"
+                    class="h-7 px-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] font-semibold text-slate-300 flex items-center gap-1.5 active:bg-slate-800 shadow-sm"
+                    title="Alternar visão">
+                <i data-lucide="columns" class="w-3 h-3 text-indigo-400" id="mobileViewIcon"></i>
+                <span id="mobileViewLabel">Status</span>
+            </button>
+        </div>
+
+        <!-- Direita: Resumo de Métricas (sheet), Filtro, Menu de Opções -->
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+            <!-- Botão de Métricas Resumo -->
+            <button type="button" onclick="KD.toggleMobileMetricsSheet(true)" class="h-7 px-2 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-300 text-[11px] font-semibold flex items-center gap-1.5 active:bg-slate-800 shadow-sm" title="Resumo das tarefas">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                <span id="mobileMetricTotalBadge">–</span>
+            </button>
+
+            <!-- Botão de Filtro -->
+            <button type="button" onclick="KD.toggleFilterBar()" class="w-7 h-7 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-300 flex items-center justify-center relative active:bg-slate-800 shadow-sm" title="Buscar e filtrar">
+                <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                <span id="mobileFilterCountBadge" class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-indigo-500 text-white rounded-full text-[8px] font-bold flex items-center justify-center" hidden></span>
+            </button>
+
+            <!-- Botão Mais Opções do Quadro (Bottom Sheet) -->
+            <button type="button" onclick="KD.toggleMobileBoardOptions(true)" class="w-7 h-7 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-300 flex items-center justify-center active:bg-slate-800 shadow-sm" title="Opções do Quadro">
+                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="hidden md:flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-3 flex-shrink-0 px-4 lg:px-8">
         <div>
             <h1 class="text-2xl font-extrabold tracking-tight">Quadro de tarefas</h1>
             <p class="text-xs text-slate-400 mt-0.5 hidden md:block">
@@ -284,6 +332,98 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
 
     <!-- Quadro Full-Width -->
     <div id="kanbanBoard" class="kd-board flex-1 min-h-0 w-full" aria-label="Quadro Kanban"></div>
+    <!-- Bottom Sheet de Métricas Resumo (Mobile) -->
+    <div id="mobileMetricsSheetBackdrop" onclick="KD.toggleMobileMetricsSheet(false)" class="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity opacity-0 pointer-events-none" style="transition: opacity 0.2s ease;"></div>
+    <div id="mobileMetricsSheet" class="md:hidden fixed inset-x-3 bottom-20 z-50 mx-auto max-w-sm p-4 rounded-3xl bg-slate-950/95 backdrop-blur-2xl border border-white/10 shadow-2xl transition-all transform translate-y-8 opacity-0 pointer-events-none space-y-3" style="transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Resumo de Tarefas</span>
+            <button type="button" onclick="KD.toggleMobileMetricsSheet(false)" class="text-slate-400 hover:text-white p-1">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+            <button type="button" onclick="KD.filterByMetric('total'); KD.toggleMobileMetricsSheet(false);" class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col gap-1 text-left active:bg-slate-800">
+                <span class="flex items-center gap-1.5 text-slate-400 text-[11px] font-medium">
+                    <span class="w-2 h-2 rounded-full bg-indigo-500"></span> Em aberto
+                </span>
+                <span class="text-lg font-bold text-white font-mono" id="mobileMetricTotal">–</span>
+            </button>
+            <button type="button" onclick="KD.filterByMetric('today'); KD.toggleMobileMetricsSheet(false);" class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col gap-1 text-left active:bg-slate-800">
+                <span class="flex items-center gap-1.5 text-slate-400 text-[11px] font-medium">
+                    <span class="w-2 h-2 rounded-full bg-amber-400"></span> Hoje
+                </span>
+                <span class="text-lg font-bold text-amber-400 font-mono" id="mobileMetricToday">–</span>
+            </button>
+            <button type="button" onclick="KD.filterByMetric('overdue'); KD.toggleMobileMetricsSheet(false);" class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col gap-1 text-left active:bg-slate-800">
+                <span class="flex items-center gap-1.5 text-slate-400 text-[11px] font-medium">
+                    <span class="w-2 h-2 rounded-full bg-rose-500"></span> Atrasadas
+                </span>
+                <span class="text-lg font-bold text-rose-400 font-mono" id="mobileMetricOverdue">–</span>
+            </button>
+            <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col gap-1 text-left">
+                <span class="flex items-center gap-1.5 text-slate-400 text-[11px] font-medium">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Concluídas hoje
+                </span>
+                <span class="text-lg font-bold text-emerald-400 font-mono" id="mobileMetricDoneToday">–</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Sheet de Opções do Quadro (Mobile) -->
+    <div id="mobileBoardOptionsBackdrop" onclick="KD.toggleMobileBoardOptions(false)" class="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity opacity-0 pointer-events-none" style="transition: opacity 0.2s ease;"></div>
+    <div id="mobileBoardOptionsSheet" class="md:hidden fixed inset-x-3 bottom-20 z-50 mx-auto max-w-sm p-4 rounded-3xl bg-slate-950/95 backdrop-blur-2xl border border-white/10 shadow-2xl transition-all transform translate-y-8 opacity-0 pointer-events-none space-y-3" style="transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); max-height: calc(100vh - 7rem); overflow-y: auto;">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Opções do Quadro</span>
+            <button type="button" onclick="KD.toggleMobileBoardOptions(false)" class="text-slate-400 hover:text-white p-1">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Modos de Visão -->
+        <div>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Visualização</span>
+            <div class="grid grid-cols-2 gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                <button type="button" id="mobileBtnViewStatus" onclick="KD.setViewMode('status'); KD.toggleMobileBoardOptions(false);" class="py-2 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                    <i data-lucide="columns" class="w-3.5 h-3.5"></i> Status
+                </button>
+                <button type="button" id="mobileBtnViewWeekdays" onclick="KD.setViewMode('weekdays'); KD.toggleMobileBoardOptions(false);" class="py-2 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                    <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i> Dias da Semana
+                </button>
+            </div>
+        </div>
+
+        <!-- Ajustes Rápidos -->
+        <div class="space-y-1.5 pt-1 border-t border-slate-800">
+            <button type="button" onclick="KD.toggleCompactMode()" id="mobileCompactToggle" class="w-full py-2.5 px-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-semibold text-slate-200 flex items-center justify-between active:bg-slate-800">
+                <span class="flex items-center gap-2"><i data-lucide="rows-3" class="w-4 h-4 text-indigo-400"></i> Modo Compacto</span>
+                <span id="mobileCompactIndicator" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">Desligado</span>
+            </button>
+
+            <button type="button" onclick="KD.toggleOnlyMine(); KD.toggleMobileBoardOptions(false);" class="w-full py-2.5 px-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-semibold text-slate-200 flex items-center justify-between active:bg-slate-800">
+                <span class="flex items-center gap-2"><i data-lucide="user-check" class="w-4 h-4 text-purple-400"></i> Apenas Minhas Tarefas</span>
+                <span id="mobileOnlyMineIndicator" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">Desligado</span>
+            </button>
+
+            <button type="button" onclick="KD.toggleGroupByClient(); KD.toggleMobileBoardOptions(false);" class="w-full py-2.5 px-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-semibold text-slate-200 flex items-center justify-between active:bg-slate-800">
+                <span class="flex items-center gap-2"><i data-lucide="layers" class="w-4 h-4 text-amber-400"></i> Agrupar por Cliente</span>
+                <span id="mobileGroupIndicator" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">Desligado</span>
+            </button>
+        </div>
+
+        <!-- Mais Ferramentas -->
+        <div class="pt-1 border-t border-slate-800 space-y-1">
+            <button type="button" onclick="KD.openImportModal(); KD.toggleMobileBoardOptions(false);" class="w-full py-2 px-3 rounded-xl text-xs font-medium text-slate-300 hover:text-white flex items-center gap-2.5 text-left active:bg-slate-800">
+                <i data-lucide="upload" class="w-4 h-4 text-emerald-400"></i> Importar Planilha (.csv / .txt)
+            </button>
+            <a href="<?= url('/api/tarefas?action=export_csv') ?>" download class="w-full py-2 px-3 rounded-xl text-xs font-medium text-slate-300 hover:text-white flex items-center gap-2.5 text-left active:bg-slate-800">
+                <i data-lucide="download" class="w-4 h-4 text-blue-400"></i> Exportar Planilha (.csv)
+            </a>
+            <button type="button" onclick="KD.openTrashModal(); KD.toggleMobileBoardOptions(false);" class="w-full py-2 px-3 rounded-xl text-xs font-medium text-red-400 hover:text-red-300 flex items-center gap-2.5 text-left active:bg-slate-800">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> Lixeira de Tarefas
+            </button>
+        </div>
+    </div>
+
 </main>
 
 <?php view_footer(); ?>

@@ -598,6 +598,62 @@ window.KD = window.KD || {};
 
         if (dragHint) dragHint.hidden = !board.groupByClient;
 
+        // Atualizar controles mobile
+        const isWeek = (board.viewMode === 'weekdays');
+        const mobileWeekWrap = el('mobileWeekNavWrap');
+        const mobileWeekLabel = el('mobileWeekNavLabel');
+        const mobileViewLabel = el('mobileViewLabel');
+        const mobileViewIcon = el('mobileViewIcon');
+
+        if (mobileWeekWrap) mobileWeekWrap.style.display = isWeek ? 'inline-flex' : 'none';
+        if (mobileWeekLabel && el('weekNavLabelText')) {
+            mobileWeekLabel.textContent = el('weekNavLabelText').textContent;
+        }
+        if (mobileViewLabel) {
+            mobileViewLabel.textContent = isWeek ? 'Dias' : 'Status';
+        }
+        if (mobileViewIcon) {
+            mobileViewIcon.setAttribute('data-lucide', isWeek ? 'calendar-days' : 'columns');
+            if (window.lucide && el('mobileViewToggleBtn')) lucide.createIcons({ root: el('mobileViewToggleBtn') });
+        }
+
+        const mobileBtnStatus = el('mobileBtnViewStatus');
+        const mobileBtnWeek = el('mobileBtnViewWeekdays');
+        if (mobileBtnStatus) {
+            mobileBtnStatus.className = !isWeek 
+                ? 'py-2 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition text-indigo-400 bg-indigo-600/20 border border-indigo-500/30'
+                : 'py-2 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-400 hover:text-white';
+        }
+        if (mobileBtnWeek) {
+            mobileBtnWeek.className = isWeek 
+                ? 'py-2 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition text-indigo-400 bg-indigo-600/20 border border-indigo-500/30'
+                : 'py-2 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-400 hover:text-white';
+        }
+
+        const mobileCompactInd = el('mobileCompactIndicator');
+        if (mobileCompactInd) {
+            mobileCompactInd.textContent = board.compactMode ? 'Ligado' : 'Desligado';
+            mobileCompactInd.className = board.compactMode ? 'text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold' : 'text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
+        }
+
+        const mobileMineInd = el('mobileOnlyMineIndicator');
+        if (mobileMineInd) {
+            mobileMineInd.textContent = board.onlyMine ? 'Ligado' : 'Desligado';
+            mobileMineInd.className = board.onlyMine ? 'text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold' : 'text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
+        }
+
+        const mobileGroupInd = el('mobileGroupIndicator');
+        if (mobileGroupInd) {
+            mobileGroupInd.textContent = board.groupByClient ? 'Ligado' : 'Desligado';
+            mobileGroupInd.className = board.groupByClient ? 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold' : 'text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
+        }
+
+        const mBadge = el('mobileFilterCountBadge');
+        if (mBadge) {
+            mBadge.textContent = count > 0 ? String(count) : '';
+            mBadge.hidden = count === 0;
+        }
+
     }
 
     function showFilterBar(show) {
@@ -952,16 +1008,19 @@ window.KD = window.KD || {};
 
         if (!board.metrics) return;
 
+        const totalOpen = board.metrics.total_open || 0;
+        const totalOpenBadge = (totalOpen > 999 ? (totalOpen / 1000).toFixed(1) + 'k' : totalOpen);
+
         const map = {
-
-            metricTotal: board.metrics.total_open,
-
+            metricTotal: totalOpen,
             metricToday: board.metrics.due_today,
-
             metricOverdue: board.metrics.overdue,
-
             metricDoneToday: board.metrics.done_today,
-
+            mobileMetricTotal: totalOpen,
+            mobileMetricToday: board.metrics.due_today,
+            mobileMetricOverdue: board.metrics.overdue,
+            mobileMetricDoneToday: board.metrics.done_today,
+            mobileMetricTotalBadge: totalOpenBadge,
         };
 
         Object.entries(map).forEach(([id, value]) => {
@@ -3378,6 +3437,14 @@ window.KD = window.KD || {};
 
         }).join('');
 
+        // Suavemente rola a aba ativa para o centro no mobile
+        setTimeout(() => {
+            const activeTab = tabs.querySelector('.kd-segmented__item[aria-selected="true"]');
+            if (activeTab && typeof activeTab.scrollIntoView === 'function') {
+                activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        }, 50);
+
     }
 
     function applyMobileStage() {
@@ -5427,6 +5494,50 @@ window.KD = window.KD || {};
         });
 
     });
+
+
+    KD.toggleViewModeMobile = function () {
+        const nextMode = (board.viewMode === 'weekdays') ? 'status' : 'weekdays';
+        KD.setViewMode(nextMode);
+    };
+
+    KD.toggleMobileMetricsSheet = function (show) {
+        const backdrop = el('mobileMetricsSheetBackdrop');
+        const sheet = el('mobileMetricsSheet');
+        if (!backdrop || !sheet) return;
+        const isVisible = backdrop.classList.contains('opacity-100');
+        const shouldShow = (typeof show === 'boolean') ? show : !isVisible;
+        if (shouldShow) {
+            backdrop.classList.remove('opacity-0', 'pointer-events-none');
+            backdrop.classList.add('opacity-100');
+            sheet.classList.remove('translate-y-8', 'opacity-0', 'pointer-events-none');
+            sheet.classList.add('translate-y-0', 'opacity-100');
+        } else {
+            backdrop.classList.remove('opacity-100');
+            backdrop.classList.add('opacity-0', 'pointer-events-none');
+            sheet.classList.remove('translate-y-0', 'opacity-100');
+            sheet.classList.add('translate-y-8', 'opacity-0', 'pointer-events-none');
+        }
+    };
+
+    KD.toggleMobileBoardOptions = function (show) {
+        const backdrop = el('mobileBoardOptionsBackdrop');
+        const sheet = el('mobileBoardOptionsSheet');
+        if (!backdrop || !sheet) return;
+        const isVisible = backdrop.classList.contains('opacity-100');
+        const shouldShow = (typeof show === 'boolean') ? show : !isVisible;
+        if (shouldShow) {
+            backdrop.classList.remove('opacity-0', 'pointer-events-none');
+            backdrop.classList.add('opacity-100');
+            sheet.classList.remove('translate-y-8', 'opacity-0', 'pointer-events-none');
+            sheet.classList.add('translate-y-0', 'opacity-100');
+        } else {
+            backdrop.classList.remove('opacity-100');
+            backdrop.classList.add('opacity-0', 'pointer-events-none');
+            sheet.classList.remove('translate-y-0', 'opacity-100');
+            sheet.classList.add('translate-y-8', 'opacity-0', 'pointer-events-none');
+        }
+    };
 
 })(window.KD);
 

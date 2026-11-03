@@ -2241,37 +2241,120 @@ html.light .kd-chip-client[data-color="9"] { color: #b91c1c; }
    ========================================================================== */
 
 @media (max-width: 767px) {
-    .kd-segmented { display: flex; }
-
-    .kd-board {
-        display: block;
-        overflow-x: visible;
-        overflow-y: auto;
-        min-height: 0;
-        padding-left: 1rem;
-        padding-right: 1rem;
-        padding-bottom: 1.5rem;
+    /* Barra de abas horizontais de colunas / dias (ClickUp / Trello native style) */
+    .kd-segmented {
+        display: flex !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
+        padding: 0.35rem 0.75rem !important;
+        margin: 0 !important;
+        gap: 0.35rem !important;
+        background: rgba(2, 6, 23, 0.7) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 25 !important;
+    }
+    .kd-segmented::-webkit-scrollbar {
+        display: none !important;
+    }
+    .kd-segmented__item {
+        flex-shrink: 0 !important;
+        height: 2.1rem !important;
+        padding: 0 0.75rem !important;
+        border-radius: 9999px !important;
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 0.35rem !important;
+        background: rgba(15, 23, 42, 0.85) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        color: #94a3b8 !important;
+        transition: all 0.15s ease !important;
+        white-space: nowrap !important;
+    }
+    .kd-segmented__item[aria-selected="true"] {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.28), rgba(79, 70, 229, 0.4)) !important;
+        border-color: rgba(129, 140, 248, 0.5) !important;
+        color: #ffffff !important;
+        box-shadow: 0 2px 10px -2px rgba(99, 102, 241, 0.35) !important;
+    }
+    .kd-segmented__item .kd-col__count {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #cbd5e1 !important;
+        font-size: 0.6875rem !important;
+        padding: 0.1rem 0.45rem !important;
+        border-radius: 9999px !important;
+    }
+    .kd-segmented__item[aria-selected="true"] .kd-col__count {
+        background: rgba(99, 102, 241, 0.45) !important;
+        color: #ffffff !important;
     }
 
+    /* Quadro e Coluna Ativa */
+    .kd-main-board {
+        padding-top: 0 !important;
+    }
+    .kd-board {
+        display: block !important;
+        overflow-x: visible !important;
+        overflow-y: auto !important;
+        min-height: 0 !important;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 5.5rem !important;
+    }
     .kd-col {
         display: none;
-        max-width: 100%;
-        min-width: 0;
-        width: 100%;
-        max-height: none;
-        border: none;
-        background: transparent;
-        padding: 0;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        width: 100% !important;
+        max-height: none !important;
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
     }
-    .kd-col.is-active-mobile { display: flex; }
+    .kd-col.is-active-mobile {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    /* Cabeçalho da coluna no mobile */
+    .kd-col__header {
+        padding: 0.5rem 0.75rem !important;
+        margin-bottom: 0.5rem !important;
+        background: rgba(15, 23, 42, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.06) !important;
+        border-radius: 0.875rem !important;
+    }
+    .kd-col [data-action="toggle-collapse"],
+    .kd-col [data-action="toggle-collapse-weekday"] {
+        display: none !important;
+    }
+    .kd-col__subbar {
+        padding-top: 0.25rem !important;
+        margin-top: 0.25rem !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.04) !important;
+    }
+
     .kd-col--collapsed { min-width: 0 !important; max-width: 100% !important; width: 100% !important; flex: 1 1 auto !important; height: auto !important; }
     .kd-col-collapsed__inner { flex-direction: row; justify-content: space-between; padding: 0.5rem 0.75rem; }
     .kd-col-collapsed__pill { writing-mode: horizontal-tb; transform: none; }
 
     .kd-col__body { overflow: visible; max-height: none; }
 
-    /* Recolher coluna não faz sentido quando só uma aparece por vez */
-    .kd-col [data-action="toggle-collapse"] { display: none; }
+    /* Cards no Mobile */
+    .kd-card {
+        margin-bottom: 0.5rem !important;
+        border-radius: 1rem !important;
+        padding: 0.75rem 0.875rem !important;
+    }
 
     .kd-toast-stack { left: 1rem; right: 1rem; bottom: 1rem; align-items: stretch; }
     .kd-toast { max-width: 100%; }
