@@ -222,6 +222,13 @@ function kanbandoo_migrations(string $driver): array
         '015_client_category_compat' => [
             "ALTER TABLE clients ADD COLUMN category VARCHAR(10) DEFAULT 'C'",
         ],
+
+        // Horário de almoço / intervalo no expediente
+        '016_work_hours_lunch' => [
+            "ALTER TABLE users ADD COLUMN lunch_start_time VARCHAR(10) DEFAULT '12:00'",
+            "ALTER TABLE users ADD COLUMN lunch_end_time VARCHAR(10) DEFAULT '13:00'",
+            "ALTER TABLE users ADD COLUMN lunch_break_minutes $int DEFAULT 60",
+        ],
     ];
 }
 

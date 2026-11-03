@@ -1727,17 +1727,30 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
     KD.openWorkHoursModal = async function () {
         const startInput = el('work_start_time_input');
         const endInput = el('work_end_time_input');
+        const lunchCheck = el('work_has_lunch_input');
+        const lunchStartInput = el('lunch_start_time_input');
+        const lunchEndInput = el('lunch_end_time_input');
 
         if (KD.board && KD.board.workHours) {
             if (startInput) startInput.value = KD.board.workHours.start || '09:00';
-            if (endInput) endInput.value = KD.board.workHours.end || '17:00';
+            if (endInput) endInput.value = KD.board.workHours.end || '18:00';
+            if (lunchStartInput) lunchStartInput.value = KD.board.workHours.lunchStart || '12:00';
+            if (lunchEndInput) lunchEndInput.value = KD.board.workHours.lunchEnd || '13:00';
+            const hasLunch = (KD.board.workHours.lunchMinutes !== undefined) ? (Number(KD.board.workHours.lunchMinutes) > 0) : true;
+            if (lunchCheck) lunchCheck.checked = hasLunch;
+            KD.toggleLunchInputs(hasLunch);
         } else {
             try {
                 const res = await fetch(KD.url('/api/preferencias'));
                 const data = await res.json();
                 if (data.success) {
                     if (startInput) startInput.value = data.work_start_time || '09:00';
-                    if (endInput) endInput.value = data.work_end_time || '17:00';
+                    if (endInput) endInput.value = data.work_end_time || '18:00';
+                    if (lunchStartInput) lunchStartInput.value = data.lunch_start_time || '12:00';
+                    if (lunchEndInput) lunchEndInput.value = data.lunch_end_time || '13:00';
+                    const hasLunch = (data.lunch_break_minutes !== undefined) ? (Number(data.lunch_break_minutes) > 0) : true;
+                    if (lunchCheck) lunchCheck.checked = hasLunch;
+                    KD.toggleLunchInputs(hasLunch);
                 }
             } catch (e) {}
         }
@@ -1746,38 +1759,91 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
         KD.openModal('workHoursModal', { focus: '#work_start_time_input' });
     };
 
+    KD.toggleLunchInputs = function (hasLunch) {
+        const row = el('lunchInputsRow');
+        const badge = el('lunchDurationBadge');
+        if (row) {
+            row.style.opacity = hasLunch ? '1' : '0.4';
+            row.style.pointerEvents = hasLunch ? 'auto' : 'none';
+        }
+        if (badge) {
+            badge.style.display = hasLunch ? 'inline-block' : 'none';
+        }
+    };
+
     KD.calculateWorkHoursPreview = function () {
         const start = el('work_start_time_input')?.value || '09:00';
-        const end = el('work_end_time_input')?.value || '17:00';
+        const end = el('work_end_time_input')?.value || '18:00';
+        const hasLunch = el('work_has_lunch_input')?.checked ?? true;
+        const lunchStart = el('lunch_start_time_input')?.value || '12:00';
+        const lunchEnd = el('lunch_end_time_input')?.value || '13:00';
+
         const calcEl = el('workHoursCalculated');
-        if (!calcEl) return;
+        const grossEl = el('grossHoursText');
+        const lunchEl = el('lunchDiscountText');
+        const badgeEl = el('lunchDurationBadge');
 
         const startParts = start.split(':').map(Number);
         const endParts = end.split(':').map(Number);
         const startM = (startParts[0] || 0) * 60 + (startParts[1] || 0);
         const endM = (endParts[0] || 0) * 60 + (endParts[1] || 0);
-        const diff = Math.max(0, endM - startM);
+        const grossDiff = Math.max(0, endM - startM);
 
-        calcEl.textContent = `${KD.formatMinutes(diff)} (${diff} min)`;
-        if (diff <= 0) {
-            calcEl.classList.add('text-rose-400');
-            calcEl.classList.remove('text-indigo-400');
-        } else {
-            calcEl.classList.remove('text-rose-400');
-            calcEl.classList.add('text-indigo-400');
+        let lunchDuration = 0;
+        if (hasLunch) {
+            const lStartParts = lunchStart.split(':').map(Number);
+            const lEndParts = lunchEnd.split(':').map(Number);
+            const lStartM = (lStartParts[0] || 0) * 60 + (lStartParts[1] || 0);
+            const lEndM = (lEndParts[0] || 0) * 60 + (lEndParts[1] || 0);
+            lunchDuration = Math.max(0, lEndM - lStartM);
+        }
+
+        const netDiff = Math.max(0, grossDiff - lunchDuration);
+
+        if (grossEl) grossEl.textContent = KD.formatMinutes(grossDiff);
+        if (lunchEl) lunchEl.textContent = lunchDuration > 0 ? `-${KD.formatMinutes(lunchDuration)}` : '0m';
+        if (badgeEl) badgeEl.textContent = lunchDuration > 0 ? `${KD.formatMinutes(lunchDuration)} de almoço` : 'Sem almoço';
+
+        if (calcEl) {
+            calcEl.textContent = `${KD.formatMinutes(netDiff)} (${netDiff} min)`;
+            if (netDiff <= 0) {
+                calcEl.classList.add('text-rose-400');
+                calcEl.classList.remove('text-indigo-400');
+            } else {
+                calcEl.classList.remove('text-rose-400');
+                calcEl.classList.add('text-indigo-400');
+            }
         }
     };
 
     KD.submitWorkHoursForm = async function (event) {
         event.preventDefault();
         const start = el('work_start_time_input')?.value || '09:00';
-        const end = el('work_end_time_input')?.value || '17:00';
+        const end = el('work_end_time_input')?.value || '18:00';
+        const hasLunch = el('work_has_lunch_input')?.checked ?? true;
+        const lunchStart = el('lunch_start_time_input')?.value || '12:00';
+        const lunchEnd = el('lunch_end_time_input')?.value || '13:00';
+
+        let lunchDuration = 0;
+        if (hasLunch) {
+            const lStartParts = lunchStart.split(':').map(Number);
+            const lEndParts = lunchEnd.split(':').map(Number);
+            const lStartM = (lStartParts[0] || 0) * 60 + (lStartParts[1] || 0);
+            const lEndM = (lEndParts[0] || 0) * 60 + (lEndParts[1] || 0);
+            lunchDuration = Math.max(0, lEndM - lStartM);
+        }
 
         try {
             const res = await fetch(KD.url('/api/preferencias'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ work_start_time: start, work_end_time: end }),
+                body: JSON.stringify({
+                    work_start_time: start,
+                    work_end_time: end,
+                    lunch_start_time: hasLunch ? lunchStart : '',
+                    lunch_end_time: hasLunch ? lunchEnd : '',
+                    lunch_break_minutes: lunchDuration,
+                }),
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.error || 'Erro ao salvar expediente.');
@@ -1786,17 +1852,22 @@ KD.openTaskForm = async function (taskId, stageId, initialTemplate = null, initi
                 KD.board.workHours = {
                     start: data.work_start_time,
                     end: data.work_end_time,
+                    lunchStart: data.lunch_start_time,
+                    lunchEnd: data.lunch_end_time,
+                    lunchMinutes: data.lunch_break_minutes,
                     capacityMinutes: data.work_capacity_minutes,
                 };
                 if (el('workHoursLabel')) {
                     const h = Math.round(data.work_capacity_minutes / 60);
-                    el('workHoursLabel').textContent = `${data.work_start_time.slice(0, 2)}h–${data.work_end_time.slice(0, 2)}h (${h}h)`;
+                    const lH = Math.round((data.lunch_break_minutes || 0) / 60);
+                    const lText = lH > 0 ? ` • ${lH}h almoço` : '';
+                    el('workHoursLabel').textContent = `${data.work_start_time.slice(0, 2)}h–${data.work_end_time.slice(0, 2)}h (${h}h${lText})`;
                 }
                 KD.renderBoard();
             }
 
             KD.closeModal('workHoursModal');
-            KD.toast('Horário de expediente salvo com sucesso!');
+            KD.toast('Horário de expediente e almoço salvos com sucesso!');
         } catch (err) {
             KD.toastError(err.message);
         }

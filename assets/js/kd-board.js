@@ -571,10 +571,10 @@ window.KD = window.KD || {};
         // Rótulo do botão de expediente
 
         if (el('workHoursLabel') && board.workHours) {
-
             const h = Math.round((board.workHours.capacityMinutes || 480) / 60);
-
-            el('workHoursLabel').textContent = `${(board.workHours.start || '09:00').slice(0, 2)}h–${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h)`;
+            const lH = Math.round((board.workHours.lunchMinutes || 0) / 60);
+            const lText = lH > 0 ? ` • ${lH}h almoço` : '';
+            el('workHoursLabel').textContent = `${(board.workHours.start || '09:00').slice(0, 2)}h–${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h${lText})`;h–${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h)`;
 
         }
 
@@ -822,15 +822,13 @@ window.KD = window.KD || {};
             board.allTags = data.all_tags || [];
 
             if (data.work_start_time && data.work_end_time) {
-
                 board.workHours = {
-
                     start: data.work_start_time,
-
                     end: data.work_end_time,
-
+                    lunchStart: data.lunch_start_time,
+                    lunchEnd: data.lunch_end_time,
+                    lunchMinutes: Number(data.lunch_break_minutes) || 0,
                     capacityMinutes: Number(data.work_capacity_minutes) || 480,
-
                 };
 
             }

@@ -756,18 +756,34 @@ try {
         ");
         $hiddenStmt->execute([':cutoff' => $cutoff]);
 
-        // Preferências de expediente e modo de visão do usuário logado
-        $userPrefStmt = $pdo->prepare("SELECT work_start_time, work_end_time, work_days, board_view_mode, visible_columns_json FROM users WHERE id = :id");
+        // Preferências de expediente e modo de visão do usuário logado (com horário de almoço)
+        $userPrefStmt = $pdo->prepare("SELECT work_start_time, work_end_time, lunch_start_time, lunch_end_time, lunch_break_minutes, work_days, board_view_mode, visible_columns_json FROM users WHERE id = :id");
         $userPrefStmt->execute([':id' => $user['id']]);
         $userPrefs = $userPrefStmt->fetch() ?: [];
 
         $wStart = $userPrefs['work_start_time'] ?? '09:00';
         $wEnd   = $userPrefs['work_end_time'] ?? '17:00';
+        $lStart = $userPrefs['lunch_start_time'] ?? '12:00';
+        $lEnd   = $userPrefs['lunch_end_time'] ?? '13:00';
+        $lBreak = isset($userPrefs['lunch_break_minutes']) ? (int)$userPrefs['lunch_break_minutes'] : 60;
+
         $startParts = explode(':', $wStart);
         $endParts   = explode(':', $wEnd);
         $startMins  = ((int)($startParts[0] ?? 9)) * 60 + ((int)($startParts[1] ?? 0));
         $endMins    = ((int)($endParts[0] ?? 17)) * 60 + ((int)($endParts[1] ?? 0));
-        $wCapacity  = max(60, $endMins - $startMins);
+        $grossMins  = max(60, $endMins - $startMins);
+
+        if (!empty($lStart) && !empty($lEnd) && $lBreak > 0) {
+            $lStartParts = explode(':', $lStart);
+            $lEndParts   = explode(':', $lEnd);
+            $lStartMins  = ((int)($lStartParts[0] ?? 12)) * 60 + ((int)($lStartParts[1] ?? 0));
+            $lEndMins    = ((int)($lEndParts[0] ?? 13)) * 60 + ((int)($lEndParts[1] ?? 0));
+            $lunchDuration = max(0, $lEndMins - $lStartMins);
+        } else {
+            $lunchDuration = max(0, $lBreak);
+        }
+
+        $wCapacity  = max(60, $grossMins - $lunchDuration);
 
         json_response([
             'success' => true,
@@ -780,6 +796,9 @@ try {
             'current_user_id' => (int)$user['id'],
             'work_start_time' => $wStart,
             'work_end_time' => $wEnd,
+            'lunch_start_time' => $lStart,
+            'lunch_end_time' => $lEnd,
+            'lunch_break_minutes' => $lunchDuration,
             'work_capacity_minutes' => $wCapacity,
             'work_days' => !empty($userPrefs['work_days']) ? explode(',', $userPrefs['work_days']) : ['1', '2', '3', '4', '5'],
             'board_view_mode' => $userPrefs['board_view_mode'] ?? 'status',
