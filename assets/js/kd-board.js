@@ -574,7 +574,7 @@ window.KD = window.KD || {};
             const h = Math.round((board.workHours.capacityMinutes || 480) / 60);
             const lH = Math.round((board.workHours.lunchMinutes || 0) / 60);
             const lText = lH > 0 ? ` • ${lH}h almoço` : '';
-            el('workHoursLabel').textContent = `${(board.workHours.start || '09:00').slice(0, 2)}h–${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h${lText})`;h–${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h)`;
+            el('workHoursLabel').textContent = `${(board.workHours.start || '09:00').slice(0, 2)}h–${(board.workHours.end || '17:00').slice(0, 2)}h (${h}h${lText})`;
 
         }
 
