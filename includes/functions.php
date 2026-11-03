@@ -464,23 +464,23 @@ function generate_recurring_series_occurrences(PDO $pdo, int $taskId, array $use
                 $targetCount = 60; // 60 dias continuos
                 break;
             case 'weekly':
-                $targetCount = 26; // 26 semanas (meio ano)
+                $targetCount = 52; // 52 semanas (1 ano completo no mínimo)
                 break;
             case 'biweekly':
-                $targetCount = 14; // 14 quinzenas (7 meses)
+                $targetCount = 26; // 26 quinzenas (1 ano completo)
                 break;
             case 'monthly':
                 $targetCount = 12; // 12 meses (1 ano completo)
                 break;
             case 'yearly':
-                $targetCount = 3;  // 3 anos
+                $targetCount = 5;  // 5 anos
                 break;
             case 'custom':
                 $cfg = !empty($recurrenceConfig) ? json_decode($recurrenceConfig, true) : [];
                 $targetCount = (($cfg['type'] ?? '') === 'weekdays') ? 60 : 24;
                 break;
             default:
-                $targetCount = 26;
+                $targetCount = 52;
                 break;
         }
     }
