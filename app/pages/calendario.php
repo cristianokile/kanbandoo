@@ -101,30 +101,38 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
     <div id="calendarContainer" class="flex-1 pb-8 min-h-[500px]">
         <!-- Tabela Mensal -->
         <div id="monthViewWrap" class="kd-glass rounded-2xl overflow-hidden border border-slate-800/80 shadow-2xl flex flex-col">
-            <!-- Cabeçalho dos Dias da Semana -->
-            <div class="grid grid-cols-7 border-b border-slate-800/80 bg-slate-950/60 text-center text-xs font-bold text-slate-400 uppercase tracking-wider py-2.5">
-                <div>Dom</div>
-                <div>Seg</div>
-                <div>Ter</div>
-                <div>Qua</div>
-                <div>Qui</div>
-                <div>Sex</div>
-                <div>Sáb</div>
-            </div>
+            <div class="overflow-x-auto w-full">
+                <div class="min-w-[580px] md:min-w-0">
+                    <!-- Cabeçalho dos Dias da Semana -->
+                    <div class="grid grid-cols-7 border-b border-slate-800/80 bg-slate-950/60 text-center text-xs font-bold text-slate-400 uppercase tracking-wider py-2.5">
+                        <div>Dom</div>
+                        <div>Seg</div>
+                        <div>Ter</div>
+                        <div>Qua</div>
+                        <div>Qui</div>
+                        <div>Sex</div>
+                        <div>Sáb</div>
+                    </div>
 
-            <!-- Grade de Células dos Dias -->
-            <div id="calendarGrid" class="grid grid-cols-7 gap-px bg-slate-800/40">
-                <!-- Preenchido via JavaScript -->
+                    <!-- Grade de Células dos Dias -->
+                    <div id="calendarGrid" class="grid grid-cols-7 gap-px bg-slate-800/40">
+                        <!-- Preenchido via JavaScript -->
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Visão Semanal -->
         <div id="weekViewWrap" class="kd-glass rounded-2xl overflow-hidden border border-slate-800/80 shadow-2xl flex flex-col" hidden>
-            <div id="weekHeader" class="grid grid-cols-7 border-b border-slate-800/80 bg-slate-950/60 text-center py-2.5">
-                <!-- Dias da semana preenchidos via JS -->
-            </div>
-            <div id="weekBody" class="grid grid-cols-7 gap-px bg-slate-800/40 min-h-[500px]">
-                <!-- Colunas da semana preenchidas via JS -->
+            <div class="overflow-x-auto w-full">
+                <div class="min-w-[640px] md:min-w-0">
+                    <div id="weekHeader" class="grid grid-cols-7 border-b border-slate-800/80 bg-slate-950/60 text-center py-2.5">
+                        <!-- Dias da semana preenchidos via JS -->
+                    </div>
+                    <div id="weekBody" class="grid grid-cols-7 gap-px bg-slate-800/40 min-h-[500px]">
+                        <!-- Colunas da semana preenchidas via JS -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -236,7 +244,11 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
     }
 
     function changeMonth(delta) {
-        currentDate.setMonth(currentDate.getMonth() + delta);
+        if (viewMode === 'week') {
+            currentDate.setDate(currentDate.getDate() + (delta * 7));
+        } else {
+            currentDate.setMonth(currentDate.getMonth() + delta);
+        }
         renderCalendar();
     }
 
@@ -293,7 +305,22 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
         const month = currentDate.getMonth();
 
         // Título do Cabeçalho
-        document.getElementById('calendarTitle').textContent = `${MONTH_NAMES[month]} de ${year}`;
+        if (viewMode === 'week') {
+            const curr = new Date(currentDate);
+            const dayOfWeek = curr.getDay();
+            const startOfWeek = new Date(curr.setDate(curr.getDate() - dayOfWeek));
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(endOfWeek.getDate() + 6);
+            const startMonth = MONTH_NAMES[startOfWeek.getMonth()];
+            const endMonth = MONTH_NAMES[endOfWeek.getMonth()];
+            if (startOfWeek.getMonth() === endOfWeek.getMonth()) {
+                document.getElementById('calendarTitle').textContent = `${startOfWeek.getDate()} a ${endOfWeek.getDate()} de ${startMonth} de ${year}`;
+            } else {
+                document.getElementById('calendarTitle').textContent = `${startOfWeek.getDate()} de ${startMonth} a ${endOfWeek.getDate()} de ${endMonth} de ${year}`;
+            }
+        } else {
+            document.getElementById('calendarTitle').textContent = `${MONTH_NAMES[month]} de ${year}`;
+        }
 
         if (viewMode === 'month') {
             renderMonthGrid(year, month);
@@ -528,7 +555,11 @@ if (!str_starts_with($publicAgendaUrl, 'http')) {
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        renderCalendar();
+        if (window.innerWidth < 768) {
+            setViewMode('week');
+        } else {
+            renderCalendar();
+        }
         loadCalendarEvents();
     });
 </script>

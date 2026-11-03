@@ -599,7 +599,6 @@ window.KD = window.KD || {};
         if (dragHint) dragHint.hidden = !board.groupByClient;
 
         // Atualizar controles mobile
-        const isWeek = (board.viewMode === 'weekdays');
         const mobileWeekWrap = el('mobileWeekNavWrap');
         const mobileWeekLabel = el('mobileWeekNavLabel');
         const mobileViewLabel = el('mobileViewLabel');
@@ -614,7 +613,7 @@ window.KD = window.KD || {};
         }
         if (mobileViewIcon) {
             mobileViewIcon.setAttribute('data-lucide', isWeek ? 'calendar-days' : 'columns');
-            if (window.lucide && el('mobileViewToggleBtn')) lucide.createIcons({ root: el('mobileViewToggleBtn') });
+            if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
         }
 
         const mobileBtnStatus = el('mobileBtnViewStatus');
@@ -902,9 +901,9 @@ window.KD = window.KD || {};
 
         if (!container) return;
 
-        container.innerHTML = Array.from({ length: 4 }, () => `
+        container.innerHTML = Array.from({ length: 4 }, (_, idx) => `
 
-            <div class="kd-col" aria-hidden="true">
+            <div class="kd-col ${idx === 0 ? "is-active-mobile" : ""}" aria-hidden="true">
 
                 <div class="kd-col__header">
 
@@ -934,7 +933,7 @@ window.KD = window.KD || {};
 
         container.innerHTML = `
 
-            <div class="kd-col" style="max-width:none">
+            <div class="kd-col is-active-mobile" style="max-width:none">
 
                 <div class="kd-col__empty" style="padding:2rem">
 

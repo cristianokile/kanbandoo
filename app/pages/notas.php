@@ -141,21 +141,32 @@ view_header('Notas & Conhecimento');
         </div>
     </div>
 
-    <!-- Barra Completa de Filtros (Clientes, Grupos, Conteudos, Periodo e Quem Criou) -->
+    <!-- Barra Completa de Filtros (Clientes, Grupos, Conteúdos, Período e Quem Criou) -->
     <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3.5 space-y-3 kd-glass shadow-sm relative z-30">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
-            
-            <!-- 1. Busca por Conteudo / Titulo -->
-            <div class="lg:col-span-4 relative">
+        <!-- Linha da Busca + Botão Filtros no Mobile -->
+        <div class="flex items-center gap-2">
+            <div class="relative flex-1">
                 <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
                 <input type="search" id="filterSearch" oninput="debounceNotesFilter()"
                        placeholder="Buscar por título, conteúdo ou palavras-chave..."
-                       class="kd-field pl-10" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+                       class="kd-field pl-10 w-full" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
             </div>
 
+            <!-- Botão de Expandir Filtros no Mobile (Estilo ClickUp / Trello) -->
+            <button type="button" onclick="toggleNotesFilters()" id="btnToggleNotesFilters"
+                    class="md:hidden flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-semibold text-slate-200 transition shadow-sm flex-shrink-0 active:bg-slate-800"
+                    title="Alternar filtros avançados">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4 text-indigo-400"></i>
+                <span>Filtros</span>
+                <span id="notesFilterBadge" class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" hidden></span>
+            </button>
+        </div>
+
+        <!-- Dropdowns de Filtro (No Desktop: grid direto; No Mobile: colapsado por padrão para tela limpa) -->
+        <div id="notesDropdownsWrap" class="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-center pt-2 md:pt-0 border-t border-slate-800/60 md:border-t-0">
             <!-- 2. Filtro por Cliente -->
             <div class="lg:col-span-2">
-                <select id="filterClient" onchange="loadNotes()" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+                <select id="filterClient" onchange="loadNotes(); updateNotesFilterBadge();" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
                     <option value="">Clientes: Todos</option>
                     <option value="none">Sem cliente (Gerais)</option>
                     <?php foreach ($clientsList as $cl): ?>
@@ -166,7 +177,7 @@ view_header('Notas & Conhecimento');
 
             <!-- 3. Filtro por Grupo -->
             <div class="lg:col-span-2">
-                <select id="filterGroup" onchange="loadNotes()" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+                <select id="filterGroup" onchange="loadNotes(); updateNotesFilterBadge();" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
                     <option value="">Grupos: Todos</option>
                     <option value="none">Sem grupo</option>
                     <?php foreach ($groupsList as $grp): ?>
@@ -179,7 +190,7 @@ view_header('Notas & Conhecimento');
 
             <!-- 4. Filtro por Periodo -->
             <div class="lg:col-span-2">
-                <select id="filterPeriod" onchange="loadNotes()" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+                <select id="filterPeriod" onchange="loadNotes(); updateNotesFilterBadge();" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
                     <option value="all">Período: Todo</option>
                     <option value="today">Criadas Hoje</option>
                     <option value="week">Últimos 7 dias</option>
@@ -189,14 +200,13 @@ view_header('Notas & Conhecimento');
 
             <!-- 5. Filtro por Quem Criou (Autor) -->
             <div class="lg:col-span-2">
-                <select id="filterAuthor" onchange="loadNotes()" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
+                <select id="filterAuthor" onchange="loadNotes(); updateNotesFilterBadge();" class="kd-field text-xs w-full kd-select-searchable" style="min-height:38px;padding-top:0.35rem;padding-bottom:0.35rem">
                     <option value="">Autor: Todos</option>
                     <?php foreach ($authorsList as $aut): ?>
                         <option value="<?= (int)$aut['id'] ?>"><?= e($aut['full_name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-
         </div>
 
         <!-- Indicador de Filtros Ativos e Limpar -->
@@ -439,6 +449,29 @@ function debounceNotesFilter() {
     filterTimeout = setTimeout(loadNotes, 250);
 }
 
+function toggleNotesFilters() {
+    const wrap = document.getElementById('notesDropdownsWrap');
+    if (!wrap) return;
+    const isHidden = wrap.classList.contains('hidden');
+    if (isHidden) {
+        wrap.classList.remove('hidden');
+        wrap.classList.add('grid');
+    } else {
+        wrap.classList.remove('grid');
+        wrap.classList.add('hidden');
+    }
+}
+
+function updateNotesFilterBadge() {
+    const clientId = document.getElementById('filterClient')?.value || '';
+    const groupId = document.getElementById('filterGroup')?.value || '';
+    const period = document.getElementById('filterPeriod')?.value || 'all';
+    const authorId = document.getElementById('filterAuthor')?.value || '';
+    const hasDropdownFilter = clientId !== '' || groupId !== '' || period !== 'all' || authorId !== '';
+    const badge = document.getElementById('notesFilterBadge');
+    if (badge) badge.hidden = !hasDropdownFilter;
+}
+
 function resetFilters() {
     document.getElementById('filterSearch').value = '';
     const fc = document.getElementById('filterClient');
@@ -449,6 +482,7 @@ function resetFilters() {
     if (fp) { fp.value = 'all'; fp.dispatchEvent(new Event('change')); }
     const fa = document.getElementById('filterAuthor');
     if (fa) { fa.value = ''; fa.dispatchEvent(new Event('change')); }
+    updateNotesFilterBadge();
     loadNotes();
 }
 
