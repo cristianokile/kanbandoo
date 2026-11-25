@@ -426,6 +426,10 @@ $members = $pdo->query("SELECT id, full_name FROM users ORDER BY full_name ASC")
             <button type="button" onclick="KD.openTrashModal(); KD.toggleMobileBoardOptions(false);" class="w-full py-2 px-3 rounded-xl text-xs font-medium text-red-400 hover:text-red-300 flex items-center gap-2.5 text-left active:bg-slate-800">
                 <i data-lucide="trash-2" class="w-4 h-4"></i> Lixeira de Tarefas
             </button>
+            <button type="button" onclick="KD.openResetTasksModal(); KD.toggleMobileBoardOptions(false);" class="w-full py-2 px-3 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-300 flex items-center justify-between text-left active:bg-slate-800">
+                <span class="flex items-center gap-2.5"><i data-lucide="alert-triangle" class="w-4 h-4"></i> Resetar Tarefas</span>
+                <span class="text-[10px] text-rose-500/80 font-bold">Zerar</span>
+            </button>
         </div>
     </div>
 
