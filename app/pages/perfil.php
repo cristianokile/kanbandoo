@@ -331,6 +331,104 @@ view_header('Meu Perfil');
         }
     </script>
 
+    <!-- Chave de API (MCP / Agentes de IA) -->
+    <?php
+        $userApiToken = $user['api_token'] ?? '';
+        if ($userApiToken === '') {
+            try {
+                $userApiToken = 'kd_' . bin2hex(random_bytes(32));
+                $pdo->prepare('UPDATE users SET api_token = :tok WHERE id = :id')->execute([':tok' => $userApiToken, ':id' => $user['id']]);
+            } catch (Throwable $e) {
+                $userApiToken = '';
+            }
+        }
+    ?>
+    <div class="mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+            <div class="flex items-start gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-violet-500/15 text-violet-400 border border-violet-500/30 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="bot" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-base font-bold text-white">Chave de API (Agentes de IA &amp; MCP)</h3>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30">INTEGRAÇÃO</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1 max-w-xl">
+                        Use este token pessoal para conectar seu agente (Antigravity, Claude, MCP ou n8n) ao KanbanDoo para ler e criar tarefas, comentários e notas automaticamente.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-5 space-y-3">
+            <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Seu Token Pessoal (Bearer / X-API-Key)</label>
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input type="password" id="userApiTokenInput" readonly value="<?= e($userApiToken) ?>"
+                       class="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-violet-300 font-mono text-xs focus:outline-none select-all">
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="toggleApiTokenVis()" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="eye" class="w-4 h-4"></i>
+                        <span id="toggleApiTokenLabel">Mostrar</span>
+                    </button>
+                    <button type="button" onclick="copyUserApiToken()" class="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition shadow-lg shadow-violet-600/25 flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span>Copiar</span>
+                    </button>
+                    <button type="button" onclick="regenerateUserApiToken()" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-600/20 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/30 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer" title="Revoga o token atual e gera um novo">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span>Regenerar</span>
+                    </button>
+                </div>
+            </div>
+            <p class="text-[11px] text-slate-500">
+                Endpoint da API: <code class="text-slate-300"><?= e((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'kile.com.br') . url('/api/agent')) ?></code>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        function toggleApiTokenVis() {
+            const inp = document.getElementById('userApiTokenInput');
+            const lbl = document.getElementById('toggleApiTokenLabel');
+            if (!inp) return;
+            if (inp.type === 'password') {
+                inp.type = 'text';
+                if (lbl) lbl.textContent = 'Ocultar';
+            } else {
+                inp.type = 'password';
+                if (lbl) lbl.textContent = 'Mostrar';
+            }
+        }
+        function copyUserApiToken() {
+            const inp = document.getElementById('userApiTokenInput');
+            if (!inp || !inp.value) return;
+            navigator.clipboard.writeText(inp.value).then(() => {
+                alert('Token copiado com sucesso!');
+            });
+        }
+        async function regenerateUserApiToken() {
+            if (!confirm('Regenerar a Chave de API? O token anterior deixará de funcionar imediatamente no MCP/n8n.')) return;
+            try {
+                const res = await fetch('<?= url("/api/agent") ?>', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'regenerate_api_token' })
+                });
+                const data = await res.json();
+                if (data.ok && data.api_token) {
+                    const inp = document.getElementById('userApiTokenInput');
+                    if (inp) { inp.value = data.api_token; inp.type = 'text'; }
+                    alert('Nova Chave de API gerada com sucesso! Atualize seu mcp_config.json se necessário.');
+                } else {
+                    alert(data.error || 'Erro ao regenerar chave.');
+                }
+            } catch (e) {
+                alert('Falha na comunicação com o servidor.');
+            }
+        }
+    </script>
+
     <!-- Segurança & Verificação em 2 Passos (2FA) -->
     <div class="mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">

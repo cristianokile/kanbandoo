@@ -229,6 +229,11 @@ function kanbandoo_migrations(string $driver): array
             "ALTER TABLE users ADD COLUMN lunch_end_time VARCHAR(10) DEFAULT '13:00'",
             "ALTER TABLE users ADD COLUMN lunch_break_minutes $int DEFAULT 60",
         ],
+
+        // Chave de API pessoal para integração com Agentes de IA (MCP / REST)
+        '017_agent_api_token' => [
+            "ALTER TABLE users ADD COLUMN api_token VARCHAR(128) DEFAULT NULL",
+        ],
     ];
 }
 

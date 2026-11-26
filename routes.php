@@ -45,6 +45,7 @@ $router->add('/api/notas',        'api/notas.php');
 $router->add('/api/preferencias', 'api/preferencias.php', ['methods' => ['POST']]);
 $router->add('/api/calendario',   'api/calendario.php');
 $router->add('/api/portal',       'api/portal.php', ['auth' => false]);
+$router->add('/api/agent',        'api/agent.php',  ['auth' => false]);
 
 // -------- Endereços antigos (mantêm links e favoritos funcionando) --------
 $router->legacy('/index.php',    '/tarefas');
